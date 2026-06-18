@@ -1,1 +1,3 @@
-from .build_features import build_features
+from .build_features import TSFreshFeatureExtractor
+
+__all__ = ["TSFreshFeatureExtractor"]

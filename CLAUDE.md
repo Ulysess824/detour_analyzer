@@ -17,6 +17,7 @@ Peak definition: `consumo_real > 2.0 * (forecast_mensual / 20)`
 - No emojis anywhere — not in print statements, docstrings, or markdown.
 - Thousands separator with underscore: `1_000`, not `1000`.
 - Every class/method modification requires a usage example in chat and a synthetic-data test script.
+- Every public function/method that takes a DataFrame must accept **both polars and pandas** (convert to polars internally; round-trip the input flavour on return). Reference pattern: `to_polars`/`is_pandas` in `src/features/lag_selection/base.py`.
 - Never use random train/test splits — always **chronological walk-forward** splits.
 - Every model must beat the lag-1 persistence baseline on MAE and WAPE.
 

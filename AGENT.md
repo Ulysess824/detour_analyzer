@@ -13,6 +13,10 @@ This document details the guidelines, rules, and process standards for modifying
   - Every modification to a class or method must include a usage example script in the chat.
   - Create a simple test script with synthetic data for any modified class/method.
   - After debugging, remove any temporary debugging scripts.
+- **DataFrame interoperability**:
+  - Every public function or method that takes a DataFrame must accept both `polars` and `pandas` DataFrames.
+  - Convert to polars internally at the entry point (use the `to_polars` / `is_pandas` helpers in `src/features/lag_selection/base.py` as the reference pattern).
+  - When the function returns a DataFrame, round-trip the input flavour: return pandas if the caller passed pandas, otherwise polars.
 
 ## Statistical and Validation Rigor
 
