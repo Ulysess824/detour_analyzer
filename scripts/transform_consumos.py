@@ -9,7 +9,9 @@ Input layout (RESULT sheet):
     - Row 8:  identifier headers (Sales Region, Customer, Customer name,
               Material, Material description).
     - Row 9+: one row per (Sales Region, Customer, Material) with the daily
-              consumption value in each date column.
+              consumption value in each date column. "sku" is taken from the
+              Material description column (e.g. "K/01/200gsm/1800mm/1200-1400"),
+              not the numeric Material code -- verified unique per planta.
     - Last 2 rows: "Result" / "Overall Result" subtotals, excluded from output.
 
 Rows with no consumption value for a given date are dropped (not filled with 0).
@@ -37,7 +39,7 @@ DATE_ROW = 7
 FIRST_DATA_ROW = 9
 FIRST_DATE_COL = 6
 PLANTA_COL = 2
-SKU_COL = 4
+SKU_COL = 5  # Material description (e.g. "K/01/200gsm/1800mm/1200-1400"), unique per planta
 
 
 def _parse_date(value: object) -> datetime | None:
