@@ -7,7 +7,8 @@ Models:
     1. Naive lag-1 (persistence baseline).
     2. Croston's method (classic intermittent-demand model, fit per series).
     3. Hurdle / two-part model (pooled logistic occurrence + log-linear
-       magnitude regression, fit once across the whole panel).
+       magnitude regression, fit once across the whole panel, with a
+       per-planta dummy so the baseline shifts by plant).
 
 Each observed row is treated as one time period in sequence (gaps from
 missing/no-report days are not reconstructed on the calendar) -- a
@@ -93,16 +94,22 @@ def hurdle_forecast(df: pd.DataFrame, train_mask: pd.Series) -> pd.Series:
     r"""
     Model 3: pooled two-part model, fit once on all training rows with a lag_1.
 
-    *   Part A: logistic regression P(consumo > 0) on [lag_1, roll_mean_3].
+    *   Features: [lag_1, roll_mean_3] plus one dummy per planta, so the model can
+        shift its baseline occurrence/magnitude per plant instead of pooling every
+        series into a single distribution.
+    *   Part A: logistic regression P(consumo > 0) on those features.
     *   Part B: linear regression of log1p(consumo) given consumo > 0, same features.
     *   Final forecast = P(consumo > 0) * E[consumo | consumo > 0].
     *
     """
-    feature_cols = ["lag_1", "roll_mean_3"]
-    valid = df[feature_cols].notna().all(axis=1)
+    numeric_cols = ["lag_1", "roll_mean_3"]
+    planta_dummies = pd.get_dummies(df["planta"], prefix="planta")
+    features = pd.concat([df[numeric_cols], planta_dummies], axis=1)
+    feature_cols = list(features.columns)
+    valid = df[numeric_cols].notna().all(axis=1)
 
     train_idx = df.index[train_mask & valid]
-    x_train = df.loc[train_idx, feature_cols].to_numpy()
+    x_train = features.loc[train_idx, feature_cols].to_numpy()
     y_train = df.loc[train_idx, "consumo"].to_numpy()
     is_positive = y_train > 0
 
@@ -114,7 +121,7 @@ def hurdle_forecast(df: pd.DataFrame, train_mask: pd.Series) -> pd.Series:
 
     out = pd.Series(np.nan, index=df.index)
     score_idx = df.index[valid]
-    x_all = df.loc[score_idx, feature_cols].to_numpy()
+    x_all = features.loc[score_idx, feature_cols].to_numpy()
 
     p_positive = occurrence_model.predict_proba(x_all)[:, 1]
     magnitude = np.expm1(magnitude_model.predict(x_all))
