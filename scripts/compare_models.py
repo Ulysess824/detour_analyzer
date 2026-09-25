@@ -11,8 +11,11 @@ Models:
        dummies and calendar covariates: day of month, days to end of month,
        day of week, month and quarter).
 
-Models 1 and 2 are univariate by construction and take no covariates; only the
-hurdle model consumes the calendar features.
+    4. Global LightGBM with a Tweedie objective (cross-learning across every
+       series; series identity enters via train-only level features).
+
+Models 1 and 2 are univariate by construction and take no covariates; the hurdle
+and LightGBM models consume the calendar and series-level features.
 
 Each observed row is treated as one time period in sequence (gaps from
 missing/no-report days are not reconstructed on the calendar) -- a
@@ -46,6 +49,59 @@ def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     df["lag_1"] = g.shift(1)
     df["roll_mean_3"] = g.transform(lambda s: s.shift(1).rolling(3, min_periods=1).mean())
     return df
+
+
+def add_recency_feature(df: pd.DataFrame) -> pd.DataFrame:
+    r"""
+    Add periods_since_positive: observations elapsed since the last positive consumption.
+
+    *   Causal by construction: the value on row t reflects only rows strictly before t,
+        so it can be computed over train and test alike without leakage.
+    *
+    """
+
+    def _since(values: np.ndarray) -> np.ndarray:
+        out = np.full(len(values), np.nan)
+        since = np.nan
+        for i, v in enumerate(values):
+            out[i] = since
+            if v > 0:
+                since = 1.0
+            elif not np.isnan(since):
+                since += 1.0
+        return out
+
+    df = df.copy()
+    df["periods_since_positive"] = df.groupby(GROUP_COLS)["consumo"].transform(
+        lambda s: pd.Series(_since(s.to_numpy()), index=s.index)
+    )
+    return df
+
+
+def add_series_stats(df: pd.DataFrame, train_mask: pd.Series) -> pd.DataFrame:
+    r"""
+    Attach per-series level features, computed on TRAIN ROWS ONLY (no leakage).
+
+    *   These give the model the series identity that the hurdle model lacked: its
+        typical level, how often it consumes at all, and how erratic it is.
+    *   Series absent from train fall back to the train-wide averages.
+    *
+    """
+    train = df[train_mask]
+    g = train.groupby(GROUP_COLS)["consumo"]
+    stats = pd.DataFrame(
+        {
+            "sku_mean": g.mean(),
+            "sku_std": g.std(),
+            "sku_max": g.max(),
+            "sku_occurrence_rate": g.apply(lambda s: (s > 0).mean()),
+            "sku_median_positive": g.apply(lambda s: s[s > 0].median()),
+        }
+    )
+    stats["sku_cv"] = stats["sku_std"] / stats["sku_mean"].replace(0.0, np.nan)
+
+    out = df.merge(stats, on=GROUP_COLS, how="left")
+    return out.fillna({col: stats[col].mean() for col in stats.columns})
 
 
 def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -153,6 +209,84 @@ def hurdle_forecast(df: pd.DataFrame, train_mask: pd.Series) -> pd.Series:
     return out
 
 
+LGBM_FEATURES = [
+    "lag_1",
+    "roll_mean_3",
+    "periods_since_positive",
+    "sku_mean",
+    "sku_std",
+    "sku_max",
+    "sku_occurrence_rate",
+    "sku_median_positive",
+    "sku_cv",
+    "day_of_month",
+    "days_to_end_of_month",
+    "day_of_week",
+    "month",
+    "quarter",
+    "planta_code",
+]
+
+
+def lgbm_tweedie_forecast(
+    df: pd.DataFrame, train_mask: pd.Series, val_days: int = 21
+) -> tuple[pd.Series, pd.DataFrame]:
+    r"""
+    Model 4: one global LightGBM with a Tweedie objective across every series.
+
+    *   Tweedie fits continuous non-negative data with a point mass at zero, which is
+        what daily consumption looks like here (16 pct zeros on average).
+    *   Cross-learning: a single model for all series; series identity enters through
+        the train-only level features rather than 1_424 dummies.
+    *   Early stopping uses the last val_days of train as a chronological validation
+        slice, never a random split.
+    *
+    """
+    import lightgbm as lgb
+
+    df = df.copy()
+    df["planta_code"] = df["planta"].astype("category").cat.codes
+
+    valid = df[LGBM_FEATURES].notna().all(axis=1)
+    train_idx = df.index[train_mask & valid]
+
+    split_date = df.loc[train_idx, "fecha"].max() - pd.Timedelta(days=val_days)
+    fit_idx = train_idx[df.loc[train_idx, "fecha"] <= split_date]
+    val_idx = train_idx[df.loc[train_idx, "fecha"] > split_date]
+
+    model = lgb.LGBMRegressor(
+        objective="tweedie",
+        tweedie_variance_power=1.2,
+        n_estimators=2_000,
+        learning_rate=0.05,
+        num_leaves=31,
+        min_child_samples=50,
+        subsample=0.8,
+        subsample_freq=1,
+        colsample_bytree=0.8,
+        verbose=-1,
+    )
+    model.fit(
+        df.loc[fit_idx, LGBM_FEATURES],
+        df.loc[fit_idx, "consumo"],
+        eval_X=df.loc[val_idx, LGBM_FEATURES],
+        eval_y=df.loc[val_idx, "consumo"],
+        eval_metric="mae",
+        categorical_feature=["planta_code"],
+        callbacks=[lgb.early_stopping(100, verbose=False)],
+    )
+
+    out = pd.Series(np.nan, index=df.index)
+    score_idx = df.index[valid]
+    out.loc[score_idx] = model.predict(df.loc[score_idx, LGBM_FEATURES])
+
+    importance = pd.DataFrame(
+        {"feature": LGBM_FEATURES, "gain": model.booster_.feature_importance("gain")}
+    ).sort_values("gain", ascending=False)
+    importance["gain_pct"] = (importance["gain"] / importance["gain"].sum() * 100).round(1)
+    return out, importance
+
+
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     err = y_true - y_pred
     mae = np.mean(np.abs(err))
@@ -171,13 +305,16 @@ def main() -> None:
     df = load(args.input)
     df = add_lag_features(df)
     df = add_calendar_features(df)
+    df = add_recency_feature(df)
     cutoff = pd.Timestamp(args.cutoff)
+    df = add_series_stats(df, df["fecha"] <= cutoff)
     train_mask = df["fecha"] <= cutoff
     test_mask = df["fecha"] > cutoff
 
     df["pred_naive"] = naive_lag1_forecast(df)
     df["pred_croston"] = croston_forecast(df)
     df["pred_hurdle"] = hurdle_forecast(df, train_mask)
+    df["pred_lgbm"], importance = lgbm_tweedie_forecast(df, train_mask)
 
     print(f"train rows: {train_mask.sum():_} | test rows: {test_mask.sum():_} | cutoff: {cutoff.date()}")
     print()
@@ -187,6 +324,7 @@ def main() -> None:
         ("naive_lag1", "pred_naive"),
         ("croston", "pred_croston"),
         ("hurdle", "pred_hurdle"),
+        ("lgbm_tweedie", "pred_lgbm"),
     ]:
         test_df = df.loc[test_mask, ["consumo", pred_col]].dropna()
         metrics = compute_metrics(test_df["consumo"].to_numpy(), test_df[pred_col].to_numpy())
@@ -197,6 +335,9 @@ def main() -> None:
     baseline_mae = results_df.loc["naive_lag1", "mae"]
     results_df["mae_lift_pct"] = ((baseline_mae - results_df["mae"]) / baseline_mae * 100).round(1)
     print(results_df.round(4))
+    print()
+    print("LightGBM feature importance (gain):")
+    print(importance.to_string(index=False))
 
 
 if __name__ == "__main__":
