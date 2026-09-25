@@ -13,6 +13,9 @@ Input layout (RESULT sheet):
     - Last 2 rows: "Result" / "Overall Result" subtotals, excluded from output.
 
 Rows with no consumption value for a given date are dropped (not filled with 0).
+Negative values (stock return / partial-consumption corrections, since stock is
+not modeled here) are clipped to 0 rather than dropped, to keep the daily series
+continuous for downstream lag/rolling features.
 
 Requires: openpyxl (pip install openpyxl)
 
@@ -71,7 +74,8 @@ def transform(input_path: Path) -> list[tuple[str, str, str, float]]:
             consumo = row[col_idx - 1]
             if consumo is None:
                 continue
-            records.append((str(planta), str(sku), fecha.strftime("%Y-%m-%d"), float(consumo)))
+            consumo = max(float(consumo), 0.0)
+            records.append((str(planta), str(sku), fecha.strftime("%Y-%m-%d"), consumo))
 
     records.sort(key=lambda r: (r[0], r[1], r[2]))
     return records
