@@ -7,8 +7,12 @@ Models:
     1. Naive lag-1 (persistence baseline).
     2. Croston's method (classic intermittent-demand model, fit per series).
     3. Hurdle / two-part model (pooled logistic occurrence + log-linear
-       magnitude regression, fit once across the whole panel, with a
-       per-planta dummy so the baseline shifts by plant).
+       magnitude regression, fit once across the whole panel, with planta
+       dummies and calendar covariates: day of month, days to end of month,
+       day of week, month and quarter).
+
+Models 1 and 2 are univariate by construction and take no covariates; only the
+hurdle model consumes the calendar features.
 
 Each observed row is treated as one time period in sequence (gaps from
 missing/no-report days are not reconstructed on the calendar) -- a
@@ -41,6 +45,19 @@ def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     g = df.groupby(GROUP_COLS)["consumo"]
     df["lag_1"] = g.shift(1)
     df["roll_mean_3"] = g.transform(lambda s: s.shift(1).rolling(3, min_periods=1).mean())
+    return df
+
+
+def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
+    r"""Add calendar covariates derived from fecha (no lookahead: the date is known upfront)."""
+    df = df.copy()
+    df["day_of_month"] = df["fecha"].dt.day
+    df["days_to_end_of_month"] = (
+        df["fecha"] + pd.offsets.MonthEnd(0) - df["fecha"]
+    ).dt.days
+    df["day_of_week"] = df["fecha"].dt.dayofweek
+    df["month"] = df["fecha"].dt.month
+    df["quarter"] = df["fecha"].dt.quarter
     return df
 
 
@@ -94,17 +111,24 @@ def hurdle_forecast(df: pd.DataFrame, train_mask: pd.Series) -> pd.Series:
     r"""
     Model 3: pooled two-part model, fit once on all training rows with a lag_1.
 
-    *   Features: [lag_1, roll_mean_3] plus one dummy per planta, so the model can
-        shift its baseline occurrence/magnitude per plant instead of pooling every
-        series into a single distribution.
+    *   Features: [lag_1, roll_mean_3, day_of_month, days_to_end_of_month] plus
+        dummies for planta, day_of_week, month and quarter.
     *   Part A: logistic regression P(consumo > 0) on those features.
     *   Part B: linear regression of log1p(consumo) given consumo > 0, same features.
     *   Final forecast = P(consumo > 0) * E[consumo | consumo > 0].
     *
     """
-    numeric_cols = ["lag_1", "roll_mean_3"]
-    planta_dummies = pd.get_dummies(df["planta"], prefix="planta")
-    features = pd.concat([df[numeric_cols], planta_dummies], axis=1)
+    numeric_cols = ["lag_1", "roll_mean_3", "day_of_month", "days_to_end_of_month"]
+    features = pd.concat(
+        [
+            df[numeric_cols],
+            pd.get_dummies(df["planta"], prefix="planta"),
+            pd.get_dummies(df["day_of_week"], prefix="dow"),
+            pd.get_dummies(df["month"], prefix="month"),
+            pd.get_dummies(df["quarter"], prefix="quarter"),
+        ],
+        axis=1,
+    )
     feature_cols = list(features.columns)
     valid = df[numeric_cols].notna().all(axis=1)
 
@@ -146,6 +170,7 @@ def main() -> None:
 
     df = load(args.input)
     df = add_lag_features(df)
+    df = add_calendar_features(df)
     cutoff = pd.Timestamp(args.cutoff)
     train_mask = df["fecha"] <= cutoff
     test_mask = df["fecha"] > cutoff
