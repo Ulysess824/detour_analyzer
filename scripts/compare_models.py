@@ -13,7 +13,8 @@ Models:
 
     4. Global LightGBM with a Tweedie objective (cross-learning across every
        series; series identity enters via train-only level features).
-    5. Per-series ARIMA with AIC order selection, rolling one-step-ahead.
+    5. Global XGBoost with the same Tweedie objective and feature set as (4).
+    6. Per-series ARIMA with AIC order selection, rolling one-step-ahead.
 
 Models 1 and 2 are univariate by construction and take no covariates; the hurdle
 and LightGBM models consume the calendar and series-level features.
@@ -210,6 +211,57 @@ def hurdle_forecast(df: pd.DataFrame, train_mask: pd.Series) -> pd.Series:
     return out
 
 
+def xgboost_forecast(df: pd.DataFrame, train_mask: pd.Series, val_days: int = 21) -> pd.Series:
+    r"""
+    Model 6: global XGBoost, same features and Tweedie objective as the LightGBM model.
+
+    *   Same family as LightGBM (gradient-boosted trees), included so the comparison
+        does not rest on a single boosting implementation.
+    *   Validation slice and early stopping follow the same chronological rules.
+    *
+    """
+    import xgboost as xgb
+
+    df = df.copy()
+    df["planta_code"] = df["planta"].astype("category").cat.codes
+
+    valid = df[LGBM_FEATURES].notna().all(axis=1)
+    train_idx = df.index[train_mask & valid]
+
+    train_dates = df.loc[train_idx, "fecha"]
+    span_days = (train_dates.max() - train_dates.min()).days
+    effective_val_days = min(val_days, max(1, span_days // 5))
+    split_date = train_dates.max() - pd.Timedelta(days=effective_val_days)
+    fit_idx = train_idx[train_dates <= split_date]
+    val_idx = train_idx[train_dates > split_date]
+
+    use_early_stopping = len(fit_idx) > 0 and len(val_idx) > 0
+    if not use_early_stopping:
+        fit_idx = train_idx
+
+    model = xgb.XGBRegressor(
+        objective="reg:tweedie",
+        tweedie_variance_power=1.2,
+        n_estimators=2_000 if use_early_stopping else 300,
+        learning_rate=0.05,
+        max_depth=6,
+        min_child_weight=50,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        early_stopping_rounds=100 if use_early_stopping else None,
+        verbosity=0,
+    )
+    fit_kwargs: dict = {"verbose": False}
+    if use_early_stopping:
+        fit_kwargs["eval_set"] = [(df.loc[val_idx, LGBM_FEATURES], df.loc[val_idx, "consumo"])]
+    model.fit(df.loc[fit_idx, LGBM_FEATURES], df.loc[fit_idx, "consumo"], **fit_kwargs)
+
+    out = pd.Series(np.nan, index=df.index)
+    score_idx = df.index[valid]
+    out.loc[score_idx] = np.clip(model.predict(df.loc[score_idx, LGBM_FEATURES]), 0.0, None)
+    return out
+
+
 ARIMA_ORDERS = [(0, 0, 0), (1, 0, 0), (0, 0, 1), (1, 0, 1), (2, 0, 0)]
 
 
@@ -390,6 +442,7 @@ def main() -> None:
     df["pred_croston"] = croston_forecast(df)
     df["pred_hurdle"] = hurdle_forecast(df, train_mask)
     df["pred_lgbm"], importance = lgbm_tweedie_forecast(df, train_mask)
+    df["pred_xgb"] = xgboost_forecast(df, train_mask)
     df["pred_arima"], arima_orders = arima_forecast(df, train_mask)
 
     print(f"train rows: {train_mask.sum():_} | test rows: {test_mask.sum():_} | cutoff: {cutoff.date()}")
@@ -401,6 +454,7 @@ def main() -> None:
         ("croston", "pred_croston"),
         ("hurdle", "pred_hurdle"),
         ("lgbm_tweedie", "pred_lgbm"),
+        ("xgboost_tweedie", "pred_xgb"),
         ("arima", "pred_arima"),
     ]:
         test_df = df.loc[test_mask, ["consumo", pred_col]].dropna()
@@ -414,13 +468,21 @@ def main() -> None:
     print(_ranked(results_df))
 
     # ARIMA skips short series, so repeat the comparison on the rows it did cover.
-    pred_cols = ["pred_naive", "pred_croston", "pred_hurdle", "pred_lgbm", "pred_arima"]
+    pred_cols = [
+        "pred_naive",
+        "pred_croston",
+        "pred_hurdle",
+        "pred_lgbm",
+        "pred_xgb",
+        "pred_arima",
+    ]
     common = df.loc[test_mask, ["consumo", *pred_cols]].dropna()
     print()
     print(f"Same-rows comparison (n={len(common):_}, where every model has a prediction):")
     common_rows = []
     for model_name, pred_col in zip(
-        ["naive_lag1", "croston", "hurdle", "lgbm_tweedie", "arima"], pred_cols
+        ["naive_lag1", "croston", "hurdle", "lgbm_tweedie", "xgboost_tweedie", "arima"],
+        pred_cols,
     ):
         m = compute_metrics(common["consumo"].to_numpy(), common[pred_col].to_numpy())
         m["model"] = model_name
