@@ -13,6 +13,7 @@ Models:
 
     4. Global LightGBM with a Tweedie objective (cross-learning across every
        series; series identity enters via train-only level features).
+    5. Per-series ARIMA with AIC order selection, rolling one-step-ahead.
 
 Models 1 and 2 are univariate by construction and take no covariates; the hurdle
 and LightGBM models consume the calendar and series-level features.
@@ -209,6 +210,64 @@ def hurdle_forecast(df: pd.DataFrame, train_mask: pd.Series) -> pd.Series:
     return out
 
 
+ARIMA_ORDERS = [(0, 0, 0), (1, 0, 0), (0, 0, 1), (1, 0, 1), (2, 0, 0)]
+
+
+def arima_forecast(
+    df: pd.DataFrame, train_mask: pd.Series, min_train_obs: int = 30
+) -> tuple[pd.Series, pd.Series]:
+    r"""
+    Model 5: per-series ARIMA with AIC order selection over a small grid.
+
+    *   Rolling one-step-ahead on test: parameters are estimated on train only, then
+        the test observations are appended without refitting, so each prediction sees
+        the same information the other h=1 models do.
+    *   Series with fewer than min_train_obs training points are skipped (left NaN).
+    *   Returns (predictions, selected order per series).
+    *
+    """
+    import warnings
+
+    from statsmodels.tsa.arima.model import ARIMA
+
+    out = pd.Series(np.nan, index=df.index)
+    chosen: dict[tuple, str] = {}
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for keys, g in df.groupby(GROUP_COLS):
+            g = g.sort_values("fecha")
+            is_train = train_mask.loc[g.index]
+            y_train = g.loc[is_train, "consumo"].to_numpy()
+            test_idx = g.index[~is_train]
+            if len(y_train) < min_train_obs or len(test_idx) == 0:
+                continue
+
+            best_aic, best_res, best_order = np.inf, None, None
+            for order in ARIMA_ORDERS:
+                try:
+                    res = ARIMA(y_train, order=order).fit()
+                except Exception:
+                    continue
+                if np.isfinite(res.aic) and res.aic < best_aic:
+                    best_aic, best_res, best_order = res.aic, res, order
+            if best_res is None:
+                continue
+
+            chosen[keys] = str(best_order)
+            y_test = df.loc[test_idx, "consumo"].to_numpy()
+            try:
+                extended = best_res.append(y_test, refit=False)
+                preds = extended.predict(
+                    start=len(y_train), end=len(y_train) + len(y_test) - 1
+                )
+            except Exception:
+                preds = np.full(len(y_test), float(np.mean(y_train)))
+            out.loc[test_idx] = np.clip(np.asarray(preds), 0.0, None)
+
+    return out, pd.Series(chosen, name="order")
+
+
 LGBM_FEATURES = [
     "lag_1",
     "roll_mean_3",
@@ -324,6 +383,7 @@ def main() -> None:
     df["pred_croston"] = croston_forecast(df)
     df["pred_hurdle"] = hurdle_forecast(df, train_mask)
     df["pred_lgbm"], importance = lgbm_tweedie_forecast(df, train_mask)
+    df["pred_arima"], arima_orders = arima_forecast(df, train_mask)
 
     print(f"train rows: {train_mask.sum():_} | test rows: {test_mask.sum():_} | cutoff: {cutoff.date()}")
     print()
@@ -334,6 +394,7 @@ def main() -> None:
         ("croston", "pred_croston"),
         ("hurdle", "pred_hurdle"),
         ("lgbm_tweedie", "pred_lgbm"),
+        ("arima", "pred_arima"),
     ]:
         test_df = df.loc[test_mask, ["consumo", pred_col]].dropna()
         metrics = compute_metrics(test_df["consumo"].to_numpy(), test_df[pred_col].to_numpy())
@@ -344,6 +405,25 @@ def main() -> None:
     baseline_mae = results_df.loc["naive_lag1", "mae"]
     results_df["mae_lift_pct"] = ((baseline_mae - results_df["mae"]) / baseline_mae * 100).round(1)
     print(results_df.round(4))
+
+    # ARIMA skips short series, so repeat the comparison on the rows it did cover.
+    pred_cols = ["pred_naive", "pred_croston", "pred_hurdle", "pred_lgbm", "pred_arima"]
+    common = df.loc[test_mask, ["consumo", *pred_cols]].dropna()
+    print()
+    print(f"Same-rows comparison (n={len(common):_}, where every model has a prediction):")
+    common_rows = []
+    for model_name, pred_col in zip(
+        ["naive_lag1", "croston", "hurdle", "lgbm_tweedie", "arima"], pred_cols
+    ):
+        m = compute_metrics(common["consumo"].to_numpy(), common[pred_col].to_numpy())
+        m["model"] = model_name
+        common_rows.append(m)
+    common_df = pd.DataFrame(common_rows).set_index("model")[["mae", "rmse", "wape", "bias"]]
+    print(common_df.round(4))
+
+    print()
+    print("ARIMA order chosen by AIC:")
+    print(arima_orders.value_counts().to_string())
     print()
     print("LightGBM feature importance (gain):")
     print(importance.to_string(index=False))
