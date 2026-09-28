@@ -1,18 +1,27 @@
 """
-Transform the wide SAP consumption export (RESULT sheet, one column per business
-day grouped in monthly blocks) into a long-format table with columns:
+Transform a SAP consumption export into a long-format table with columns:
 planta, sku, fecha, consumo.
 
-Input layout (RESULT sheet):
+Two export layouts are supported and auto-detected:
+
+WIDE (sheet "RESULT") -- a pivot table with one column per business day:
     - Row 7:  day headers per monthly block ("01.01.2026", ..., "#" as a blank
               spacer column between months).
     - Row 8:  identifier headers (Sales Region, Customer, Customer name,
               Material, Material description).
     - Row 9+: one row per (Sales Region, Customer, Material) with the daily
-              consumption value in each date column. "sku" is taken from the
-              Material description column (e.g. "K/01/200gsm/1800mm/1200-1400"),
-              not the numeric Material code -- verified unique per planta.
+              consumption value in each date column.
     - Last 2 rows: "Result" / "Overall Result" subtotals, excluded from output.
+
+LONG -- already one row per (planta, material, day):
+    - Row 2:  headers (Sales Region, Customer, Customer name, Day, Material,
+              Material description, TO).
+    - Row 3+: data. Days with no movement simply have no row, so this layout
+              carries no explicit zeros (the wide one does).
+
+In both layouts "sku" is the Material description (e.g.
+"K/01/200gsm/1800mm/1200-1400"), not the numeric Material code -- verified
+unique per planta.
 
 Rows with no consumption value for a given date are dropped (not filled with 0).
 Negative values (stock return / partial-consumption corrections, since stock is
@@ -41,6 +50,13 @@ FIRST_DATE_COL = 6
 PLANTA_COL = 2
 SKU_COL = 5  # Material description (e.g. "K/01/200gsm/1800mm/1200-1400"), unique per planta
 
+LONG_HEADER_ROW = 2
+LONG_FIRST_DATA_ROW = 3
+LONG_PLANTA_COL = 2
+LONG_DATE_COL = 4
+LONG_SKU_COL = 6
+LONG_VALUE_COL = 7
+
 
 def _parse_date(value: object) -> datetime | None:
     r"""Parse a day-header cell, skipping blanks and the monthly '#' spacer."""
@@ -52,10 +68,39 @@ def _parse_date(value: object) -> datetime | None:
         return None
 
 
+def _is_long_layout(ws) -> bool:
+    r"""True when the sheet already has one row per day (a 'Day' header in row 2)."""
+    header = next(ws.iter_rows(min_row=LONG_HEADER_ROW, max_row=LONG_HEADER_ROW, values_only=True))
+    return "Day" in [v for v in header if isinstance(v, str)]
+
+
+def _transform_long(ws) -> list[tuple[str, str, str, float]]:
+    r"""Read the already-long layout into (planta, sku, fecha, consumo) records."""
+    records: list[tuple[str, str, str, float]] = []
+    for row in ws.iter_rows(min_row=LONG_FIRST_DATA_ROW, values_only=True):
+        planta = row[LONG_PLANTA_COL - 1]
+        sku = row[LONG_SKU_COL - 1]
+        consumo = row[LONG_VALUE_COL - 1]
+        if planta in (None, "Result") or sku is None or consumo is None:
+            continue
+        fecha = _parse_date(row[LONG_DATE_COL - 1])
+        if fecha is None:
+            continue
+        records.append(
+            (str(planta), str(sku), fecha.strftime("%Y-%m-%d"), max(float(consumo), 0.0))
+        )
+    return records
+
+
 def transform(input_path: Path) -> list[tuple[str, str, str, float]]:
-    r"""Melt the wide RESULT sheet into (planta, sku, fecha, consumo) records."""
+    r"""Read either export layout into (planta, sku, fecha, consumo) records."""
     wb = openpyxl.load_workbook(input_path, read_only=True, data_only=True)
-    ws = wb[SHEET_NAME]
+    ws = wb[SHEET_NAME] if SHEET_NAME in wb.sheetnames else wb[wb.sheetnames[0]]
+
+    if _is_long_layout(ws):
+        records = _transform_long(ws)
+        records.sort(key=lambda r: (r[0], r[1], r[2]))
+        return records
 
     date_row = next(ws.iter_rows(min_row=DATE_ROW, max_row=DATE_ROW, values_only=True))
     date_by_col: dict[int, datetime] = {}
