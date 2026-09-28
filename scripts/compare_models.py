@@ -238,8 +238,10 @@ def lgbm_tweedie_forecast(
         what daily consumption looks like here (16 pct zeros on average).
     *   Cross-learning: a single model for all series; series identity enters through
         the train-only level features rather than 1_424 dummies.
-    *   Early stopping uses the last val_days of train as a chronological validation
-        slice, never a random split.
+    *   Early stopping uses the tail of train as a chronological validation slice,
+        never a random split. The slice is val_days, shrunk to a fifth of the train
+        span when train is short, and skipped entirely when even that leaves no
+        rows to fit on.
     *
     """
     import lightgbm as lgb
@@ -250,14 +252,21 @@ def lgbm_tweedie_forecast(
     valid = df[LGBM_FEATURES].notna().all(axis=1)
     train_idx = df.index[train_mask & valid]
 
-    split_date = df.loc[train_idx, "fecha"].max() - pd.Timedelta(days=val_days)
-    fit_idx = train_idx[df.loc[train_idx, "fecha"] <= split_date]
-    val_idx = train_idx[df.loc[train_idx, "fecha"] > split_date]
+    train_dates = df.loc[train_idx, "fecha"]
+    span_days = (train_dates.max() - train_dates.min()).days
+    effective_val_days = min(val_days, max(1, span_days // 5))
+    split_date = train_dates.max() - pd.Timedelta(days=effective_val_days)
+    fit_idx = train_idx[train_dates <= split_date]
+    val_idx = train_idx[train_dates > split_date]
+
+    use_early_stopping = len(fit_idx) > 0 and len(val_idx) > 0
+    if not use_early_stopping:
+        fit_idx = train_idx
 
     model = lgb.LGBMRegressor(
         objective="tweedie",
         tweedie_variance_power=1.2,
-        n_estimators=2_000,
+        n_estimators=2_000 if use_early_stopping else 300,
         learning_rate=0.05,
         num_leaves=31,
         min_child_samples=50,
@@ -266,15 +275,15 @@ def lgbm_tweedie_forecast(
         colsample_bytree=0.8,
         verbose=-1,
     )
-    model.fit(
-        df.loc[fit_idx, LGBM_FEATURES],
-        df.loc[fit_idx, "consumo"],
-        eval_X=df.loc[val_idx, LGBM_FEATURES],
-        eval_y=df.loc[val_idx, "consumo"],
-        eval_metric="mae",
-        categorical_feature=["planta_code"],
-        callbacks=[lgb.early_stopping(100, verbose=False)],
-    )
+    fit_kwargs: dict = {"categorical_feature": ["planta_code"]}
+    if use_early_stopping:
+        fit_kwargs.update(
+            eval_X=df.loc[val_idx, LGBM_FEATURES],
+            eval_y=df.loc[val_idx, "consumo"],
+            eval_metric="mae",
+            callbacks=[lgb.early_stopping(100, verbose=False)],
+        )
+    model.fit(df.loc[fit_idx, LGBM_FEATURES], df.loc[fit_idx, "consumo"], **fit_kwargs)
 
     out = pd.Series(np.nan, index=df.index)
     score_idx = df.index[valid]
