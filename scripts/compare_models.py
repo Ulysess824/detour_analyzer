@@ -355,6 +355,13 @@ def lgbm_tweedie_forecast(
     return out, importance
 
 
+def _ranked(results: pd.DataFrame) -> pd.DataFrame:
+    r"""Add a 1-based rank column (best MAE first) and sort the table by it."""
+    out = results.copy()
+    out.insert(0, "rank", out["mae"].rank(method="min").astype(int))
+    return out.sort_values("rank").round(4)
+
+
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     err = y_true - y_pred
     mae = np.mean(np.abs(err))
@@ -404,7 +411,7 @@ def main() -> None:
     results_df = pd.DataFrame(results).set_index("model")[["n", "mae", "rmse", "wape", "bias"]]
     baseline_mae = results_df.loc["naive_lag1", "mae"]
     results_df["mae_lift_pct"] = ((baseline_mae - results_df["mae"]) / baseline_mae * 100).round(1)
-    print(results_df.round(4))
+    print(_ranked(results_df))
 
     # ARIMA skips short series, so repeat the comparison on the rows it did cover.
     pred_cols = ["pred_naive", "pred_croston", "pred_hurdle", "pred_lgbm", "pred_arima"]
@@ -419,7 +426,7 @@ def main() -> None:
         m["model"] = model_name
         common_rows.append(m)
     common_df = pd.DataFrame(common_rows).set_index("model")[["mae", "rmse", "wape", "bias"]]
-    print(common_df.round(4))
+    print(_ranked(common_df))
 
     print()
     print("ARIMA order chosen by AIC:")
