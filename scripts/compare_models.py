@@ -427,6 +427,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
     parser.add_argument("--cutoff", type=str, default="2026-04-30")
+    parser.add_argument(
+        "--neural",
+        action="store_true",
+        help="also train the DNN and LSTM models (slow; requires torch)",
+    )
     args = parser.parse_args()
 
     df = load(args.input)
@@ -445,6 +450,14 @@ def main() -> None:
     df["pred_xgb"] = xgboost_forecast(df, train_mask)
     df["pred_arima"], arima_orders = arima_forecast(df, train_mask)
 
+    neural_runs: dict[str, pd.DataFrame] = {}
+    if args.neural:
+        from neural_models import build_windows, neural_forecast
+
+        df = build_windows(df)
+        for kind, col in [("dnn", "pred_dnn"), ("lstm", "pred_lstm")]:
+            df[col], neural_runs[kind] = neural_forecast(df, train_mask, kind=kind)
+
     print(f"train rows: {train_mask.sum():_} | test rows: {test_mask.sum():_} | cutoff: {cutoff.date()}")
     print()
 
@@ -456,6 +469,7 @@ def main() -> None:
         ("lgbm_tweedie", "pred_lgbm"),
         ("xgboost_tweedie", "pred_xgb"),
         ("arima", "pred_arima"),
+        *([("dnn", "pred_dnn"), ("lstm", "pred_lstm")] if args.neural else []),
     ]:
         test_df = df.loc[test_mask, ["consumo", pred_col]].dropna()
         metrics = compute_metrics(test_df["consumo"].to_numpy(), test_df[pred_col].to_numpy())
@@ -475,13 +489,22 @@ def main() -> None:
         "pred_lgbm",
         "pred_xgb",
         "pred_arima",
+        *(["pred_dnn", "pred_lstm"] if args.neural else []),
     ]
     common = df.loc[test_mask, ["consumo", *pred_cols]].dropna()
     print()
     print(f"Same-rows comparison (n={len(common):_}, where every model has a prediction):")
     common_rows = []
     for model_name, pred_col in zip(
-        ["naive_lag1", "croston", "hurdle", "lgbm_tweedie", "xgboost_tweedie", "arima"],
+        [
+            "naive_lag1",
+            "croston",
+            "hurdle",
+            "lgbm_tweedie",
+            "xgboost_tweedie",
+            "arima",
+            *(["dnn", "lstm"] if args.neural else []),
+        ],
         pred_cols,
     ):
         m = compute_metrics(common["consumo"].to_numpy(), common[pred_col].to_numpy())
@@ -489,6 +512,11 @@ def main() -> None:
         common_rows.append(m)
     common_df = pd.DataFrame(common_rows).set_index("model")[["mae", "rmse", "wape", "bias"]]
     print(_ranked(common_df))
+
+    for kind, runs in neural_runs.items():
+        print()
+        print(f"{kind.upper()} per-seed runs (the paper's unstable-estimation check):")
+        print(runs.to_string(index=False))
 
     print()
     print("ARIMA order chosen by AIC:")
