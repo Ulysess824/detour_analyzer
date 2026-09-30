@@ -2,7 +2,7 @@
 Transform a SAP consumption export into a long-format table with columns:
 planta, sku, fecha, consumo.
 
-Two export layouts are supported and auto-detected:
+Three export layouts are supported and auto-detected (one wide, two long):
 
 WIDE (sheet "RESULT") -- a pivot table with one column per business day:
     - Row 7:  day headers per monthly block ("01.01.2026", ..., "#" as a blank
@@ -13,11 +13,14 @@ WIDE (sheet "RESULT") -- a pivot table with one column per business day:
               consumption value in each date column.
     - Last 2 rows: "Result" / "Overall Result" subtotals, excluded from output.
 
-LONG -- already one row per (planta, material, day):
-    - Row 2:  headers (Sales Region, Customer, Customer name, Day, Material,
-              Material description, TO).
-    - Row 3+: data. Days with no movement simply have no row, so this layout
-              carries no explicit zeros (the wide one does).
+LONG -- already one row per (planta, material, day). Two variants are seen:
+    - With Sales Region: headers on row 2 (Sales Region, Customer, Customer name,
+      Day, Material, Material description, TO), data from row 3.
+    - Without it: headers on row 1 (Customer, Customer name, Material, Material
+      description, Day, TO), data from row 2.
+    Columns are located by header name, so either variant works. Days with no
+    movement simply have no row, so these layouts carry no explicit zeros (the
+    wide one does).
 
 In both layouts "sku" is the Material description (e.g.
 "K/01/200gsm/1800mm/1200-1400"), not the numeric Material code -- verified
@@ -31,13 +34,18 @@ continuous for downstream lag/rolling features.
 Requires: openpyxl (pip install openpyxl)
 
 Usage:
-    python scripts/transform_consumos.py data/consumos_2026.xlsx data/consumos_long.csv
+    python scripts/transform_consumos.py data/consumos_2026.xlsx -o data/consumos_long.csv
+
+    # combine exports that do not overlap in time; --drop-zeros aligns the wide
+    # export (explicit zeros) with the long ones (no zero rows)
+    python scripts/transform_consumos.py --drop-zeros \
+        data/consumos_2024_2025.xlsx data/consumos_2026.xlsx -o data/consumos_long.csv
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -50,12 +58,7 @@ FIRST_DATE_COL = 6
 PLANTA_COL = 2
 SKU_COL = 5  # Material description (e.g. "K/01/200gsm/1800mm/1200-1400"), unique per planta
 
-LONG_HEADER_ROW = 2
-LONG_FIRST_DATA_ROW = 3
-LONG_PLANTA_COL = 2
-LONG_DATE_COL = 4
-LONG_SKU_COL = 6
-LONG_VALUE_COL = 7
+LONG_HEADER_SEARCH_ROWS = 3
 
 
 def _parse_date(value: object) -> datetime | None:
@@ -68,22 +71,46 @@ def _parse_date(value: object) -> datetime | None:
         return None
 
 
-def _is_long_layout(ws) -> bool:
-    r"""True when the sheet already has one row per day (a 'Day' header in row 2)."""
-    header = next(ws.iter_rows(min_row=LONG_HEADER_ROW, max_row=LONG_HEADER_ROW, values_only=True))
-    return "Day" in [v for v in header if isinstance(v, str)]
+def _find_long_header(ws) -> tuple[int, dict[str, int]] | None:
+    r"""
+    Locate the header row of an already-long export and map field names to 0-based columns.
+
+    *   The header row is the one, within the first rows, that holds both 'Customer' and
+        'Day'. The wide layout has them on different rows, so it never matches.
+    *   Columns are found by name, not position, because the long exports differ in
+        their leading columns (with or without 'Sales Region').
+    *   The material description sits in the column right after 'Material'; its own
+        header is blank in every export seen so far.
+    *
+    """
+    rows = ws.iter_rows(min_row=1, max_row=LONG_HEADER_SEARCH_ROWS, values_only=True)
+    for row_number, row in enumerate(rows, start=1):
+        names = [v if isinstance(v, str) else None for v in row]
+        if "Customer" in names and "Day" in names and "Material" in names and "TO" in names:
+            material = names.index("Material")
+            return row_number, {
+                "planta": names.index("Customer"),
+                "fecha": names.index("Day"),
+                "sku": material + 1,
+                "consumo": names.index("TO"),
+            }
+    return None
 
 
-def _transform_long(ws) -> list[tuple[str, str, str, float]]:
+def _transform_long(
+    ws, header_row: int, cols: dict[str, int], drop_zeros: bool = False
+) -> list[tuple[str, str, str, float]]:
     r"""Read the already-long layout into (planta, sku, fecha, consumo) records."""
     records: list[tuple[str, str, str, float]] = []
-    for row in ws.iter_rows(min_row=LONG_FIRST_DATA_ROW, values_only=True):
-        planta = row[LONG_PLANTA_COL - 1]
-        sku = row[LONG_SKU_COL - 1]
-        consumo = row[LONG_VALUE_COL - 1]
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        planta = row[cols["planta"]]
+        sku = row[cols["sku"]]
+        consumo = row[cols["consumo"]]
         if planta in (None, "Result") or sku is None or consumo is None:
             continue
-        fecha = _parse_date(row[LONG_DATE_COL - 1])
+        if drop_zeros and float(consumo) == 0.0:
+            continue
+        fecha = _parse_date(row[cols["fecha"]])
         if fecha is None:
             continue
         records.append(
@@ -92,13 +119,22 @@ def _transform_long(ws) -> list[tuple[str, str, str, float]]:
     return records
 
 
-def transform(input_path: Path) -> list[tuple[str, str, str, float]]:
-    r"""Read either export layout into (planta, sku, fecha, consumo) records."""
+def transform(input_path: Path, drop_zeros: bool = False) -> list[tuple[str, str, str, float]]:
+    r"""
+    Read any supported export layout into (planta, sku, fecha, consumo) records.
+
+    *   drop_zeros discards rows whose raw value is exactly 0 (before negatives are
+        clipped). The long exports omit no-movement days entirely while the wide one
+        records them as 0, so this makes the wide export comparable when files of
+        both kinds are combined.
+    *
+    """
     wb = openpyxl.load_workbook(input_path, read_only=True, data_only=True)
     ws = wb[SHEET_NAME] if SHEET_NAME in wb.sheetnames else wb[wb.sheetnames[0]]
 
-    if _is_long_layout(ws):
-        records = _transform_long(ws)
+    long_header = _find_long_header(ws)
+    if long_header is not None:
+        records = _transform_long(ws, *long_header, drop_zeros=drop_zeros)
         records.sort(key=lambda r: (r[0], r[1], r[2]))
         return records
 
@@ -121,6 +157,8 @@ def transform(input_path: Path) -> list[tuple[str, str, str, float]]:
             consumo = row[col_idx - 1]
             if consumo is None:
                 continue
+            if drop_zeros and float(consumo) == 0.0:
+                continue
             consumo = max(float(consumo), 0.0)
             records.append((str(planta), str(sku), fecha.strftime("%Y-%m-%d"), consumo))
 
@@ -129,15 +167,32 @@ def transform(input_path: Path) -> list[tuple[str, str, str, float]]:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        print("Usage: python scripts/transform_consumos.py <input.xlsx> <output.csv>")
-        raise SystemExit(1)
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("inputs", nargs="+", type=Path, help="one or more .xlsx exports")
+    parser.add_argument("-o", "--output", required=True, type=Path, help="output .csv")
+    parser.add_argument(
+        "--drop-zeros",
+        action="store_true",
+        help="discard rows whose raw value is exactly 0 (aligns wide exports with long ones)",
+    )
+    args = parser.parse_args()
 
-    input_path = Path(sys.argv[1])
-    output_path = Path(sys.argv[2])
+    records: list[tuple[str, str, str, float]] = []
+    for path in args.inputs:
+        part = transform(path, drop_zeros=args.drop_zeros)
+        print(f"  {path.name}: {len(part):_} rows")
+        records.extend(part)
 
-    records = transform(input_path)
+    keys = [(r[0], r[1], r[2]) for r in records]
+    duplicated = len(keys) - len(set(keys))
+    if duplicated:
+        raise SystemExit(
+            f"{duplicated:_} (planta, sku, fecha) keys appear in more than one input; "
+            "the files overlap in time. Pass non-overlapping exports."
+        )
+    records.sort(key=lambda r: (r[0], r[1], r[2]))
 
+    output_path = args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
