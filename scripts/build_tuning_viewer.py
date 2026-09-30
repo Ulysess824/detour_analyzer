@@ -1,0 +1,556 @@
+"""
+Build a self-contained HTML viewer that compares the baseline and the Optuna-tuned
+hyperparameters of the tree ensembles, one column of subplots per model.
+
+Input is the json written by tune_trees.py (--out). The page has no external resources; the
+results are embedded in it, so the output file can be opened or published as is.
+
+Usage:
+    python scripts/build_tuning_viewer.py results/tuning_trees.json -o results/tuning_viewer.html
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+MODELS = [("lgbm", "LightGBM"), ("xgb", "XGBoost"), ("rf", "Random Forest")]
+
+# Library defaults for parameters the baseline leaves unset, so the tables can show them.
+DEFAULTS = {
+    "lgbm": {"reg_alpha": 0, "reg_lambda": 0},
+    "xgb": {"gamma": 0, "reg_alpha": 0, "reg_lambda": 1},
+    "rf": {},
+}
+
+TEMPLATE = r"""<title>Base vs Optuna</title>
+<style>
+/* Layout: one control row, a summary strip, then three-column small multiples (one column per model). */
+:root{
+  --plane:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --base:#898781; --opt:#2a78d6; --up:#2a78d6; --down:#e34948; --flat:#898781;
+  --wash:rgba(42,120,214,.08);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --base:#898781; --opt:#3987e5; --up:#3987e5; --down:#e66767; --flat:#898781;
+    --wash:rgba(57,135,229,.14);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --base:#898781; --opt:#3987e5; --up:#3987e5; --down:#e66767; --flat:#898781;
+  --wash:rgba(57,135,229,.14);
+  color-scheme:dark;
+}
+body{background:var(--plane);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}
+.wrap{max-width:1240px;margin-inline:auto;padding-inline:16px;padding-block:24px 48px;display:flex;flex-direction:column;gap:28px}
+h1{font-size:26px;line-height:1.15;margin:0;font-weight:650;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:15px;margin:0;font-weight:650}
+.sub{margin:6px 0 0;color:var(--ink2);max-width:72ch}
+.hint{margin:4px 0 0;color:var(--ink2);font-size:13px;max-width:78ch}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px}
+.ctl-label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{padding:8px 14px;font-size:13px;cursor:pointer;color:var(--ink2);border-right:1px solid var(--border)}
+.seg label:last-of-type{border-right:0}
+.seg input:checked + label{background:var(--wash);color:var(--ink);font-weight:600}
+.seg input:focus-visible + label{outline:2px solid var(--opt);outline-offset:-2px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 14px 10px;min-width:0}
+.card h3{margin:0;font-size:14px;font-weight:650}
+.card .meta{margin:2px 0 8px;font-size:12px;color:var(--muted)}
+.card svg{display:block;width:100%;height:auto;overflow:visible}
+.tile{display:flex;flex-direction:column;gap:6px}
+.tile .label{font-size:12px;color:var(--muted)}
+.tile .value{font-size:36px;line-height:1;font-weight:650;letter-spacing:-.02em}
+.tile .delta{font-size:12.5px;color:var(--ink2)}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);margin-top:2px}
+.pill i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.ax{fill:var(--muted);font-size:10.5px}
+.axs{fill:var(--ink2);font-size:11px}
+.axb{fill:var(--ink);font-size:11px;font-weight:600}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
+th{font-weight:600;color:var(--ink2);font-size:12px}
+td.n{font-variant-numeric:tabular-nums}
+tr.ref td{color:var(--muted);font-style:italic}
+tr.best td{font-weight:650}
+td.chg b{background:var(--wash);border-radius:4px;padding:1px 6px;font-weight:600}
+.tt{font-weight:650;font-size:12.5px;margin-bottom:4px}
+#tip{position:fixed;z-index:10;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.16);max-width:260px}
+#tip .tr{display:flex;align-items:center;gap:8px;margin-top:2px}
+#tip .tr b{font-variant-numeric:tabular-nums;font-size:13px}
+#tip .tr span:last-child{color:var(--ink2)}
+#tip .key{width:14px;height:0;border-top:2px solid var(--ink2);display:inline-block}
+.notes{font-size:12.5px;color:var(--ink2);max-width:90ch;display:flex;flex-direction:column;gap:6px}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+details[open] summary{margin-bottom:12px}
+.ptable{display:flex;flex-direction:column;gap:12px}
+@media (prefers-reduced-motion: no-preference){ .card svg .hit:hover + .mk, .card svg .hit:focus + .mk{opacity:.8} }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Base vs Optuna</h1>
+    <p class="sub" id="sub"></p>
+  </header>
+
+  <div class="controls">
+    <span class="ctl-label">Horizonte</span>
+    <div class="seg" role="radiogroup" aria-label="Horizonte de pronóstico">
+      <input type="radio" name="h" id="h-1" value="1" checked><label for="h-1">1 mes adelante</label>
+      <input type="radio" name="h" id="h-3" value="3"><label for="h-3">3 meses adelante</label>
+    </div>
+    <div class="legend" aria-label="Leyenda">
+      <span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5" fill="var(--surface)" stroke="var(--base)" stroke-width="2"/></svg>Base</span>
+      <span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5" fill="var(--opt)"/></svg>Optuna</span>
+      <span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2" fill="var(--up)"/></svg>Optuna mejor</span>
+      <span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2" fill="var(--down)"/></svg>Optuna peor</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>Resumen en test</h2>
+    <p class="hint" id="kpi-hint"></p>
+    <div id="kpis" class="grid3" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <h2>1. Validación: error por fold (lo que Optuna minimizó)</h2>
+    <p class="hint">Cada fold valida sobre los 3 meses siguientes a su entrenamiento. Círculo vacío: base. Punto lleno: Optuna. La línea es azul si Optuna bajó el error y roja si lo subió. Menor es mejor. Solo se ajustó a 1 mes adelante.</p>
+    <div id="rowA" class="grid3" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <h2>2. Test: diferencia mes a mes en el error por SKU</h2>
+    <p class="hint">Diferencia de WAPE por SKU entre la base y Optuna, en puntos, para cada mes de test. Barra hacia arriba: Optuna acertó más ese mes.</p>
+    <div id="rowB" class="grid3" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <h2>3. Test: cambio de precisión por nivel</h2>
+    <p class="hint">Precisión de Optuna menos la de la base, en puntos porcentuales. Planta y total son la suma de los pronósticos por SKU sin reconciliar; al reconciliar quedan idénticos por construcción.</p>
+    <div id="rowC" class="grid3" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <h2>Ranking y datos</h2>
+    <p class="hint">Tablas equivalentes a los gráficos, con los valores exactos.</p>
+    <div class="tbl" style="margin-top:10px"><table id="rank"></table></div>
+  </section>
+
+  <section>
+    <h2>Hiperparámetros</h2>
+    <p class="hint">Resaltado: valores que Optuna cambió respecto a la base. La importancia es la parte de la variación del error que explica cada parámetro (fANOVA), estimada con pocos ensayos ruidosos.</p>
+    <div id="params" class="grid3" style="margin-top:10px"></div>
+  </section>
+
+  <details>
+    <summary>Datos por fold y por mes</summary>
+    <div class="ptable">
+      <div class="tbl"><table id="tfold"></table></div>
+      <div class="tbl"><table id="tmonth"></table></div>
+    </div>
+  </details>
+
+  <div class="notes" id="notes"></div>
+</div>
+
+<div id="tip" role="tooltip" hidden></div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function(){
+const D = JSON.parse(document.getElementById('data').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const mean = a => a.reduce((s,x)=>s+x,0)/a.length;
+const pts = (v, d=2) => (v>=0?'+':'−') + Math.abs(v).toFixed(d);
+const thou = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'_');
+let H = 1;
+
+const tip = document.getElementById('tip');
+function showTip(title, rows, x, y){
+  tip.replaceChildren();
+  const t = document.createElement('div'); t.className='tt'; t.textContent = title; tip.appendChild(t);
+  rows.forEach(r=>{
+    const row = document.createElement('div'); row.className='tr';
+    const key = document.createElement('span'); key.className='key'; if(r.color) key.style.borderTopColor = r.color;
+    const v = document.createElement('b'); v.textContent = r.value;
+    const n = document.createElement('span'); n.textContent = r.label;
+    row.append(key, v, n); tip.appendChild(row);
+  });
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let left = Math.min(x + 14, window.innerWidth - w - 8); left = Math.max(8, left);
+  let top = y - h - 12; if (top < 8) top = y + 16;
+  tip.style.left = left + 'px'; tip.style.top = top + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+
+function el(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function text(parent, x, y, s, cls, anchor){
+  const t = el('text', {x, y, class: cls, 'text-anchor': anchor || 'start'}, parent);
+  t.textContent = s; return t;
+}
+function hit(parent, x, y, w, h, label, tipFn, mark){
+  const r = el('rect', {x, y, width:w, height:h, fill:'transparent', class:'hit', tabindex:'0', 'aria-label':label}, parent);
+  const lift = on => { if (mark) { mark.setAttribute('stroke', on ? 'var(--ink)' : 'none'); mark.setAttribute('stroke-width', on ? '1.5' : '0'); } };
+  const at = e => { lift(true); tipFn(e.clientX, e.clientY); };
+  r.addEventListener('pointermove', at);
+  r.addEventListener('pointerleave', () => { lift(false); hideTip(); });
+  r.addEventListener('focus', () => { lift(true); const b = r.getBoundingClientRect(); tipFn(b.left + b.width/2, b.top); });
+  r.addEventListener('blur', () => { lift(false); hideTip(); });
+  return r;
+}
+const lin = (d0,d1,r0,r1) => v => r0 + (v-d0)*(r1-r0)/(d1-d0);
+function niceStep(span, maxTicks){
+  for (const s of [0.1,0.2,0.25,0.5,1,2,5,10]) if (span/s <= maxTicks) return s;
+  return 10;
+}
+function card(container, title, meta){
+  const c = document.createElement('div'); c.className='card';
+  const h = document.createElement('h3'); h.textContent = title; c.appendChild(h);
+  const m = document.createElement('div'); m.className='meta'; m.textContent = meta; c.appendChild(m);
+  container.appendChild(c); return c;
+}
+function svgIn(card, w, h, label){
+  const s = el('svg', {viewBox:`0 0 ${w} ${h}`, role:'img', 'aria-label':label});
+  card.appendChild(s); return s;
+}
+function dumbRing(parent, x, y, kind){
+  if (kind === 'base') return el('circle', {cx:x, cy:y, r:5, fill:'var(--surface)', stroke:'var(--base)', 'stroke-width':2, class:'mk'}, parent);
+  el('circle', {cx:x, cy:y, r:7, fill:'var(--surface)'}, parent);
+  return el('circle', {cx:x, cy:y, r:5, fill:'var(--opt)', class:'mk'}, parent);
+}
+function barPath(x, w, y0, y1, r){
+  // column from baseline y0 to tip y1; 4px rounded tip, square at the baseline
+  const up = y1 < y0, h = Math.abs(y1 - y0), rr = Math.min(r, h/2, w/2);
+  if (h < 0.5) return `M${x},${y0} h${w}`;
+  return up
+    ? `M${x},${y0} L${x},${y1+rr} Q${x},${y1} ${x+rr},${y1} L${x+w-rr},${y1} Q${x+w},${y1} ${x+w},${y1+rr} L${x+w},${y0} Z`
+    : `M${x},${y0} L${x},${y1-rr} Q${x},${y1} ${x+rr},${y1} L${x+w-rr},${y1} Q${x+w},${y1} ${x+w},${y1-rr} L${x+w},${y0} Z`;
+}
+function hbarPath(y, hh, x0, x1, r){
+  const right = x1 > x0, w = Math.abs(x1 - x0), rr = Math.min(r, w/2, hh/2);
+  if (w < 0.5) return `M${x0},${y} v${hh}`;
+  return right
+    ? `M${x0},${y} L${x1-rr},${y} Q${x1},${y} ${x1},${y+rr} L${x1},${y+hh-rr} Q${x1},${y+hh} ${x1-rr},${y+hh} L${x0},${y+hh} Z`
+    : `M${x0},${y} L${x1+rr},${y} Q${x1},${y} ${x1},${y+rr} L${x1},${y+hh-rr} Q${x1},${y+hh} ${x1+rr},${y+hh} L${x0},${y+hh} Z`;
+}
+
+function stats(m, h){
+  const b = m.h[h].base, t = m.h[h].tuned;
+  const dMonth = b.month_wape.map((w,i) => (w - t.month_wape[i]) * 100);
+  const wins = dMonth.filter(d => d > 0).length;
+  const dSku = (mean(t.sku_acc) - mean(b.sku_acc)) * 100;
+  let verdict = {k:'flat', text:'Sin cambio distinguible del ruido'};
+  if (wins >= 10 && dMonth.reduce((s,x)=>s+x,0) > 0) verdict = {k:'up', text:'Mejora consistente'};
+  else if (wins <= 4 && dMonth.reduce((s,x)=>s+x,0) < 0) verdict = {k:'down', text:'Empeora'};
+  return {dMonth, wins, dSku, meanGain: mean(dMonth), verdict,
+    levels: [
+      {name:'SKU', d:(mean(t.sku_acc)-mean(b.sku_acc))*100, b:mean(b.sku_acc), t:mean(t.sku_acc)},
+      {name:'SKU reconciliado', d:(mean(t.sku_acc_rec)-mean(b.sku_acc_rec))*100, b:mean(b.sku_acc_rec), t:mean(t.sku_acc_rec)},
+      {name:'Planta (suma de SKU)', d:(mean(t.planta_acc)-mean(b.planta_acc))*100, b:mean(b.planta_acc), t:mean(t.planta_acc)},
+      {name:'Total (suma de SKU)', d:(mean(t.total_acc)-mean(b.total_acc))*100, b:mean(b.total_acc), t:mean(t.total_acc)},
+    ]};
+}
+const colorOf = d => d > 0 ? 'var(--up)' : d < 0 ? 'var(--down)' : 'var(--flat)';
+
+function monthLabel(i){
+  const [y, m] = D.meta.test_start.split('-').map(Number);
+  const k = (m - 1) + i;
+  return {m: MES[k % 12], y: y + Math.floor(k / 12)};
+}
+
+function renderKpis(){
+  const box = document.getElementById('kpis'); box.replaceChildren();
+  D.models.forEach(m => {
+    const s = stats(m, H);
+    const c = document.createElement('div'); c.className = 'card tile';
+    const l = document.createElement('div'); l.className='label'; l.textContent = m.label + ' · precisión por SKU en test';
+    const v = document.createElement('div'); v.className='value'; v.textContent = pts(s.dSku) + ' pts';
+    const d = document.createElement('div'); d.className='delta';
+    d.textContent = `Optuna mejor en ${s.wins} de ${s.dMonth.length} meses. Validación: WAPE ${m.val_base.toFixed(4)} → ${m.val_best.toFixed(4)}.`;
+    const p = document.createElement('div'); p.className='pill';
+    const dot = document.createElement('i'); dot.style.background = `var(--${s.verdict.k === 'flat' ? 'flat' : s.verdict.k})`;
+    const pt = document.createElement('span'); pt.textContent = s.verdict.text;
+    p.append(dot, pt);
+    c.append(l, v, d, p); box.appendChild(c);
+  });
+  document.getElementById('kpi-hint').textContent =
+    `Cambio de la precisión por SKU (Optuna menos base), promedio de semillas, a ${H} ${H === 1 ? 'mes' : 'meses'} vista. ` +
+    `Etiqueta: mejora si gana 10 o más de 12 meses con ganancia media positiva; empeora si gana 4 o menos con ganancia media negativa.`;
+}
+
+function renderRowA(){
+  const box = document.getElementById('rowA'); box.replaceChildren();
+  const W = 360, Hh = 215, ml = 44, mr = 14, mt = 14, mb = 36;
+  const y = lin(0.41, 0.29, mt, Hh - mb);
+  D.models.forEach(m => {
+    const c = card(box, m.label, `${m.n_trials} ensayos · mejor ensayo #${m.best_trial} · ${m.minutes} min`);
+    const svg = svgIn(c, W, Hh, `Error de validación por fold de ${m.label}, base contra Optuna`);
+    [0.30, 0.34, 0.38].forEach(t => {
+      el('line', {x1:ml, x2:W-mr, y1:y(t), y2:y(t), stroke:'var(--grid)', 'stroke-width':1}, svg);
+      text(svg, ml-8, y(t)+3.5, t.toFixed(2), 'ax', 'end');
+    });
+    text(svg, ml-8, mt-3, 'WAPE', 'ax', 'end');
+    const names = ['Fold 1','Fold 2','Fold 3','Media'];
+    const fb = m.val_base_folds.concat([m.val_base]), fo = m.val_best_folds.concat([m.val_best]);
+    const slot = (W - ml - mr) / 4;
+    names.forEach((nm, i) => {
+      const cx = ml + slot*(i+0.5), yb = y(fb[i]), yo = y(fo[i]);
+      el('line', {x1:ml, x2:W-mr, y1:Hh-mb, y2:Hh-mb, stroke:'var(--axis)', 'stroke-width':1}, svg);
+      text(svg, cx, Hh-mb+16, nm, i === 3 ? 'axb' : 'axs', 'middle');
+      if (i === 3) el('line', {x1:ml+slot*3, x2:ml+slot*3, y1:mt, y2:Hh-mb, stroke:'var(--grid)', 'stroke-width':1}, svg);
+      const better = fo[i] < fb[i];
+      const g = el('g', {}, svg);
+      el('line', {x1:cx, x2:cx, y1:yb, y2:yo, stroke: better ? 'var(--up)' : 'var(--down)', 'stroke-width':2, 'stroke-linecap':'round'}, g);
+      dumbRing(g, cx, yb, 'base'); dumbRing(g, cx, yo, 'opt');
+      const fold = i < 3 ? D.meta.folds[i] : 'Media de los 3 folds';
+      const extra = i < 3 ? ` · entrena con ${thou(m.fold_rows[i][0])} filas` : '';
+      hit(svg, cx - slot/2, mt, slot, Hh-mt-mb+4, `${nm}, ${m.label}`, (px, py) => showTip(nm + (i<3 ? ': valida ' + fold : ''), [
+        {value: fb[i].toFixed(4), label: 'Base', color:'var(--base)'},
+        {value: fo[i].toFixed(4), label: 'Optuna', color:'var(--opt)'},
+        {value: pts(fb[i] - fo[i], 4), label: 'mejora de WAPE (base menos Optuna)', color: better ? 'var(--up)' : 'var(--down)'},
+        ...(i<3 ? [{value:'', label: extra.replace(' · ','')}] : [])
+      ], px, py));
+    });
+  });
+}
+
+function renderRowB(){
+  const box = document.getElementById('rowB'); box.replaceChildren();
+  const all = D.models.flatMap(m => stats(m, H).dMonth);
+  const mx = Math.max(...all.map(Math.abs), 0.5);
+  const step = niceStep(mx*2, 4);
+  const lim = Math.ceil(mx/step)*step;
+  const W = 360, Hh = 206, ml = 34, mr = 10, mt = 12, mb = 46;
+  const y = lin(lim, -lim, mt, Hh-mb), y0 = y(0);
+  D.models.forEach(m => {
+    const s = stats(m, H);
+    const c = card(box, m.label, `Media ${pts(s.meanGain)} pts · Optuna mejor en ${s.wins} de ${s.dMonth.length} meses`);
+    const svg = svgIn(c, W, Hh, `Diferencia mensual de error por SKU de ${m.label}, base menos Optuna`);
+    for (let t = -lim; t <= lim + 1e-9; t += step){
+      el('line', {x1:ml, x2:W-mr, y1:y(t), y2:y(t), stroke: Math.abs(t) < 1e-9 ? 'var(--axis)' : 'var(--grid)', 'stroke-width':1}, svg);
+      text(svg, ml-6, y(t)+3.5, (t>0?'+':t<0?'−':'') + Math.abs(t).toFixed(step < 1 ? 1 : 0), 'ax', 'end');
+    }
+    const n = s.dMonth.length, slot = (W-ml-mr)/n, bw = Math.min(14, slot-6);
+    s.dMonth.forEach((d, i) => {
+      const x = ml + slot*i + (slot-bw)/2;
+      const g = el('g', {}, svg);
+      const bar = el('path', {d: barPath(x, bw, y0, y(d), 4), fill: colorOf(d), class:'mk'}, g);
+      const lab = monthLabel(i);
+      text(svg, x+bw/2, Hh-mb+14, lab.m, 'ax', 'middle');
+      if (i === 0 || lab.m === 'ene') text(svg, x+bw/2, Hh-mb+31, String(lab.y), 'axs', 'middle');
+      const b = m.h[H].base.month_wape[i], t = m.h[H].tuned.month_wape[i];
+      hit(svg, ml + slot*i, mt, slot, Hh-mt-mb+6, `${lab.m} ${lab.y}, ${m.label}`, (px, py) => showTip(`${lab.m} ${lab.y}`, [
+        {value: b.toFixed(4), label: 'WAPE base', color:'var(--base)'},
+        {value: t.toFixed(4), label: 'WAPE Optuna', color:'var(--opt)'},
+        {value: pts(d) + ' pts', label: d > 0 ? 'Optuna mejor' : d < 0 ? 'Optuna peor' : 'sin diferencia', color: colorOf(d)}
+      ], px, py), bar);
+    });
+  });
+}
+
+function renderRowC(){
+  const box = document.getElementById('rowC'); box.replaceChildren();
+  const all = D.models.flatMap(m => stats(m, H).levels.map(l => l.d));
+  const lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  const pad = (hi - lo) * 0.25 + 0.6;
+  const step = niceStep((hi - lo) + 2*pad, 6);
+  const d0 = Math.floor((lo - pad)/step)*step, d1 = Math.ceil((hi + pad)/step)*step;
+  const W = 360, rowH = 34, Hh = 22 + rowH*4 + 24, ml = 122, mr = 14, mt = 8;
+  const x = lin(d0, d1, ml, W-mr), x0 = x(0);
+  D.models.forEach(m => {
+    const s = stats(m, H);
+    const c = card(box, m.label, `Precisión SKU: ${(mean(m.h[H].base.sku_acc)*100).toFixed(2)}% base → ${(mean(m.h[H].tuned.sku_acc)*100).toFixed(2)}% Optuna`);
+    const svg = svgIn(c, W, Hh, `Cambio de precisión por nivel de ${m.label}, Optuna menos base`);
+    for (let t = d0; t <= d1 + 1e-9; t += step){
+      el('line', {x1:x(t), x2:x(t), y1:mt, y2:Hh-24, stroke: Math.abs(t) < 1e-9 ? 'var(--axis)' : 'var(--grid)', 'stroke-width':1}, svg);
+      text(svg, x(t), Hh-8, (t>0?'+':t<0?'−':'') + Math.abs(t).toFixed(step < 1 ? 1 : 0), 'ax', 'middle');
+    }
+    s.levels.forEach((lv, i) => {
+      const yy = mt + 6 + rowH*i, bh = 16;
+      text(svg, ml-10, yy + bh/2 + 4, lv.name, 'axs', 'end');
+      const hb = el('path', {d: hbarPath(yy, bh, x0, x(lv.d), 4), fill: colorOf(lv.d), class:'mk'}, svg);
+      const right = lv.d >= 0;
+      text(svg, x(lv.d) + (right ? 6 : -6), yy + bh/2 + 4, pts(lv.d), 'axb', right ? 'start' : 'end');
+      hit(svg, 0, yy - 6, W, rowH, `${lv.name}, ${m.label}`, (px, py) => showTip(lv.name, [
+        {value: (lv.b*100).toFixed(2) + '%', label: 'Base', color:'var(--base)'},
+        {value: (lv.t*100).toFixed(2) + '%', label: 'Optuna', color:'var(--opt)'},
+        {value: pts(lv.d) + ' pts', label: lv.d > 0 ? 'Optuna mejor' : lv.d < 0 ? 'Optuna peor' : 'sin diferencia', color: colorOf(lv.d)}
+      ], px, py), hb);
+    });
+  });
+}
+
+function cell(tr, txt, cls, tag){ const c = document.createElement(tag||'td'); if (cls) c.className = cls; c.textContent = txt; tr.appendChild(c); return c; }
+function renderRank(){
+  const t = document.getElementById('rank'); t.replaceChildren();
+  const head = document.createElement('tr');
+  ['Rango','Configuración','Precisión SKU','SKU reconciliado','Planta (suma de SKU)','Total (suma de SKU)','Meses mejor que la base'].forEach((h, i) => cell(head, h, i === 1 ? 'l' : '', 'th'));
+  t.appendChild(head);
+  const rows = [];
+  D.models.forEach(m => {
+    const s = stats(m, H);
+    [['Base','base'],['Optuna','tuned']].forEach(([nm,k]) => {
+      const r = m.h[H][k];
+      rows.push({name: `${m.label} · ${nm}`, sku: mean(r.sku_acc), rec: mean(r.sku_acc_rec), pl: mean(r.planta_acc), tot: mean(r.total_acc), wins: k === 'tuned' ? `${s.wins} de ${s.dMonth.length}` : ''});
+    });
+  });
+  rows.sort((a,b) => b.sku - a.sku);
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr'); if (i === 0) tr.className = 'best';
+    cell(tr, String(i+1), 'n'); cell(tr, r.name, 'l');
+    [r.sku, r.rec, r.pl, r.tot].forEach(v => cell(tr, (v*100).toFixed(2) + '%', 'n'));
+    cell(tr, r.wins, 'n'); t.appendChild(tr);
+  });
+  const ref = document.createElement('tr'); ref.className = 'ref';
+  cell(ref, '–'); cell(ref, 'Naive (mes anterior), referencia', 'l');
+  cell(ref, (D.models[0].h[H].naive_sku_acc*100).toFixed(2) + '%', 'n'); ['','','',''].forEach(v => cell(ref, v)); t.appendChild(ref);
+}
+
+const fv = v => v === null ? 'todas las filas' : (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Number(v.toPrecision(4)).toString()) : String(v));
+function renderParams(){
+  const box = document.getElementById('params'); box.replaceChildren();
+  D.models.forEach(m => {
+    const c = card(box, m.label, `${m.n_trials} ensayos`);
+    const tb = document.createElement('table');
+    const head = document.createElement('tr');
+    [['Parámetro','l'],['Base',''],['Optuna',''],['Imp.','']].forEach(([h,cls]) => cell(head, h, cls, 'th'));
+    tb.appendChild(head);
+    const names = Object.keys(m.params_opt);
+    names.forEach(k => {
+      const b = k in m.params_base ? m.params_base[k] : (m.defaults[k] ?? null);
+      const o = m.params_opt[k];
+      const changed = typeof o === 'number' && typeof b === 'number' ? Math.abs(o - b) > 1e-9 * Math.max(1, Math.abs(b)) : fv(o) !== fv(b);
+      const tr = document.createElement('tr');
+      cell(tr, k, 'l'); cell(tr, fv(b) + (k in m.params_base ? '' : ' (defecto)'), 'n');
+      const td = cell(tr, '', 'n' + (changed ? ' chg' : '')); const bb = document.createElement(changed ? 'b' : 'span'); bb.textContent = fv(o); td.appendChild(bb);
+      cell(tr, m.importance[k] !== undefined ? Math.round(m.importance[k]*100) + '%' : '', 'n');
+      tb.appendChild(tr);
+    });
+    const wrap = document.createElement('div'); wrap.className = 'tbl'; wrap.appendChild(tb); c.appendChild(wrap);
+  });
+}
+
+function renderTables(){
+  const tf = document.getElementById('tfold'); tf.replaceChildren();
+  let head = document.createElement('tr');
+  ['Modelo','Fold','Valida','Filas de entrenamiento','WAPE base','WAPE Optuna'].forEach((h,i) => cell(head, h, i < 3 ? 'l' : '', 'th'));
+  tf.appendChild(head);
+  D.models.forEach(m => m.val_base_folds.forEach((b, i) => {
+    const tr = document.createElement('tr');
+    cell(tr, m.label, 'l'); cell(tr, 'Fold ' + (i+1), 'l'); cell(tr, D.meta.folds[i], 'l'); cell(tr, thou(m.fold_rows[i][0]), 'n');
+    cell(tr, b.toFixed(4), 'n'); cell(tr, m.val_best_folds[i].toFixed(4), 'n'); tf.appendChild(tr);
+  }));
+  const tm = document.getElementById('tmonth'); tm.replaceChildren();
+  head = document.createElement('tr'); cell(head, 'Mes de test', 'l', 'th');
+  D.models.forEach(m => { cell(head, m.label + ' base', '', 'th'); cell(head, m.label + ' Optuna', '', 'th'); });
+  tm.appendChild(head);
+  D.models[0].h[H].base.month_wape.forEach((_, i) => {
+    const tr = document.createElement('tr'); const lab = monthLabel(i); cell(tr, `${lab.m} ${lab.y}`, 'l');
+    D.models.forEach(m => { cell(tr, m.h[H].base.month_wape[i].toFixed(4), 'n'); cell(tr, m.h[H].tuned.month_wape[i].toFixed(4), 'n'); });
+    tm.appendChild(tr);
+  });
+}
+
+function renderNotes(){
+  const n = document.getElementById('notes'); n.replaceChildren();
+  [
+    `Ajuste: ventana ${D.meta.tune_window}, 3 folds cronológicos, TPE con semilla fija; el primer ensayo de cada búsqueda es la base. Test: ${D.meta.test_window}, no se usó para elegir nada.`,
+    `Cada barra y punto de test es el promedio de ${D.models[0].nseeds} semillas (${D.models[2].label}: ${D.models[2].nseeds}). WAPE es el error absoluto total dividido por el consumo real total; precisión es 1 menos WAPE.`,
+    `La validación y el test no son comparables en nivel: los folds entrenan con pocos meses. Sirven para ordenar configuraciones, no para predecir el número final.`
+  ].forEach(s => { const p = document.createElement('p'); p.style.margin = 0; p.textContent = s; n.appendChild(p); });
+}
+
+function renderAll(){ renderKpis(); renderRowA(); renderRowB(); renderRowC(); renderRank(); renderParams(); renderTables(); }
+document.querySelectorAll('input[name="h"]').forEach(r => r.addEventListener('change', () => { H = Number(r.value); hideTip(); renderAll(); }));
+document.getElementById('sub').textContent = D.meta.subtitle;
+renderNotes(); renderAll();
+})();
+</script>
+"""
+
+
+def build_data(results: dict, test_start: str, tune_window: str, test_window: str) -> dict:
+    models = []
+    for key, label in MODELS:
+        r = results[key]
+        base_params = dict(r["base_params"])
+        models.append(
+            {
+                "key": key,
+                "label": label,
+                "n_trials": r["n_trials"],
+                "best_trial": r["best_trial"],
+                "minutes": r["minutes"],
+                "val_base": r["val_base"],
+                "val_best": r["val_best"],
+                "val_base_folds": r["val_base_folds"],
+                "val_best_folds": r["val_best_folds"],
+                "fold_rows": r["fold_train_test_rows"],
+                "params_base": base_params,
+                "params_opt": r["best_params"],
+                "defaults": DEFAULTS[key],
+                "importance": r["importance"],
+                "nseeds": len(r["h1"]["base"]["sku_acc"]),
+                "h": {
+                    "1": {**{k: r["h1"][k] for k in ("base", "tuned")}, "naive_sku_acc": r["h1"]["naive_sku_acc"]},
+                    "3": {**{k: r["h3"][k] for k in ("base", "tuned")}, "naive_sku_acc": r["h3"]["naive_sku_acc"]},
+                },
+            }
+        )
+    trials = "/".join(str(m["n_trials"]) for m in models)
+    return {
+        "meta": {
+            "test_start": test_start,
+            "tune_window": tune_window,
+            "test_window": test_window,
+            "folds": ["2024-10 a 2024-12", "2025-01 a 2025-03", "2025-04 a 2025-06"],
+            "subtitle": (
+                f"Ajuste bayesiano (Optuna, TPE) de LightGBM, XGBoost y Random Forest sobre el pronóstico mensual "
+                f"por SKU, con {trials} ensayos. Se compara contra los hiperparámetros que se usaban antes, en los "
+                f"12 meses de test."
+            ),
+        },
+        "models": models,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("results", type=Path)
+    parser.add_argument("-o", "--out", type=Path, required=True)
+    parser.add_argument("--test-start", default="2025-07")
+    parser.add_argument("--tune-window", default="2024-01 a 2025-06")
+    parser.add_argument("--test-window", default="2025-07 a 2026-06")
+    args = parser.parse_args()
+
+    data = build_data(json.loads(args.results.read_text()), args.test_start, args.tune_window, args.test_window)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(TEMPLATE.replace("__DATA__", json.dumps(data)), encoding="utf-8")
+    print(f"wrote {args.out} ({args.out.stat().st_size / 1024:.0f} KB)")
+
+
+if __name__ == "__main__":
+    main()
