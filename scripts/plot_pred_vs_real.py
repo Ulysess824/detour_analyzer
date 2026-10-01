@@ -20,15 +20,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import forecast_monthly as fm  # noqa: E402
 import tune_trees as tt  # noqa: E402
 
+MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 NAMES = {"lgbm": "LightGBM", "xgb": "XGBoost", "rf": "Random Forest"}
 PALETTE = {"Real": "#222222", "Base": "#898781", "Optuna": "#2a78d6"}
 
 
-def collect(S, results: dict, h: int, n_test: int, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def month_name(label) -> str:
+    ts = pd.Period(str(label)[:7])
+    return f"{MESES[ts.month - 1]} {ts.year}"
+
+
+def collect(S, results: dict, h: int, n_test: int, seed: int, series: int | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     n = S.Y.shape[1]
     months = list(range(n - n_test, n))
     frame = fm.make_frame(S, h)
-    rows = [{"mes": str(S.labels[t])[:7], "modelo": "Real", "variante": "Real", "consumo": float(S.T[t])} for t in months]
+    actual = (lambda t: float(S.T[t])) if series is None else (lambda t: float(S.Y[series, t]))
+    pick = (lambda res, t: res.loc[res["t"] == t, "p"].sum()) if series is None else (
+        lambda res, t: res.loc[(res["t"] == t) & (res["series"] == series), "p"].sum())
+    rows = [{"mes": month_name(S.labels[t]), "modelo": "Real", "variante": "Real", "consumo": actual(t)} for t in months]
     real = np.array([r["consumo"] for r in rows])
     summary = []
     for kind in NAMES:
@@ -36,13 +45,13 @@ def collect(S, results: dict, h: int, n_test: int, seed: int) -> tuple[pd.DataFr
             continue
         for variante, params in [("Base", tt.BASE[kind]), ("Optuna", results[kind]["best_params"])]:
             res = tt.test_run(kind, params, frame, S, h, months, [seed])[0]
-            pred = np.array([res.loc[res["t"] == t, "p"].sum() for t in months])
-            rows += [{"mes": str(S.labels[t])[:7], "modelo": NAMES[kind], "variante": variante, "consumo": float(p)} for t, p in zip(months, pred)]
+            pred = np.array([pick(res, t) for t in months])
+            rows += [{"mes": month_name(S.labels[t]), "modelo": NAMES[kind], "variante": variante, "consumo": float(p)} for t, p in zip(months, pred)]
             summary.append({"modelo": NAMES[kind], "variante": variante, "accuracy": 1 - np.abs(real - pred).sum() / real.sum()})
     return pd.DataFrame(rows), pd.DataFrame(summary)
 
 
-def plot(long: pd.DataFrame, summary: pd.DataFrame, h: int, out: Path) -> None:
+def plot(long: pd.DataFrame, summary: pd.DataFrame, h: int, out: Path, scope: str = "total mensual") -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -60,7 +69,7 @@ def plot(long: pd.DataFrame, summary: pd.DataFrame, h: int, out: Path) -> None:
         pal = {f"{k} ({acc[k]:.1%})" if k != "Real" else k: c for k, c in PALETTE.items()}
         sns.lineplot(data=sub, x="mes", y="consumo", hue="variante", style="variante", markers=True, dashes={"Real": "", **{k: ("" if k.startswith("Optuna") else (4, 2)) for k in pal}},
                      palette=pal, linewidth=2, markersize=7, ax=ax)
-        ax.set_title(f"{m} - total mensual, h={h} (test)", loc="left", fontsize=11)
+        ax.set_title(f"{m} - {scope}, h={h} (test)", loc="left", fontsize=11)
         ax.set_xlabel("")
         ax.set_ylabel("consumo")
         ax.legend(loc="upper left", ncol=3, frameon=False, fontsize=9, title=None)
@@ -76,15 +85,26 @@ def main() -> None:
     p.add_argument("--h", type=int, default=1, choices=[1, 3])
     p.add_argument("--n-test", type=int, default=12)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--planta", default=None, help="plot one series instead of the total (needs --sku)")
+    p.add_argument("--sku", default=None)
+    p.add_argument("--csv", type=Path, default=None, help="also write the plotted values")
     a = p.parse_args()
     warnings.filterwarnings("ignore")
     import json
 
     S = fm.build_panel(pd.read_csv(a.input, parse_dates=["fecha"]))
-    long, summary = collect(S, json.loads(a.results.read_text()), a.h, a.n_test, a.seed)
+    df = pd.read_csv(a.input, parse_dates=["fecha"])
+    series, scope = None, "total mensual"
+    if a.planta or a.sku:
+        keys = df.groupby(fm.GROUP_COLS).size().index  # same order as the panel rows
+        series = keys.get_loc((a.planta, a.sku))
+        scope = f"{a.planta} / {a.sku}"
+    long, summary = collect(S, json.loads(a.results.read_text()), a.h, a.n_test, a.seed, series)
     print(long.pivot_table(index="mes", columns=["modelo", "variante"], values="consumo").round(0).to_string())
     print(summary.round(4).to_string(index=False))
-    plot(long, summary, a.h, a.out)
+    if a.csv:
+        long.to_csv(a.csv, index=False)
+    plot(long, summary, a.h, a.out, scope)
     print(f"saved {a.out}")
 
 
