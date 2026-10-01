@@ -105,6 +105,17 @@ Confidence Set (pérdida de error absoluto, bootstrap por bloques de meses) indi
 pueden descartar con confianza 90% y 75%. Los pronósticos de los miembros se guardan en
 `results/member_forecasts.csv` y los resultados en `results/ensembles.json`.
 
+Resultado (test 2025-07 a 2026-06, h=1, confianza 90%):
+
+| nivel | mejor por accuracy | modelos que se pueden descartar |
+|---|---|---|
+| SKU-mes | LightGBM (71.0%) | 19 de 27, entre ellos XGBoost, DNN, LSTM y todos los modelos clásicos y sus ensembles |
+| planta-mes | `ml_econ_mean` (91.2%) | 14 de 27, entre ellos DNN, LSTM, XGBoost y los modelos simples de media |
+| total-mes | `ml_econ_mean` (95.6%) | 15 de 27, entre ellos DNN, LSTM, `ml_mean` y `naive` |
+
+Las redes usan la configuración base (sin Optuna), y con solo 12 meses de test el MCS tiene poca
+potencia a nivel total.
+
 ## Métricas
 
 - **WAPE** = Σ|real − pred| / Σ real.
