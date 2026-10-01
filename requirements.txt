@@ -3,11 +3,12 @@ numpy>=2.4
 openpyxl>=3.1
 scipy>=1.17
 scikit-learn>=1.9
+joblib>=1.4
 statsmodels>=0.15
 lightgbm>=4.7
 xgboost>=3.2
 optuna>=5.0
 matplotlib>=3.11
 seaborn>=0.13
-# only for scripts/neural_models.py (compare_models.py --neural)
+# neural networks (tune_neural.py, run_ensembles.py, compare_models.py --neural)
 torch>=2.14
