@@ -114,6 +114,140 @@ Con 3 miembros de machine learning la media recortada (20%) no recorta ninguno, 
 `ml_trimmed` es igual a `ml_mean`. Con solo 12 meses de test el MCS tiene poca potencia a nivel
 total.
 
+## Features de los modelos de machine learning
+
+LightGBM, XGBoost y Random Forest pronostican **el total mensual de cada SKU** (una fila por serie y
+por origen, no por día ni por semana) con los mismos 25 features. Se definen en
+`src/utils/feature_utils.py` (`SERIES_FEATURES`) y se construyen con `make_frame(S, horizonte)`.
+
+Notación: el **origen** `o` es el último mes con datos conocidos, el **mes objetivo** es `t = o + h`
+(con `h = 1`, el mes siguiente) y `y` es el consumo total del mes objetivo, que es lo que se predice.
+`monthly[m]` es el consumo total de la serie en el mes `m`; `bd[m]` son los días hábiles del mes `m`
+(días del mes sin domingos).
+
+| # | feature | grupo | qué mide | cálculo |
+|---|---|---|---|---|
+| 1 | `lag1` | rezagos | consumo del último mes observado | `monthly[o]` |
+| 2 | `lag2` | rezagos | consumo de hace dos meses | `monthly[o-1]` |
+| 3 | `lag3` | rezagos | consumo de hace tres meses | `monthly[o-2]` |
+| 4 | `mean3` | ventanas | nivel reciente | promedio de `o-2` a `o` |
+| 5 | `mean6` | ventanas | nivel de medio plazo | promedio de `o-5` a `o` |
+| 6 | `mean12` | ventanas | nivel de largo plazo | promedio de `o-11` a `o` |
+| 7 | `std6` | ventanas | volatilidad reciente | desviación estándar de `o-5` a `o` |
+| 8 | `zero_share12` | intermitencia | proporción de meses sin consumo | meses con consumo 0 / meses vividos, de `o-11` a `o` |
+| 9 | `months_active` | antigüedad | edad de la serie | `o - primer_mes + 1` |
+| 10 | `ly` | año anterior | consumo del mismo mes un año antes | `monthly[t-12]` |
+| 11 | `ly_rate` | año anterior | lo anterior por día hábil | `monthly[t-12] / bd[t-12]` |
+| 12 | `planta_code` | identidad | planta de la serie | código entero, orden alfabético |
+| 13 | `month_t` | calendario | mes del año del mes objetivo | 1 a 12 |
+| 14 | `n_days_t` | calendario | días hábiles del mes objetivo | `bd[t]` |
+| 15 | `ratio_planta` | estacionalidad | cómo se comportó la planta ese mes el año pasado, contra sus 6 meses previos | `planta[t-12] / promedio(planta[o-17..o-12])` |
+| 16 | `ratio_global` | estacionalidad | lo mismo para el total de todas las plantas | `total[t-12] / promedio(total[o-17..o-12])` |
+| 17 | `lyrel_planta` | estacionalidad | el mes del año pasado contra su entorno de 7 meses | `planta[t-12] / promedio(planta[t-15..t-9])` |
+| 18 | `lyrel_global` | estacionalidad | lo mismo para el total | `total[t-12] / promedio(total[t-15..t-9])` |
+| 19 | `rate3` | intensidad | consumo por día hábil, 3 meses | suma de `o-2..o` / días hábiles de esos meses |
+| 20 | `rate6` | intensidad | consumo por día hábil, 6 meses | igual con `o-5..o` |
+| 21 | `rate12` | intensidad | consumo por día hábil, 12 meses | igual con `o-11..o` |
+| 22 | `occ3` | ocurrencia | fracción de días hábiles con consumo, 3 meses | días con consumo / días hábiles, `o-2..o` |
+| 23 | `occ6` | ocurrencia | igual, 6 meses | `o-5..o` |
+| 24 | `occ12` | ocurrencia | igual, 12 meses | `o-11..o` |
+| 25 | `size6` | tamaño | consumo medio por día con consumo, 6 meses | `rate6 / occ6` |
+
+### Explicación de cada grupo
+
+**Rezagos (`lag1`, `lag2`, `lag3`).** Son los totales mensuales más recientes de la propia serie.
+`lag1` es el mes inmediatamente anterior al que se pronostica (con `h = 1`) y suele ser el
+predictor individual más fuerte: es el pronóstico "naive". Tener también `lag2` y `lag3` le deja
+al modelo ver la **dirección** (sube, baja o se mantiene) y distinguir un mes atípico de un cambio
+de nivel.
+
+**Ventanas móviles (`mean3`, `mean6`, `mean12`, `std6`).** Los promedios resumen el nivel de la serie
+en tres horizontes. `mean3` reacciona rápido a cambios, `mean12` es estable y casi no se mueve con
+un mes raro, y `mean6` queda entre ambos. Comparar uno con otro da una noción de tendencia: si
+`mean3 > mean12`, la serie viene subiendo. `std6` mide cuánto oscila el consumo mensual alrededor de
+su nivel; una serie con `std6` alto es difícil de pronosticar y el modelo aprende a no fiarse tanto
+de `lag1`. Los promedios ignoran los meses anteriores a la primera aparición de la serie (no los
+cuentan como ceros) pero sí cuentan los ceros posteriores.
+
+**Intermitencia y antigüedad (`zero_share12`, `months_active`).** Muchos SKU no se consumen todos los
+meses. `zero_share12` es la proporción de meses de los últimos 12 con consumo exactamente cero (solo
+cuenta los meses desde que la serie existe): 0 es una serie continua, valores cercanos a 1 son una
+serie casi inactiva. Le dice al modelo si debe esperar ceros. `months_active` es la edad de la serie
+en meses: una serie de 4 meses tiene un `mean12` poco fiable y una de 24 meses ya tiene historia
+estacional. Además separa los SKU recientes de los antiguos.
+
+**Año anterior (`ly`, `ly_rate`).** `ly` es el consumo del **mismo mes calendario** un año antes del
+mes objetivo (para pronosticar junio de 2026, el consumo de junio de 2025). Captura estacionalidad
+propia del SKU (campañas, cierres anuales). `ly_rate` es lo mismo dividido por los días hábiles de
+aquel mes, para que el modelo pueda separar "se consumió más" de "el mes tenía más días". Con menos
+de 12 meses de historia son nulos.
+
+**Identidad y calendario (`planta_code`, `month_t`, `n_days_t`).** `planta_code` identifica la planta
+(código entero por orden alfabético); en LightGBM se declara categórico, mientras que en XGBoost y
+Random Forest entra como número. `month_t` es el mes del año (1 a 12) del mes que se predice, y deja
+al modelo aprender estacionalidad común entre SKU. `n_days_t` es el número de días hábiles del mes
+objetivo (sin domingos): un mes con 26 días hábiles consume más que uno con 24, y este feature
+corrige ese efecto de calendario que de otro modo se confundiría con ruido.
+
+**Estacionalidad agregada (`ratio_planta`, `ratio_global`, `lyrel_planta`, `lyrel_global`).** La
+estacionalidad de un SKU individual es demasiado ruidosa para estimarla, así que se mide sobre
+agregados: la planta (`_planta`) y el total de todas las plantas (`_global`). Por eso valen lo mismo
+para todos los SKU de la misma planta (o, en `_global`, para todos los SKU del origen).
+- `ratio_*` responde: *el año pasado, ese mes, ¿cómo estuvo el consumo frente a los seis meses
+  anteriores a ese origen?* Es el consumo agregado del mes `t-12` dividido entre el promedio de los
+  meses `o-17` a `o-12`, que es la misma ventana de 6 meses que usa `mean6` pero un año antes. Un
+  valor de 1,2 significa que el mes objetivo estuvo un 20% por encima de la media reciente de ese
+  año; un valor de 0,8, un 20% por debajo.
+- `lyrel_*` mide lo mismo con otro denominador: el promedio de los 7 meses **centrados** en el mes
+  del año pasado (`t-15` a `t-9`). Aísla el efecto "ese mes es alto o bajo respecto de sus vecinos"
+  de la tendencia general, que `ratio_*` mezcla con la estacionalidad.
+
+  Ejemplo ilustrativo (valores inventados): se pronostica junio de 2026 desde mayo de 2026. Si una
+  planta consumió 120 en junio de 2025 y el promedio de diciembre de 2024 a mayo de 2025 fue 100,
+  entonces `ratio_planta = 1,2`. Si el promedio de marzo a septiembre de 2025 fue 110,
+  `lyrel_planta = 120 / 110 = 1,09`.
+
+Los `ratio_*` necesitan que existan los meses `t-12` y `o-17`, y los `lyrel_*` que exista `t-15`, así
+que son nulos en los primeros orígenes de la historia.
+
+**Intensidad por día hábil (`rate3`, `rate6`, `rate12`).** Es el consumo acumulado de la ventana
+dividido entre los días hábiles de los meses en que la serie ya existía. Como el consumo mensual
+depende de cuántos días tiene el mes, la tasa por día es una medida de nivel más comparable entre
+meses que el promedio mensual. El modelo puede multiplicarla mentalmente por `n_days_t` para obtener
+un pronóstico ajustado a calendario (es la lógica del modelo clásico `perday6`).
+
+**Ocurrencia (`occ3`, `occ6`, `occ12`).** Es la fracción de días hábiles en que hubo consumo
+positivo: días con consumo / días hábiles de la ventana. Cercana a 1, el SKU se consume casi a
+diario; cercana a 0, es esporádico. Como cuenta días y no volumen, permite distinguir una serie
+que consume poco todos los días de otra que consume mucho unos pocos días al año. Puede superar
+ligeramente 1 si hubo consumo en domingo, porque el numerador cuenta cualquier día con consumo y el
+denominador excluye los domingos.
+
+**Tamaño (`size6`).** `rate6 / occ6` equivale al consumo medio **por día con consumo** en los
+últimos 6 meses. Junto con `occ*` descompone la demanda en dos factores: *con qué frecuencia* se
+consume (`occ`) y *cuánto* se consume cada vez (`size6`). Es nulo si no hubo ningún día con
+consumo en la ventana.
+
+### Reglas que valen para todos los features
+
+- **Sin fuga de datos.** Todas las ventanas terminan en el origen `o` o antes. Los datos del año
+  anterior (`t-12`, `o-17` a `o-12` y `t-15` a `t-9`) ya estaban observados en el origen para
+  `h = 1` y `h = 3`. Nada del mes objetivo entra como feature.
+- **Series vivas.** Solo hay fila para las series que ya existían en el origen, por eso los SKU que
+  aparecen después (arranque en frío) no se pronostican.
+- **Valores nulos.** Aparecen cuando la historia no alcanza (por ejemplo `ly` cuando el mes `t-12`
+  cae antes del inicio de los datos o la serie aún no existía, o los rezagos en series muy nuevas). LightGBM y XGBoost los manejan
+  directamente; Random Forest los rellena con -1.
+- **Las columnas `p_*` del frame no son features.** `make_frame` guarda junto a los features los
+  pronósticos de los modelos simples (`p_naive`, `p_mean3`, `p_mean6`, ...), pero se usan solo como
+  baselines y miembros de los ensembles, nunca como entrada de los modelos de machine learning.
+- **Modelo diario.** `forecast_monthly.py --daily` usa estos mismos 25 features más cuatro de día
+  (`dow`, `dom`, `day_idx`, `days_left`), predice cada día calendario del mes y suma. No forma parte
+  de los ensembles. `compare_models.py` trabaja a nivel de fila diaria con su propio conjunto de
+  features (`src/utils/row_model_utils.py`), distinto de este.
+- **Modelos clásicos.** Los miembros clásicos de los ensembles (naive, medias, SES, Holt, ARIMA) no
+  usan estos features, solo la historia mensual de cada serie.
+
 ## Métricas
 
 - **WAPE** = Σ|real − pred| / Σ real.

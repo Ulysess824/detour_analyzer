@@ -10,3 +10,5 @@ xgboost>=3.2
 optuna>=5.0
 matplotlib>=3.11
 seaborn>=0.13
+streamlit>=1.55
+plotly>=5.24

@@ -1,0 +1,49 @@
+# detour_analyzer: agent index
+
+Read this first; open source files only for the function you need to change. README.md (Spanish) has the user-facing docs and result tables.
+
+**Goal:** forecast monthly consumption of paper SKUs per planta from SAP exports, aggregated bottom-up to planta and total.
+**Rules:** chronological splits and rolling origin only (never random). Code and comments in English. Scripts in `scripts/` are thin CLIs (`sys.path.insert` + argparse); logic goes in `src/utils/`, one responsibility per module. Run from the repo root.
+**Metrics:** WAPE = sum|y-p| / sum y; accuracy = 1 - WAPE; bias_pct > 0 means under-forecast.
+**Env:** `python` is not on PATH in the Bash tool (Windows Store alias); use PowerShell or locate the interpreter.
+**Do not:** reintroduce neural nets (removed as too heavy, c2e3330); edit files when the user pastes a code chunk, answer with the corrected chunk in chat.
+
+## Data
+`data/consumos_long.csv` (master): `planta, sku, fecha, consumo`; 316,576 rows, 15 plantas, 1,047 SKU, 2024-01-02..2026-06-30. `sku` = material description. Negatives clipped to 0. Built from `consumos_2024_2025.xlsx` (long) + `consumos_2026.xlsx` (wide) with `--drop-zeros`; `consumos_2024_ene.xlsx` is a duplicate, unused.
+
+## Pipeline: script -> utils it uses -> output
+| script | main utils | output |
+|---|---|---|
+| transform_consumos.py | transform_utils (`read_export`, `combine_exports`, `write_csv`) | data/consumos_long.csv |
+| eda_consumos.py | eda_utils (`eda_by_planta_sku`, `eda_by_planta`) | data/eda_*.csv |
+| compare_models.py (`--cutoff`) | row_model_utils, metrics_utils (`row_metrics`, `rank_by_mae`) | console; daily-row models: naive, Croston, hurdle, LGBM/XGB Tweedie, ARIMA |
+| forecast_monthly.py (`--horizons`, `--daily`) | evaluation_utils (`evaluate`, `tercile_table`), tree_utils | console |
+| tune_trees.py | tuning_utils, search_space_utils, tree_utils | results/tuning_trees.json |
+| build_tuning_viewer.py | viewer_utils + src/utils/templates/tuning_viewer.html | results/tuning_viewer.html (not committed) |
+| plot_pred_vs_real.py | plot_utils | PNG |
+| run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils | results/member_forecasts.csv (cache), results/ensembles.json |
+
+## Core objects
+- `Panel` (panel_utils): arrays series x month: `monthly` (NaN before first appearance), `active_days`, `daily` (zero-filled), `planta_monthly`, `total_monthly`, `business_days` (no Sundays), `labels`, `first_month`, `planta_code`. Built by `build_panel(load_consumption(csv))`. Window helpers: `window_mean/std/rate`.
+- `make_frame(S, horizon)` (feature_utils): one row per (origin `o`, series alive); target month `t = o + h`; columns `series, o, t, planta_code, y`, the 25 `SERIES_FEATURES`, and baseline forecasts `p_<name>` (`BASELINES`). All windows end at the origin: no leakage. `direct_forecasts` applies the simple models to an aggregated series.
+- `fit_predict_trees(kind, params, train, test, seed)` (tree_utils): `kind` in lgbm / xgb / rf; LGBM/XGB use Tweedie with early stopping on the last 2 target months; `TREE_BASE` holds the pre-tuning params. `daily_lgbm_forecast` = daily-then-aggregate.
+- `reconcile` (evaluation_utils): rescales SKU forecasts to the direct planta `mean6_x_seasonal`. `score_models_by_level` ranks models at sku/planta/total.
+- Tuning: `make_folds` (3 walk-forward folds x 3 months), `run_study` (TPE, baseline enqueued as trial 0), `compare_base_and_tuned` (h=1 and h=3 on the test months), `to_jsonable`.
+- Ensembles: `ENSEMBLE_GROUPS` = ml (lgbm, xgb, rf), econ (naive, mean3/6/12, perday6, seasonal_naive, mean6_x_planta, ses, damped_holt, arima), ml_econ. `METHODS` = mean, median, trimmed (20%), weighted (1/past MAE, only months <= t-h). 25 models total. `model_confidence_set(loss, period, block, n_boot)` = Hansen-Lunde-Nason, block bootstrap over months.
+
+## Dashboard (app/, Streamlit, read-only)
+Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Python 3.12 path above). Never retrains; reads `results/` and `data/`. UI text in Spanish, no emojis, retrofuturistic theme.
+- `dashboard.py`: header, sidebar (level selector, fixed horizon h=1), best-model cards, three tabs.
+- `theme.py`: palette, fonts, CSS, `plotly_layout`, `add_real_trace` and `add_model_trace`. Every chart that has an actual series must draw it with `add_real_trace` (thick amber line with glow, added after the models) so the real line always stands out. `loaders.py`: cached readers, `MODEL_GROUPS` (ML, classical econometrics, baselines, ensembles); ensembles are computed with `add_ensembles` on `member_forecasts.csv`.
+- `real_vs_pred.py`: tab REAL VS PREDICHO. Planta and SKU are searchable selectboxes between the cards and the tabs ("Todas"/"Todos" = no filter, so no scope radio); the model pills live in the fixed sidebar. `ranking.py`: tab RANKING (table by rank from `ensembles.json`).
+- Done: stages 1 to 3 (table only, no bar chart yet). Pending: stage 3 bar chart, stage 4 (CONJUNTO DE CONFIANZA, MCS), stage 5 (tuning tab), stage 6 (polish, missing-file messages, app/README).
+
+## Latest results (test 2025-07..2026-06, h=1)
+SKU ~71%, planta ~91%, total ~94-96%. Best ensemble: ml_mean (SKU 71.1%), ml_econ_weighted (planta 91.2%), ml_econ_mean (total 95.8%). Optuna gain credible only for Random Forest; LightGBM within noise; XGBoost overfits validation. `ml_trimmed` == `ml_mean` (3 members). MCS has low power at total level (12 test months).
+
+## Open items
+- [ ] Inference script: train on full history, predict next month (none in scripts/).
+- [ ] `data/consumos_long.csv` shows modified in `git status` with an empty `git diff` (line endings or timestamp?); check before committing.
+- [ ] No tests.
+
+Update this file when a script, module or result changes.
