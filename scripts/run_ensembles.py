@@ -2,8 +2,7 @@
 Ensembles of machine-learning and classical econometric forecasts, and a Model Confidence Set.
 
 Members (forecast of the monthly total of each SKU, rolling origin, horizon --horizon):
-    machine learning   LightGBM, XGBoost, Random Forest (Optuna-tuned parameters from the
-                       tuning json), DNN and LSTM (baseline configuration, daily-then-aggregate)
+    machine learning   LightGBM, XGBoost, Random Forest (Optuna-tuned parameters from the tuning json)
     classical          naive, mean3/6/12, per-day rate, seasonal naive, mean6 x planta seasonal
                        ratio, simple exponential smoothing, damped Holt, ARIMA (AIC)
 
@@ -66,7 +65,6 @@ def main() -> None:
     parser.add_argument("--tuning", type=Path, default=Path("results/tuning_trees.json"))
     parser.add_argument("--horizon", type=int, default=1)
     parser.add_argument("--n-test", type=int, default=12)
-    parser.add_argument("--neural-seeds", nargs="+", type=int, default=[0])
     parser.add_argument("--predictions", type=Path, default=Path("results/member_forecasts.csv"))
     parser.add_argument("--refit", action="store_true", help="recompute the member forecasts even if cached")
     parser.add_argument("--out", type=Path, default=Path("results/ensembles.json"))
@@ -88,7 +86,7 @@ def main() -> None:
         print(f"loaded member forecasts from {args.predictions}")
     else:
         tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
-        res = collect_member_forecasts(S, make_frame(S, args.horizon), test_months, args.horizon, tuned, args.neural_seeds, args.jobs)
+        res = collect_member_forecasts(S, make_frame(S, args.horizon), test_months, args.horizon, tuned, args.jobs)
         args.predictions.parent.mkdir(parents=True, exist_ok=True)
         res.to_csv(args.predictions, index=False)
 

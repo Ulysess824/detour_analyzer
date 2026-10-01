@@ -10,5 +10,3 @@ xgboost>=3.2
 optuna>=5.0
 matplotlib>=3.11
 seaborn>=0.13
-# neural networks (tune_neural.py, run_ensembles.py, compare_models.py --neural)
-torch>=2.14

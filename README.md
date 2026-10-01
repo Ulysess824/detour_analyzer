@@ -44,9 +44,7 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     daily_utils.py         expansión de filas mensuales a días calendario
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
     tree_utils.py          LightGBM, XGBoost y Random Forest (mensual y diario)
-    neural_utils.py        DNN y LSTM diarios con pérdida Tweedie
     row_model_utils.py     modelos sobre filas crudas: naive, Croston, hurdle, LightGBM, XGBoost, ARIMA
-    row_neural_utils.py    DNN y LSTM sobre filas crudas (estrategia del paper de Ouwehand et al.)
     econometric_utils.py   SES, Holt amortiguado y ARIMA por serie
     ensemble_utils.py      combinaciones: media, mediana, media recortada, ponderada
     mcs_utils.py           Model Confidence Set (Hansen, Lunde y Nason, 2011)
@@ -68,14 +66,13 @@ Todos los comandos parten del CSV maestro y se ejecutan desde la raíz del repos
 python scripts/eda_consumos.py data/consumos_long.csv
 
 # 2. Comparación de modelos sobre filas crudas (naive, Croston, hurdle, LightGBM, XGBoost, ARIMA)
-python scripts/compare_models.py data/consumos_long.csv --cutoff 2026-04-30 [--neural]
+python scripts/compare_models.py data/consumos_long.csv --cutoff 2026-04-30 
 
 # 3. Forecast mensual por SKU, planta y total (origen rodante, h=1 y h=3)
 python scripts/forecast_monthly.py data/consumos_long.csv --horizons 1 3 --n-test 12 [--daily]
 
-# 4. Tuning bayesiano (Optuna TPE) de los árboles y de las redes neuronales
+# 4. Tuning bayesiano (Optuna TPE) de LightGBM, XGBoost y Random Forest
 python scripts/tune_trees.py data/consumos_long.csv --trials 100 100 40 --out results/tuning_trees.json
-python scripts/tune_neural.py data/consumos_long.csv --models dnn --trials 60 --out results/tuning_dnn.json
 
 # 5. Visor interactivo Base vs Optuna (HTML autocontenido)
 python scripts/build_tuning_viewer.py results/tuning_trees.json -o results/tuning_viewer.html
@@ -93,8 +90,7 @@ python scripts/run_ensembles.py data/consumos_long.csv --tuning results/tuning_t
 
 `run_ensembles.py` pronostica el total mensual de cada SKU (origen rodante, h=1) con:
 
-- **Machine learning:** LightGBM, XGBoost y Random Forest con los parámetros de Optuna, y DNN y
-  LSTM diarios con la configuración base.
+- **Machine learning:** LightGBM, XGBoost y Random Forest con los parámetros de Optuna.
 - **Econometría clásica:** naive, medias de 3, 6 y 12 meses, tasa por día, naive estacional, media de
   6 meses por razón estacional de la planta, suavizado exponencial simple, Holt amortiguado y ARIMA
   elegido por AIC.
@@ -105,16 +101,18 @@ Confidence Set (pérdida de error absoluto, bootstrap por bloques de meses) indi
 pueden descartar con confianza 90% y 75%. Los pronósticos de los miembros se guardan en
 `results/member_forecasts.csv` y los resultados en `results/ensembles.json`.
 
-Resultado (test 2025-07 a 2026-06, h=1, confianza 90%):
+Resultado (test 2025-07 a 2026-06, h=1, confianza 90%, 25 modelos: 3 de machine learning, 10
+clásicos y 12 ensembles):
 
 | nivel | mejor por accuracy | modelos que se pueden descartar |
 |---|---|---|
-| SKU-mes | LightGBM (71.0%) | 19 de 27, entre ellos XGBoost, DNN, LSTM y todos los modelos clásicos y sus ensembles |
-| planta-mes | `ml_econ_mean` (91.2%) | 14 de 27, entre ellos DNN, LSTM, XGBoost y los modelos simples de media |
-| total-mes | `ml_econ_mean` (95.6%) | 15 de 27, entre ellos DNN, LSTM, `ml_mean` y `naive` |
+| SKU-mes | `ml_mean` (71.1%) | 17 de 25: XGBoost, los modelos clásicos y los ensembles que los usan |
+| planta-mes | `ml_econ_weighted` (91.2%) | 14 de 25: XGBoost, ARIMA, SES, Holt y las medias simples |
+| total-mes | `ml_econ_mean` (95.8%) | 10 de 25: Random Forest, ARIMA, SES, Holt y las medias simples |
 
-Las redes usan la configuración base (sin Optuna), y con solo 12 meses de test el MCS tiene poca
-potencia a nivel total.
+Con 3 miembros de machine learning la media recortada (20%) no recorta ninguno, así que
+`ml_trimmed` es igual a `ml_mean`. Con solo 12 meses de test el MCS tiene poca potencia a nivel
+total.
 
 ## Métricas
 
@@ -140,5 +138,4 @@ potencia a nivel total.
 
 ## Pendiente
 
-- Tuning del grupo de redes neuronales (DNN y LSTM).
 - Script de inferencia: entrenar con todo el histórico y predecir el mes siguiente.
