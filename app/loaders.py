@@ -10,6 +10,8 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "results"
 CONSUMPTION_CSV = ROOT / "data" / "consumos_long.csv"
+PLANNER_CSV = ROOT / "data" / "planner_forecast_2026-09.csv"
+PLANNER_COMPARISON_CSV = RESULTS_DIR / "planner_comparison.csv"
 LEVELS = ["sku", "planta", "total"]
 
 if str(ROOT) not in sys.path:
@@ -73,3 +75,14 @@ def load_forecasts() -> pd.DataFrame:
     res = add_ensembles(res, ENSEMBLE_GROUPS, horizon=1)
     _, pairs = load_monthly_actual()
     return res.merge(pairs, on="series")
+
+
+@st.cache_data
+def load_planner_comparison() -> tuple[pd.DataFrame, str, str]:
+    r"""
+    Real consumption, planner forecast and model forecasts per planner SKU, written by
+    scripts/compare_planner.py; also returns the planta and month of the planner file.
+    """
+    table = pd.read_csv(PLANNER_COMPARISON_CSV)
+    info = pd.read_csv(PLANNER_CSV, usecols=["planta", "mes"]).iloc[0]
+    return table, info["planta"], info["mes"]

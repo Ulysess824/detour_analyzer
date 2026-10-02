@@ -7,6 +7,7 @@ Usage:
 
 import streamlit as st
 
+import planner
 import ranking
 import real_vs_pred
 from loaders import LEVELS, best_by_level, load_ensembles, load_monthly_actual
@@ -52,9 +53,11 @@ def render_best_cards(best: dict[str, dict], selected: str) -> None:
 
 
 def render_tabs(ensembles: dict, level: str, planta: str | None, sku: str | None, models: list[str]) -> None:
-    real_tab, ranking_tab, mcs_tab = st.tabs(["REAL VS PREDICHO", "RANKING", "CONJUNTO DE CONFIANZA"])
+    real_tab, planner_tab, ranking_tab, mcs_tab = st.tabs(["REAL VS PREDICHO", "PLANIFICADOR", "RANKING", "CONJUNTO DE CONFIANZA"])
     with real_tab:
         real_vs_pred.render(planta, sku, models)
+    with planner_tab:
+        planner.render(models)
     with ranking_tab:
         ranking.render(ensembles, level, LEVEL_LABELS[level])
     with mcs_tab:

@@ -21,6 +21,7 @@ Read this first; open source files only for the function you need to change. REA
 | tune_trees.py | tuning_utils, search_space_utils, tree_utils | results/tuning_trees.json |
 | build_tuning_viewer.py | viewer_utils + src/utils/templates/tuning_viewer.html | results/tuning_viewer.html (not committed) |
 | plot_pred_vs_real.py | plot_utils | PNG |
+| compare_planner.py | planner_utils, ensemble_utils | results/planner_comparison.csv (planner vs models, one month) |
 | run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils | results/member_forecasts.csv (cache), results/ensembles.json |
 
 ## Core objects
@@ -33,8 +34,9 @@ Read this first; open source files only for the function you need to change. REA
 
 ## Dashboard (app/, Streamlit, read-only)
 Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Python 3.12 path above). Never retrains; reads `results/` and `data/`. UI text in Spanish, no emojis, retrofuturistic theme.
-- `dashboard.py`: header, sidebar (level selector, fixed horizon h=1), best-model cards, three tabs.
+- `dashboard.py`: header, sidebar (level selector, fixed horizon h=1), best-model cards, four tabs.
 - `theme.py`: palette, fonts, CSS, `plotly_layout`, `add_real_trace` and `add_model_trace`. Every chart that has an actual series must draw it with `add_real_trace` (thick amber line with glow, added after the models) so the real line always stands out. `loaders.py`: cached readers, `MODEL_GROUPS` (ML, classical econometrics, baselines, ensembles); ensembles are computed with `add_ensembles` on `member_forecasts.csv`.
+- `planner.py`: tab PLANIFICADOR. Planner forecast vs real vs the sidebar models for the SCAN SKUs of one month, read from `results/planner_comparison.csv` (written by `scripts/compare_planner.py`, logic in `src/utils/planner_utils.py`). The real is drawn as amber markers (not a line, since SKUs are not a time axis); the planner is magenta diamonds.
 - `real_vs_pred.py`: tab REAL VS PREDICHO. Planta and SKU are searchable selectboxes between the cards and the tabs ("Todas"/"Todos" = no filter, so no scope radio); the model pills live in the fixed sidebar. `ranking.py`: tab RANKING (table by rank from `ensembles.json`).
 - Done: stages 1 to 3 (table only, no bar chart yet). Pending: stage 3 bar chart, stage 4 (CONJUNTO DE CONFIANZA, MCS), stage 5 (tuning tab), stage 6 (polish, missing-file messages, app/README).
 
