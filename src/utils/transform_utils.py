@@ -121,16 +121,23 @@ def read_export(path: Path, drop_zeros: bool = False) -> list[Record]:
 
 
 def combine_exports(parts: list[list[Record]]) -> list[Record]:
-    r"""Merge the records of several exports; the files must not overlap in time."""
-    records = [r for part in parts for r in part]
-    keys = [(r[0], r[1], r[2]) for r in records]
-    duplicated = len(keys) - len(set(keys))
-    if duplicated:
-        raise SystemExit(
-            f"{duplicated:_} (planta, sku, fecha) keys appear in more than one input; "
-            "the files overlap in time. Pass non-overlapping exports."
-        )
-    return sorted(records, key=lambda r: (r[0], r[1], r[2]))
+    r"""
+    Merge the records of several exports.
+
+    A (planta, sku, fecha) key that appears in more than one file is kept once when every copy
+    has the same value (exports that overlap in time). Different values for the same key stop
+    the run, because it is unclear which file is right.
+    """
+    merged: dict[tuple[str, str, str], float] = {}
+    conflicts = 0
+    for record in (r for part in parts for r in part):
+        key, value = record[:3], record[3]
+        if key in merged and abs(merged[key] - value) > 1e-9:
+            conflicts += 1
+        merged[key] = value
+    if conflicts:
+        raise SystemExit(f"{conflicts:_} (planta, sku, fecha) keys have different values in different inputs.")
+    return sorted((*key, value) for key, value in merged.items())
 
 
 def write_csv(records: list[Record], path: Path) -> None:
