@@ -12,7 +12,7 @@ Forecast del consumo por planta y SKU a partir de exportes de SAP. El objetivo e
 | `data/consumos_2024_ene.xlsx` | subconjunto duplicado de enero 2024; no se usa |
 | `data/consumos_long.csv` | **CSV maestro**: `planta, sku, fecha, consumo` |
 
-El CSV maestro tiene 316_576 filas, 15 plantas, 1_047 SKU y cubre 2024-01-02 a 2026-06-30.
+El CSV maestro tiene 347_502 filas, 15 plantas y cubre 2024-01-02 a 2026-09-30 (33 meses).
 Reglas de la transformación:
 
 - `sku` es la descripción del material, no el código numérico.
@@ -24,7 +24,7 @@ Regenerarlo:
 
 ```bash
 python scripts/transform_consumos.py --drop-zeros \
-    data/consumos_2024_2025.xlsx data/consumos_2026.xlsx -o data/consumos_long.csv
+    data/consumos_2024_2025.xlsx data/consumos_2025_10_2026_09.xlsx -o data/consumos_long.csv
 ```
 
 ## Instalación
@@ -101,14 +101,14 @@ Confidence Set (pérdida de error absoluto, bootstrap por bloques de meses) indi
 pueden descartar con confianza 90% y 75%. Los pronósticos de los miembros se guardan en
 `results/member_forecasts.csv` y los resultados en `results/ensembles.json`.
 
-Resultado (test 2025-07 a 2026-06, h=1, confianza 90%, 25 modelos: 3 de machine learning, 10
+Resultado (test 2025-10 a 2026-09, h=1, confianza 90%, 25 modelos: 3 de machine learning, 10
 clásicos y 12 ensembles):
 
 | nivel | mejor por accuracy | modelos que se pueden descartar |
 |---|---|---|
-| SKU-mes | `ml_mean` (71.1%) | 17 de 25: XGBoost, los modelos clásicos y los ensembles que los usan |
-| planta-mes | `ml_econ_weighted` (91.2%) | 14 de 25: XGBoost, ARIMA, SES, Holt y las medias simples |
-| total-mes | `ml_econ_mean` (95.8%) | 10 de 25: Random Forest, ARIMA, SES, Holt y las medias simples |
+| SKU-mes | `ml_mean` (70.4%) | 21 de 25: todos los clásicos, XGBoost, LightGBM y casi todos los ensembles |
+| planta-mes | `ml_median` (91.9%) | 14 de 25: XGBoost, ARIMA, SES, Holt y las medias simples |
+| total-mes | `ml_mean` (97.5%) | 8 de 25: XGBoost, ARIMA, `naive` y las medias simples |
 
 Con 3 miembros de machine learning la media recortada (20%) no recorta ninguno, así que
 `ml_trimmed` es igual a `ml_mean`. Con solo 12 meses de test el MCS tiene poca potencia a nivel
@@ -122,13 +122,13 @@ total.
 - Se reportan a nivel SKU-mes, planta-mes y total-mes. Al agregar se cancelan errores de signo
   opuesto, por eso la precisión sube con el nivel.
 
-## Resultados hasta ahora (test 2025-07 a 2026-06, h=1)
+## Resultados hasta ahora (test 2025-10 a 2026-09, h=1)
 
 | nivel | accuracy aprox. |
 |---|---|
-| SKU-mes | 71% |
-| planta-mes | 91% |
-| total-mes | 94% |
+| SKU-mes | 70% |
+| planta-mes | 92% |
+| total-mes | 97% |
 
 - El consumo diario es casi ruido alrededor del nivel de cada serie: sin autocorrelación útil. El
   techo viene de los datos, sin variables externas (pedidos, forecast del ERP).
@@ -139,3 +139,10 @@ total.
 ## Pendiente
 
 - Script de inferencia: entrenar con todo el histórico y predecir el mes siguiente.
+
+## Comparación con el planificador
+
+`scripts/compare_planner.py` compara el pronóstico de los planificadores (`data/planner_forecast_2026-09.csv`,
+SCAN, septiembre de 2026, 32 SKU) con el de los modelos sobre los mismos SKU y el mismo mes. El SKU del
+planificador no trae el ancho de núcleo, así que se suman las series del dataset con igual tipo, gramaje y ancho.
+Resultado en `results/planner_comparison.csv`. Es un solo mes y una sola planta: sirve como referencia, no como prueba.
