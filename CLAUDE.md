@@ -9,7 +9,8 @@ Read this first; open source files only for the function you need to change. REA
 **Do not:** reintroduce neural nets (removed as too heavy, c2e3330); edit files when the user pastes a code chunk, answer with the corrected chunk in chat.
 
 ## Data
-`data/consumos_long.csv` (master): `planta, sku, fecha, consumo`; 316,576 rows, 15 plantas, 1,047 SKU, 2024-01-02..2026-06-30. `sku` = material description. Negatives clipped to 0. Built from `consumos_2024_2025.xlsx` (long) + `consumos_2026.xlsx` (wide) with `--drop-zeros`; `consumos_2024_ene.xlsx` is a duplicate, unused.
+`data/consumos_long.csv` (master): `planta, sku, fecha, consumo`; 347,502 rows, 15 plantas, 2024-01-02..2026-09-30 (33 months, last complete month 2026-09). `sku` = material description. Negatives clipped to 0. Built from `consumos_2024_2025.xlsx` + `consumos_2025_10_2026_09.xlsx` (both long) with `--drop-zeros`; the two overlap in 2025-10..12 with identical values, `combine_exports` keeps them once and stops only if values differ. `consumos_2026.xlsx` (wide, to 2026-06) and `consumos_2024_ene.xlsx` are superseded and no longer in the repo's flow.
+Planner forecast: `data/planner_forecast_2026-09.csv` (planta SCAN, month 2026-09, 32 SKU, `forecast_to` in TO). One month only.
 
 ## Pipeline: script -> utils it uses -> output
 | script | main utils | output |
@@ -40,12 +41,15 @@ Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Pyth
 - `real_vs_pred.py`: tab REAL VS PREDICHO. Planta and SKU are searchable selectboxes between the cards and the tabs ("Todas"/"Todos" = no filter, so no scope radio); the model pills live in the fixed sidebar. `ranking.py`: tab RANKING (table by rank from `ensembles.json`).
 - Done: stages 1 to 3 (table only, no bar chart yet). Pending: stage 3 bar chart, stage 4 (CONJUNTO DE CONFIANZA, MCS), stage 5 (tuning tab), stage 6 (polish, missing-file messages, app/README).
 
-## Latest results (test 2025-07..2026-06, h=1)
-SKU ~71%, planta ~91%, total ~94-96%. Best ensemble: ml_mean (SKU 71.1%), ml_econ_weighted (planta 91.2%), ml_econ_mean (total 95.8%). Optuna gain credible only for Random Forest; LightGBM within noise; XGBoost overfits validation. `ml_trimmed` == `ml_mean` (3 members). MCS has low power at total level (12 test months).
+## Latest results (test 2025-10..2026-09, h=1)
+SKU ~70%, planta ~92%, total ~97%. Best: ml_mean (SKU 70.4%, total 97.5%), ml_median (planta 91.9%). MCS 90%: 4 of 25 stay at SKU level (LGBM, XGB and all classical models are discarded), 11 at planta, 17 at total. Optuna gain is small and not consistent (only Random Forest improves SKU accuracy, 68.6% to 69.9%). `ml_trimmed` == `ml_mean` (3 members).
+Planner vs models (SCAN, 2026-09, 32 SKU, `compare_planner.py`): planner accuracy 80.6% (bias -7%, over-forecast 21 of 32 SKU), lgbm 85.7%, ml_mean 86.1%, naive 87.7%. One month and one planta, so a reference and not a proof. Unknown whether "Plant Forecast (TO)" is expected consumption or a production plan with buffer.
 
 ## Open items
 - [ ] Inference script: train on full history, predict next month (none in scripts/).
-- [ ] `data/consumos_long.csv` shows modified in `git status` with an empty `git diff` (line endings or timestamp?); check before committing.
+- [ ] `data/consumos_long.csv` can show modified in `git status` with an empty `git diff` on Windows (line endings); check before committing.
+- [ ] Planner comparison covers 2026-09 and SCAN only; more months need the planners' files in the same format (`compare_planner.py --month`). The tab PLANIFICADOR reads fixed file names.
+- [ ] Branches: `main` has the data and scripts, `feature/dashboard` has `app/`; not merged yet.
 - [ ] No tests.
 
 Update this file when a script, module or result changes.
