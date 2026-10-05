@@ -10,8 +10,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "results"
 CONSUMPTION_CSV = ROOT / "data" / "consumos_long.csv"
-PLANNER_CSV = ROOT / "data" / "planner_forecast_2026-09.csv"
-PLANNER_COMPARISON_CSV = RESULTS_DIR / "planner_comparison.csv"
+DATA_DIR = ROOT / "data"
 LEVELS = ["sku", "planta", "total"]
 
 if str(ROOT) not in sys.path:
@@ -78,11 +77,16 @@ def load_forecasts() -> pd.DataFrame:
 
 
 @st.cache_data
-def load_planner_comparison() -> tuple[pd.DataFrame, str, str]:
+def load_planner_months() -> dict[str, pd.DataFrame]:
     r"""
-    Real consumption, planner forecast and model forecasts per planner SKU, written by
-    scripts/compare_planner.py; also returns the planta and month of the planner file.
+    One table per month the planners forecasted, newest first: real, planner forecast and model forecasts per
+    planner SKU (written by scripts/compare_planner.py as results/planner_comparison_<month>.csv).
+    Each table has the columns `mes` and `planta`, taken from data/planner_forecast_<month>.csv.
     """
-    table = pd.read_csv(PLANNER_COMPARISON_CSV)
-    info = pd.read_csv(PLANNER_CSV, usecols=["planta", "mes"]).iloc[0]
-    return table, info["planta"], info["mes"]
+    months = {}
+    for path in sorted(RESULTS_DIR.glob("planner_comparison_*.csv"), reverse=True):
+        month = path.stem.removeprefix("planner_comparison_")
+        table = pd.read_csv(path)
+        planta = pd.read_csv(DATA_DIR / f"planner_forecast_{month}.csv", usecols=["planta"])["planta"].iloc[0]
+        months[month] = table.assign(mes=month, planta=planta)
+    return months

@@ -1,7 +1,7 @@
 """
 Compare the forecast of the planners with the models for one month, SKU by SKU.
 
-The planner file has one row per planner SKU (planta, sku_planner, forecast_to). The planner SKU
+The planner file has one row per planner SKU (planta, mes, sku_planner, forecast_to, optional strategy). The planner SKU
 has no core width, so the series of the dataset that share type, gsm and width are added up.
 The model forecasts are the ones saved by run_ensembles.py (h=1, so made one month before).
 
@@ -35,7 +35,7 @@ def main() -> None:
     parser.add_argument("planner", type=Path)
     parser.add_argument("--month", default="2026-09", help="month the planner forecasted (YYYY-MM)")
     parser.add_argument("--predictions", type=Path, default=Path("results/member_forecasts.csv"))
-    parser.add_argument("--out", type=Path, default=Path("results/planner_comparison.csv"))
+    parser.add_argument("--out", type=Path, default=None, help="default: results/planner_comparison_<month>.csv")
     args = parser.parse_args()
     pd.set_option("display.width", 220)
     pd.set_option("display.max_rows", 100)
@@ -60,9 +60,10 @@ def main() -> None:
     print("\nBy SKU (forecast minus real in percent for the planner):")
     print(shown.to_string(index=False))
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    table.to_csv(args.out, index=False)
-    print(f"\nsaved {args.out}")
+    out = args.out or Path(f"results/planner_comparison_{args.month}.csv")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(out, index=False)
+    print(f"\nsaved {out}")
 
 
 if __name__ == "__main__":

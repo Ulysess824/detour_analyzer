@@ -276,7 +276,7 @@ consumo en la ventana.
 
 ## Comparación con el planificador
 
-`scripts/compare_planner.py` compara el pronóstico de los planificadores (`data/planner_forecast_2026-09.csv`,
-SCAN, septiembre de 2026, 32 SKU) con el de los modelos sobre los mismos SKU y el mismo mes. El SKU del
+`scripts/compare_planner.py --month <YYYY-MM>` compara el pronóstico de los planificadores (`data/planner_forecast_<mes>.csv`,
+SCAN, meses 2026-06, 2026-07 y 2026-09) con el de los modelos sobre los mismos SKU y el mismo mes. El SKU del
 planificador no trae el ancho de núcleo, así que se suman las series del dataset con igual tipo, gramaje y ancho.
-Resultado en `results/planner_comparison.csv`. Es un solo mes y una sola planta: sirve como referencia, no como prueba.
+Resultado en `results/planner_comparison_<mes>.csv`. Son tres meses y una sola planta: sirve como referencia, no como prueba.

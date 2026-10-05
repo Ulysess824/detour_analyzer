@@ -21,8 +21,8 @@ def planner_key(sku: str) -> str:
 
 
 def dataset_key(sku: str) -> str:
-    r"""Drop the core width (last part) of the dataset SKU."""
-    return sku.lower().rsplit("/", 1)[0]
+    r"""Keep the first four parts of the dataset SKU (type, sub-grade, gsm, width); the core width and suffixes are dropped."""
+    return "/".join(sku.lower().split("/")[:4])
 
 
 def series_table(S: Panel, df: pd.DataFrame) -> pd.DataFrame:
@@ -49,7 +49,7 @@ def compare_month(planner: pd.DataFrame, res: pd.DataFrame, pairs: pd.DataFrame,
             missing.append(row["sku_planner"])
             continue
         mine = block[block["series"].isin(series)]
-        record = {"sku": row["sku_planner"], "series": len(series), "real": mine["y"].sum(), "planner": row["forecast_to"]}
+        record = {"sku": row["sku_planner"], "strategy": row.get("strategy", ""), "series": len(series), "real": mine["y"].sum(), "planner": row["forecast_to"]}
         record.update({m: mine[f"p_{m}"].sum() for m in models})
         rows.append(record)
     return pd.DataFrame(rows), missing

@@ -10,7 +10,7 @@ Read this first; open source files only for the function you need to change. REA
 
 ## Data
 `data/consumos_long.csv` (master): `planta, sku, fecha, consumo`; 347,502 rows, 15 plantas, 2024-01-02..2026-09-30 (33 months, last complete month 2026-09). `sku` = material description. Negatives clipped to 0. Built from `consumos_2024_2025.xlsx` + `consumos_2025_10_2026_09.xlsx` (both long) with `--drop-zeros`; the two overlap in 2025-10..12 with identical values, `combine_exports` keeps them once and stops only if values differ. `consumos_2026.xlsx` (wide, to 2026-06) and `consumos_2024_ene.xlsx` are superseded and no longer in the repo's flow.
-Planner forecast: `data/planner_forecast_2026-09.csv` (planta SCAN, month 2026-09, 32 SKU, `forecast_to` in TO). One month only.
+Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_planner, product_sap, strategy, forecast_to` in TO), SCAN only, months 2026-06, 2026-07, 2026-09 (August missing). June has no strategy column in the source; it was filled from the July file by product. `sku_planner` is `grade/subgrade/gsm/width` without core width.
 
 ## Pipeline: script -> utils it uses -> output
 | script | main utils | output |
@@ -22,7 +22,7 @@ Planner forecast: `data/planner_forecast_2026-09.csv` (planta SCAN, month 2026-0
 | tune_trees.py | tuning_utils, search_space_utils, tree_utils | results/tuning_trees.json |
 | build_tuning_viewer.py | viewer_utils + src/utils/templates/tuning_viewer.html | results/tuning_viewer.html (not committed) |
 | plot_pred_vs_real.py | plot_utils | PNG |
-| compare_planner.py | planner_utils, ensemble_utils | results/planner_comparison.csv (planner vs models, one month) |
+| compare_planner.py (`--month`) | planner_utils, ensemble_utils | results/planner_comparison_<month>.csv (planner vs models, one month) |
 | run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils | results/member_forecasts.csv (cache), results/ensembles.json |
 
 ## Core objects
@@ -37,18 +37,18 @@ Planner forecast: `data/planner_forecast_2026-09.csv` (planta SCAN, month 2026-0
 Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Python 3.12 path above). Never retrains; reads `results/` and `data/`. UI text in Spanish, no emojis, retrofuturistic theme.
 - `dashboard.py`: header, sidebar (level selector, fixed horizon h=1), best-model cards, four tabs.
 - `theme.py`: palette, fonts, CSS, `plotly_layout`, `add_real_trace` and `add_model_trace`. Every chart that has an actual series must draw it with `add_real_trace` (thick amber line with glow, added after the models) so the real line always stands out. `loaders.py`: cached readers, `MODEL_GROUPS` (ML, classical econometrics, baselines, ensembles); ensembles are computed with `add_ensembles` on `member_forecasts.csv`.
-- `planner.py`: tab PLANIFICADOR. Planner forecast vs real vs the sidebar models for the SCAN SKUs of one month, read from `results/planner_comparison.csv` (written by `scripts/compare_planner.py`, logic in `src/utils/planner_utils.py`). The real is drawn as amber markers (not a line, since SKUs are not a time axis); the planner is magenta diamonds.
+- `planner.py`: tab PLANIFICADOR. Planner forecast vs real vs the sidebar models for the SCAN SKUs of one month, read from `results/planner_comparison_<month>.csv` (written by `scripts/compare_planner.py`, logic in `src/utils/planner_utils.py`). Selectors: month (or all months together) and strategy (VMI / NO VMI). One month: SKU chart with the real as amber markers (not a line, since SKUs are not a time axis) and the planner as magenta diamonds. All months: accuracy per month, planner as a thick magenta line.
 - `real_vs_pred.py`: tab REAL VS PREDICHO. Planta and SKU are searchable selectboxes between the cards and the tabs ("Todas"/"Todos" = no filter, so no scope radio); the model pills live in the fixed sidebar. `ranking.py`: tab RANKING (table by rank from `ensembles.json`).
 - Done: stages 1 to 3 (table only, no bar chart yet). Pending: stage 3 bar chart, stage 4 (CONJUNTO DE CONFIANZA, MCS), stage 5 (tuning tab), stage 6 (polish, missing-file messages, app/README).
 
 ## Latest results (test 2025-10..2026-09, h=1)
 SKU ~70%, planta ~92%, total ~97%. Best: ml_mean (SKU 70.4%, total 97.5%), ml_median (planta 91.9%). MCS 90%: 4 of 25 stay at SKU level (LGBM, XGB and all classical models are discarded), 11 at planta, 17 at total. Optuna gain is small and not consistent (only Random Forest improves SKU accuracy, 68.6% to 69.9%). `ml_trimmed` == `ml_mean` (3 members).
-Planner vs models (SCAN, 2026-09, 32 SKU, `compare_planner.py`): planner accuracy 80.6% (bias -7%, over-forecast 21 of 32 SKU), lgbm 85.7%, ml_mean 86.1%, naive 87.7%. One month and one planta, so a reference and not a proof. Unknown whether "Plant Forecast (TO)" is expected consumption or a production plan with buffer.
+Planner vs models (SCAN, 2026-06/07/09, 122 SKU-months, `compare_planner.py`): planner accuracy 81.3% (rank 24 of 26, bias -4.7%, over-forecast in 76 of 122), ml_weighted/ml_mean 85.3%, lgbm 85.1%. The planner beat ml_mean in 44 of 122 SKU-months. By month: 81.1% / 82.0% / 80.6% vs ml_mean 83.8% / 86.0% / 86.1%. VMI SKUs (96, 97% of the volume): planner 81.9% vs ml_mean 86.2%. NO VMI SKUs (26, tiny volume): planner 61.3% vs ml_mean 57.1%. Three months and one planta: a reference and not a proof. Unknown whether "Plant Forecast (TO)" is expected consumption or a production plan with buffer.
 
 ## Open items
 - [ ] Inference script: train on full history, predict next month (none in scripts/).
 - [ ] `data/consumos_long.csv` can show modified in `git status` with an empty `git diff` on Windows (line endings); check before committing.
-- [ ] Planner comparison covers 2026-09 and SCAN only; more months need the planners' files in the same format (`compare_planner.py --month`). The tab PLANIFICADOR reads fixed file names.
+- [ ] Planner comparison covers SCAN and 3 months (no August). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
 - [ ] Branches: `main` has the data and scripts, `feature/dashboard` has `app/`; not merged yet.
 - [ ] No tests.
 
