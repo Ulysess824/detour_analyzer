@@ -688,7 +688,7 @@
     "model": "ml_mean",
     "rank": 1,
     "elimination_step": 24,
-    "mean_loss": 7.792578188730222,
+    "mean_loss": 7.792578188730221,
     "mcs_p_value": 1.0,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -697,7 +697,7 @@
     "model": "ml_trimmed",
     "rank": 2,
     "elimination_step": 25,
-    "mean_loss": 7.792578188730222,
+    "mean_loss": 7.792578188730221,
     "mcs_p_value": 1.0,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -706,7 +706,7 @@
     "model": "ml_median",
     "rank": 3,
     "elimination_step": 23,
-    "mean_loss": 7.801212122566254,
+    "mean_loss": 7.801212122566255,
     "mcs_p_value": 0.502,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -733,7 +733,7 @@
     "model": "xgb",
     "rank": 6,
     "elimination_step": 21,
-    "mean_loss": 7.868717074926657,
+    "mean_loss": 7.86871707492666,
     "mcs_p_value": 0.0202,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -823,7 +823,7 @@
     "model": "ses",
     "rank": 16,
     "elimination_step": 12,
-    "mean_loss": 8.587525527479704,
+    "mean_loss": 8.587525527479706,
     "mcs_p_value": 0.0,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -832,7 +832,7 @@
     "model": "damped_holt",
     "rank": 17,
     "elimination_step": 9,
-    "mean_loss": 8.708802031182348,
+    "mean_loss": 8.708802031182346,
     "mcs_p_value": 0.0,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -841,7 +841,7 @@
     "model": "naive",
     "rank": 18,
     "elimination_step": 10,
-    "mean_loss": 8.713158164707785,
+    "mean_loss": 8.713158164707789,
     "mcs_p_value": 0.0,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -850,7 +850,7 @@
     "model": "mean3",
     "rank": 19,
     "elimination_step": 15,
-    "mean_loss": 8.738444511760033,
+    "mean_loss": 8.738444511760035,
     "mcs_p_value": 0.0,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -921,19 +921,19 @@
     "in_mcs_25": true
    },
    {
-    "model": "ml_mean",
+    "model": "ml_trimmed",
     "rank": 2,
-    "elimination_step": 23,
+    "elimination_step": 24,
     "mean_loss": 297.1375323585404,
     "mcs_p_value": 0.814,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
    {
-    "model": "ml_trimmed",
+    "model": "ml_mean",
     "rank": 3,
-    "elimination_step": 24,
-    "mean_loss": 297.1375323585404,
+    "elimination_step": 23,
+    "mean_loss": 297.13753235854045,
     "mcs_p_value": 0.814,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -942,7 +942,7 @@
     "model": "lgbm",
     "rank": 4,
     "elimination_step": 19,
-    "mean_loss": 305.9306073431591,
+    "mean_loss": 305.93060734315907,
     "mcs_p_value": 0.7138,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -996,7 +996,7 @@
     "model": "ml_weighted",
     "rank": 10,
     "elimination_step": 16,
-    "mean_loss": 297.27630050705227,
+    "mean_loss": 297.2763005070523,
     "mcs_p_value": 0.157,
     "in_mcs_10": true,
     "in_mcs_25": false
@@ -1023,7 +1023,7 @@
     "model": "econ_weighted",
     "rank": 13,
     "elimination_step": 13,
-    "mean_loss": 350.92139216979984,
+    "mean_loss": 350.92139216979996,
     "mcs_p_value": 0.0366,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1050,7 +1050,7 @@
     "model": "ses",
     "rank": 16,
     "elimination_step": 10,
-    "mean_loss": 380.1713909297714,
+    "mean_loss": 380.17139092977135,
     "mcs_p_value": 0.005,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1068,7 +1068,7 @@
     "model": "econ_median",
     "rank": 18,
     "elimination_step": 7,
-    "mean_loss": 356.11000989688694,
+    "mean_loss": 356.110009896887,
     "mcs_p_value": 0.0034,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1122,7 +1122,7 @@
     "model": "seasonal_naive",
     "rank": 24,
     "elimination_step": 4,
-    "mean_loss": 460.6769852777779,
+    "mean_loss": 460.676985277778,
     "mcs_p_value": 0.0,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1142,7 +1142,7 @@
     "model": "ml_mean",
     "rank": 1,
     "elimination_step": 25,
-    "mean_loss": 1355.3762517234288,
+    "mean_loss": 1355.3762517234281,
     "mcs_p_value": 1.0,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -1151,7 +1151,7 @@
     "model": "ml_median",
     "rank": 2,
     "elimination_step": 24,
-    "mean_loss": 1359.0276127749542,
+    "mean_loss": 1359.0276127749548,
     "mcs_p_value": 0.9502,
     "in_mcs_10": true,
     "in_mcs_25": true
@@ -1159,9 +1159,9 @@
    {
     "model": "ml_trimmed",
     "rank": 3,
-    "elimination_step": 23,
+    "elimination_step": 22,
     "mean_loss": 1355.3762517234293,
-    "mcs_p_value": 0.803,
+    "mcs_p_value": 0.768,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1169,17 +1169,17 @@
     "model": "lgbm",
     "rank": 4,
     "elimination_step": 21,
-    "mean_loss": 1621.6705721724313,
-    "mcs_p_value": 0.7394,
+    "mean_loss": 1621.670572172432,
+    "mcs_p_value": 0.768,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
    {
     "model": "ml_econ_weighted",
     "rank": 5,
-    "elimination_step": 22,
-    "mean_loss": 2122.493544107838,
-    "mcs_p_value": 0.7394,
+    "elimination_step": 23,
+    "mean_loss": 2122.4935441078374,
+    "mcs_p_value": 0.768,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1188,7 +1188,7 @@
     "rank": 6,
     "elimination_step": 20,
     "mean_loss": 2164.7916902548477,
-    "mcs_p_value": 0.7394,
+    "mcs_p_value": 0.768,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1197,7 +1197,7 @@
     "rank": 7,
     "elimination_step": 19,
     "mean_loss": 2216.0258566181105,
-    "mcs_p_value": 0.7394,
+    "mcs_p_value": 0.768,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1205,8 +1205,8 @@
     "model": "rf",
     "rank": 8,
     "elimination_step": 17,
-    "mean_loss": 2434.1321263747905,
-    "mcs_p_value": 0.4064,
+    "mean_loss": 2434.132126374791,
+    "mcs_p_value": 0.4068,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1214,8 +1214,8 @@
     "model": "econ_weighted",
     "rank": 9,
     "elimination_step": 16,
-    "mean_loss": 2544.1773652018505,
-    "mcs_p_value": 0.4064,
+    "mean_loss": 2544.1773652018487,
+    "mcs_p_value": 0.4068,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1224,7 +1224,7 @@
     "rank": 10,
     "elimination_step": 18,
     "mean_loss": 2597.996849789972,
-    "mcs_p_value": 0.4064,
+    "mcs_p_value": 0.4068,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1232,8 +1232,8 @@
     "model": "econ_median",
     "rank": 11,
     "elimination_step": 15,
-    "mean_loss": 2631.973424843079,
-    "mcs_p_value": 0.4064,
+    "mean_loss": 2631.973424843078,
+    "mcs_p_value": 0.4068,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1241,8 +1241,8 @@
     "model": "ml_weighted",
     "rank": 12,
     "elimination_step": 14,
-    "mean_loss": 1358.501156775749,
-    "mcs_p_value": 0.303,
+    "mean_loss": 1358.5011567757476,
+    "mcs_p_value": 0.3108,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1251,7 +1251,7 @@
     "rank": 13,
     "elimination_step": 13,
     "mean_loss": 2598.2556751040865,
-    "mcs_p_value": 0.303,
+    "mcs_p_value": 0.3108,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1260,7 +1260,7 @@
     "rank": 14,
     "elimination_step": 12,
     "mean_loss": 2860.9692297799315,
-    "mcs_p_value": 0.2746,
+    "mcs_p_value": 0.2882,
     "in_mcs_10": true,
     "in_mcs_25": true
    },
@@ -1268,8 +1268,8 @@
     "model": "mean6_x_planta",
     "rank": 15,
     "elimination_step": 10,
-    "mean_loss": 2437.6145950054815,
-    "mcs_p_value": 0.2058,
+    "mean_loss": 2437.614595005482,
+    "mcs_p_value": 0.2276,
     "in_mcs_10": true,
     "in_mcs_25": false
    },
@@ -1277,8 +1277,8 @@
     "model": "damped_holt",
     "rank": 16,
     "elimination_step": 11,
-    "mean_loss": 3028.3656928013206,
-    "mcs_p_value": 0.2058,
+    "mean_loss": 3028.365692801321,
+    "mcs_p_value": 0.2276,
     "in_mcs_10": true,
     "in_mcs_25": false
    },
@@ -1286,7 +1286,7 @@
     "model": "ml_econ_mean",
     "rank": 17,
     "elimination_step": 9,
-    "mean_loss": 2205.42849030937,
+    "mean_loss": 2205.428490309369,
     "mcs_p_value": 0.1494,
     "in_mcs_10": true,
     "in_mcs_25": false
@@ -1295,7 +1295,7 @@
     "model": "arima",
     "rank": 18,
     "elimination_step": 8,
-    "mean_loss": 3233.6394701351733,
+    "mean_loss": 3233.6394701351746,
     "mcs_p_value": 0.097,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1304,7 +1304,7 @@
     "model": "seasonal_naive",
     "rank": 19,
     "elimination_step": 7,
-    "mean_loss": 4759.839293055547,
+    "mean_loss": 4759.839293055546,
     "mcs_p_value": 0.097,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1313,7 +1313,7 @@
     "model": "mean12",
     "rank": 20,
     "elimination_step": 6,
-    "mean_loss": 3193.301647613029,
+    "mean_loss": 3193.30164761303,
     "mcs_p_value": 0.095,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1322,7 +1322,7 @@
     "model": "mean6",
     "rank": 21,
     "elimination_step": 5,
-    "mean_loss": 3458.6680763888903,
+    "mean_loss": 3458.668076388889,
     "mcs_p_value": 0.0876,
     "in_mcs_10": false,
     "in_mcs_25": false
@@ -1340,7 +1340,7 @@
     "model": "mean3",
     "rank": 23,
     "elimination_step": 3,
-    "mean_loss": 3729.072583333336,
+    "mean_loss": 3729.072583333333,
     "mcs_p_value": 0.0,
     "in_mcs_10": false,
     "in_mcs_25": false

@@ -57,7 +57,7 @@ Planner vs models (SCAN, 2026-06/07/09, 122 SKU-months, `compare_planner.py`): p
 - [ ] Planner comparison covers SCAN and 3 months (no August). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
 - [ ] Branches: `main` has the data and scripts, `feature/dashboard` has `app/`; not merged yet.
 - [ ] Not tested yet: the dashboard (`app/`), the row-level models (`compare_models.py`) and the MCS size problem (see below).
-- [ ] MCS with 12 test months and 25 models is oversized (simulation: it excludes about 6 of 25 truly equal models); only large loss gaps are reliable. Winner selection is done on the same test months (selection bias).
+- [ ] MCS with 12 test months and 25 models is oversized (simulation: it excludes about 6 of 25 truly equal models); only large loss gaps are reliable. Exactly tied models (ml_trimmed == ml_mean) make the elimination order depend on float noise: total-level p-values moved by up to 0.035 between two runs, with no change in who stays at 10%. Winner selection is done on the same test months (selection bias).
 - [ ] No check that the last month of a new export is complete.
 
 Update this file when a script, module or result changes.
