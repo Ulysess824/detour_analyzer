@@ -24,6 +24,7 @@ Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_plan
 | plot_pred_vs_real.py | plot_utils | PNG |
 | compare_planner.py (`--month`) | planner_utils, ensemble_utils | results/planner_comparison_<month>.csv (planner vs models, one month) |
 | run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils, cache_utils | results/member_forecasts.csv (cache) + `.meta.json`, results/ensembles.json |
+| notebooks/planner_vs_modelos_scan.ipynb | member_utils, ensemble_utils, planner_utils (same guards as the scripts) | results/planner_vs_modelos_scan.csv; planner vs models vs real for SCAN, all `data/planner_forecast_*.csv` months; `REFIT = False` reads the cache |
 
 ## Core objects
 - `Panel` (panel_utils): arrays series x month: `monthly` (NaN before first appearance), `active_days`, `daily` (zero-filled), `planta_monthly`, `total_monthly`, `business_days` (no Sundays), `labels`, `first_month`, `planta_code`. Built by `build_panel(load_consumption(csv))`. Window helpers: `window_mean/std/rate`.
