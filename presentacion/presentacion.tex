@@ -1,0 +1,167 @@
+% Planificador contra modelo (SCAN, junio a septiembre de 2026)
+% Compilar desde la carpeta presentacion/:  pdflatex presentacion.tex
+\documentclass[aspectratio=169,11pt]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{booktabs,array,graphicx,xcolor}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+
+% Colores de Smurfit Westrock (tomados del logo)
+\definecolor{SWnavy}{HTML}{00205B}
+\definecolor{SWcyan}{HTML}{08B2FF}
+\definecolor{SWgray}{HTML}{8C99AD}
+\definecolor{SWlight}{HTML}{EEF3F8}
+
+\setbeamercolor{normal text}{fg=SWnavy,bg=white}
+\setbeamercolor{structure}{fg=SWcyan}
+\setbeamercolor{frametitle}{fg=SWnavy,bg=white}
+\setbeamertemplate{navigation symbols}{}
+\setbeamerfont{frametitle}{series=\bfseries,size=\LARGE}
+\setbeamertemplate{frametitle}{%
+  \vskip1.1em\hspace*{-0.2em}\insertframetitle\par\vskip-0.3em
+  {\color{SWcyan}\rule{2.4cm}{3pt}}}
+\setbeamertemplate{footline}{%
+  \hfill\raisebox{0.6em}[0pt][0pt]{\includegraphics[height=0.9cm]{logo_smurfit_westrock.png}}\hspace{1em}\vspace{0.4em}}
+
+\pgfplotsset{
+  barstyle/.style={
+    ybar, bar width=17pt, ymin=0, enlarge x limits=0.12,
+    axis lines*=left, ytick=\empty, axis line style={SWnavy, thick},
+    xtick style={draw=none}, tick label style={font=\large, text=SWnavy},
+    nodes near coords, every node near coord/.append style={font=\scriptsize, text=SWnavy, /pgf/number format/fixed, /pgf/number format/precision=0, /pgf/number format/set decimal separator={{,}},
+      /pgf/number format/1000 sep={.}},
+    legend style={draw=none, fill=none, font=\normalsize, at={(0.5,1.12)}, anchor=south, legend columns=-1},
+    width=0.96\textwidth, height=0.54\textheight},
+}
+\newcommand{\pc}{\mbox{\char37}}
+\newcommand{\real}[1]{\textcolor{SWnavy}{#1}}
+\newcommand{\modelo}[1]{\textcolor{SWcyan}{#1}}
+\newcommand{\plan}[1]{\textcolor{SWgray}{#1}}
+
+\begin{document}
+
+% 1. Portada
+\begin{frame}[plain]
+  \centering\vfill
+  \includegraphics[width=0.38\textwidth]{logo_smurfit_westrock.png}\\[2.2em]
+  {\fontsize{30}{34}\selectfont\bfseries\color{SWnavy} Planificador contra modelo}\\[0.6em]
+  {\large\color{SWnavy} SCAN \,|\, junio a septiembre de 2026}\\[0.8em]
+  {\color{SWcyan}\rule{3.2cm}{3pt}}
+  \vfill
+\end{frame}
+
+% 2. Tres cifras
+\begin{frame}{Consumo de los cuatro meses (TO)}
+  \vspace{1.2em}
+  \centering
+  \begin{tabular}{@{}ccc@{}}
+    \begin{minipage}[t]{0.29\textwidth}\centering
+      {\color{SWnavy}\rule{\linewidth}{4pt}}\\[0.5em]
+      {\large Real}\\[0.3em]{\fontsize{30}{34}\selectfont\bfseries\real{13.410}}\\[0.3em]{\normalsize 167 SKU y mes}
+    \end{minipage} &
+    \begin{minipage}[t]{0.29\textwidth}\centering
+      {\color{SWcyan}\rule{\linewidth}{4pt}}\\[0.5em]
+      {\large Modelo}\\[0.3em]{\fontsize{30}{34}\selectfont\bfseries\modelo{13.369}}\\[0.3em]{\normalsize $-0{,}3\,\pc{}$ sobre el real}
+    \end{minipage} &
+    \begin{minipage}[t]{0.29\textwidth}\centering
+      {\color{SWgray}\rule{\linewidth}{4pt}}\\[0.5em]
+      {\large Planificador}\\[0.3em]{\fontsize{30}{34}\selectfont\bfseries\plan{13.862}}\\[0.3em]{\normalsize $+3{,}4\,\pc{}$ sobre el real}
+    \end{minipage}
+  \end{tabular}
+\end{frame}
+
+% 3. Total por mes
+\begin{frame}{Total por mes (TO)}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[barstyle, symbolic x coords={Junio,Julio,Agosto,Septiembre}, xtick=data, ymax=4200, bar width=30pt,
+        legend entries={Real,Modelo,Planificador}, point meta=explicit symbolic]
+      \addplot[fill=SWnavy, draw=none] coordinates {(Junio,3374)[3.374] (Julio,3510.6)[3.511] (Agosto,3355.7)[3.356] (Septiembre,3169.0)[3.169]};
+      \addplot[fill=SWcyan, draw=none] coordinates {(Junio,3359.4)[3.359] (Julio,3570.0)[3.570] (Agosto,3150.6)[3.151] (Septiembre,3288.9)[3.289]};
+      \addplot[fill=SWgray, draw=none] coordinates {(Junio,3608.0)[3.608] (Julio,3527.0)[3.527] (Agosto,3336.0)[3.336] (Septiembre,3391.0)[3.391]};
+    \end{axis}
+  \end{tikzpicture}
+\end{frame}
+
+% 4. Acierto global
+\begin{frame}{Acierto por SKU y mes}
+  \vspace{1.2em}
+  \centering
+  \begin{tikzpicture}[x=0.1cm]
+    \foreach \y/\v/\c/\n/\t in {0.6/82.5/SWgray/{Mes anterior}/{82,5}, -1.0/83.0/SWnavy/{Planificador}/{83,0}, -2.6/85.2/SWcyan/{Modelo}/{85,2}} {
+      \node[anchor=east, font=\Large] at (-0.3,\y) {\n};
+      \fill[\c] (0,\y-0.7) rectangle (\v*0.95,\y+0.7);
+      \node[anchor=west, font=\Large\bfseries] at (\v*0.95+0.4,\y) {\t\,\pc{}};
+    }
+    \draw[SWnavy, thick] (0,-3.4) -- (0,1.4);
+  \end{tikzpicture}
+\end{frame}
+
+% 5. Acierto por mes
+\begin{frame}{Acierto por mes}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[barstyle, symbolic x coords={Junio,Julio,Agosto,Septiembre}, xtick=data, ymax=105, bar width=34pt, legend entries={Modelo,Planificador}, point meta=explicit symbolic,
+        every node near coord/.append style={font=\normalsize\bfseries, /pgf/number format/precision=1, /pgf/number format/zerofill, /pgf/number format/set decimal separator={{,}}}]
+      \addplot[fill=SWcyan, draw=none] coordinates {(Junio,83.8)[83{,}8] (Julio,86.0)[86{,}0] (Agosto,84.7)[84{,}7] (Septiembre,86.1)[86{,}1]};
+      \addplot[fill=SWgray, draw=none] coordinates {(Junio,81.1)[81{,}1] (Julio,82.0)[82{,}0] (Agosto,88.3)[88{,}3] (Septiembre,80.6)[80{,}6]};
+    \end{axis}
+  \end{tikzpicture}
+\end{frame}
+
+% 6. Tabla de 10 SKU al azar (septiembre, semilla 7)
+\begin{frame}{10 SKU al azar, septiembre (TO)}
+  \centering\footnotesize
+  \setlength{\tabcolsep}{5pt}\renewcommand{\arraystretch}{1.02}\vspace{-0.4em}
+  \begin{tabular}{@{}l r r r r r@{}}
+    \toprule
+    SKU & \real{Real} & \modelo{Modelo} & \plan{Planificador} & Error planif. & Error modelo \\
+    \midrule
+    HP2/01/105gsm/2440mm & 287,2 & 247,6 & 240,0 & $-16{,}4\,\pc{}$ & $-13{,}8\,\pc{}$ \\
+    TSL/01/100gsm/2450mm & 142,2 & 141,2 & 130,0 & $-8{,}6\,\pc{}$ & $-0{,}7\,\pc{}$ \\
+    K/01/110gsm/2450mm & 111,8 & 99,7 & 100,0 & $-10{,}5\,\pc{}$ & $-10{,}8\,\pc{}$ \\
+    HP2/01/105gsm/2290mm & 107,8 & 111,4 & 100,0 & $-7{,}3\,\pc{}$ & $+3{,}3\,\pc{}$ \\
+    HP2/01/125gsm/2090mm & 102,9 & 121,6 & 146,0 & $+41{,}9\,\pc{}$ & $+18{,}2\,\pc{}$ \\
+    K/01/160gsm/2300mm & 94,5 & 101,9 & 120,0 & $+27{,}0\,\pc{}$ & $+7{,}8\,\pc{}$ \\
+    K/01/160gsm/2100mm & 87,4 & 101,3 & 126,0 & $+44{,}2\,\pc{}$ & $+15{,}9\,\pc{}$ \\
+    TSL/01/100gsm/2300mm & 67,0 & 78,2 & 98,0 & $+46{,}2\,\pc{}$ & $+16{,}7\,\pc{}$ \\
+    K/01/110gsm/2300mm & 39,7 & 54,3 & 70,0 & $+76{,}3\,\pc{}$ & $+36{,}8\,\pc{}$ \\
+    HP1/01/190gsm/2090mm & 15,2 & 24,8 & 28,0 & $+84{,}6\,\pc{}$ & $+63{,}7\,\pc{}$ \\
+    \midrule
+    \textbf{Total} & \textbf{1.055,7} & \textbf{1.082,0} & \textbf{1.158,0} & $\mathbf{+9{,}7\,\pc{}}$ & $\mathbf{+2{,}5\,\pc{}}$ \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+% 7. Quien quedo mas cerca
+\begin{frame}{Quién quedó más cerca del real}
+  \vspace{1.5em}
+  \centering
+  \begin{tikzpicture}
+    \def\w{12.6}
+    \fill[SWcyan] (0,0) rectangle (\w*95/167,2.4);
+    \fill[SWgray] (\w*95/167,0) rectangle (\w,2.4);
+    \node[white, font=\fontsize{44}{48}\selectfont\bfseries, anchor=west] at (0.4,1.2) {95};
+    \node[white, font=\Large, anchor=west] at (2.4,1.2) {Modelo};
+    \node[white, font=\fontsize{44}{48}\selectfont\bfseries, anchor=west] at (\w*95/167+0.4,1.2) {72};
+    \node[white, font=\Large, anchor=west] at (\w*95/167+2.2,1.2) {Planificador};
+  \end{tikzpicture}\\[1em]
+  {\large de 167 SKU y mes}
+\end{frame}
+
+% 8. Alcance
+\begin{frame}{Alcance}
+  \vspace{1.5em}
+  \Large
+  \begin{itemize}\setlength{\itemsep}{0.9em}
+    \item Una planta (SCAN), cuatro meses seguidos
+    \item Referencia, no prueba
+    \item El modelo gana en tres de los cuatro meses; agosto fue del planificador
+  \end{itemize}
+\end{frame}
+
+\end{document}
