@@ -24,6 +24,7 @@ Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_plan
 | plot_pred_vs_real.py | plot_utils | PNG |
 | compare_planner.py (`--month`) | planner_utils, ensemble_utils | results/planner_comparison_<month>.csv (planner vs models, one month) |
 | run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils, cache_utils | results/member_forecasts.csv (cache) + `.meta.json`, results/ensembles.json |
+| predict_next_month.py (`--as-of YYYY-MM`) | inference_utils (`extend_panel`, `forecast_next_month`, `check_last_month_complete`), member_utils, tuning json | results/forecast_<month>.csv; trains LGBM/XGB/RF on all observed months, forecasts the next month, `ml_mean` = their average; stops if the last month of the export is incomplete; `--as-of` ignores later data and checks against the known real |
 | notebooks/planner_vs_modelos_scan.ipynb | member_utils, ensemble_utils, planner_utils (same guards as the scripts) | results/planner_vs_modelos_scan.csv; planner vs models vs real for SCAN, all `data/planner_forecast_*.csv` months; `REFIT = False` reads the cache |
 | presentacion/presentacion.tex (LaTeX beamer, `pdflatex presentacion.tex` twice; Smurfit Westrock logo and colors navy #00205B, cyan #08B2FF) | none (numbers typed from the planner comparison) | presentacion/presentacion.pdf; 8 slides, update the numbers by hand when the comparison changes |
 
@@ -39,7 +40,7 @@ Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_plan
 - `cache_utils`: `panel_fingerprint` (hash of series, months and values, independent of line endings), `expected_meta`/`check_meta` (the cache `results/member_forecasts.meta.json` must match data, horizon, test window and tuned params, else stop with "--refit"), `check_alignment` (the series index stored in a cache must reproduce the panel's actuals).
 - The series index is the position in the alphabetical (planta, sku) list (`Panel.keys`); adding one SKU to the master shifts it, so a stale cache is rejected instead of silently misread.
 - `tuning_utils.tuning_meta` is saved as `meta` inside each model of `results/tuning_trees.json` (windows, folds, data hash); `check_tuning_window` rejects tuned parameters whose tuning window reaches the test months (leak); `run_study` refuses to resume an Optuna `--storage` study fitted to other data. The viewer takes its windows and folds from `meta`.
-- Tests: `python -m pytest -q` (synthetic data, about 5 s): no leakage in features, panel and daily sums, ensemble weights use only known months, reconcile totals, metric sign, tuning folds, cache and tuning guards, transform overlap rules, planner SKU matching, tree determinism, MCS. The suite was checked by mutation: 8 injected bugs were all caught.
+- Tests: `python -m pytest -q` (synthetic data, about 9 s, 38 tests; `tests/test_inference.py` checks that the future-month features equal the rolling ones): no leakage in features, panel and daily sums, ensemble weights use only known months, reconcile totals, metric sign, tuning folds, cache and tuning guards, transform overlap rules, planner SKU matching, tree determinism, MCS. The suite was checked by mutation: 8 injected bugs were all caught.
 
 ## Dashboard (app/, Streamlit, read-only)
 Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Python 3.12 path above). Never retrains; reads `results/` and `data/`. UI text in Spanish, no emojis, retrofuturistic theme.
@@ -54,12 +55,12 @@ SKU ~70%, planta ~92%, total ~97%. Best: ml_mean (SKU 70.4%, total 97.5%), ml_me
 Planner vs models (SCAN, 2026-06..09, 167 SKU-months, `compare_planner.py` / the notebook): planner accuracy 83.0% (rank 23 of 26, bias -3.4%, over-forecast in 100 of 167), ml_mean 85.2%, lgbm 85.0%, naive 82.5%. ml_mean was closer to the real in 95 of 167 SKU-months, the planner in 72. By month (planner / ml_mean): 06 81.1 / 83.8, 07 82.0 / 86.0, 08 88.3 / 84.7 (the planner wins), 09 80.6 / 86.1. VMI SKUs (128, 96.5% of the volume): planner 83.6% vs ml_mean 86.0%. NO VMI SKUs (39, tiny volume): planner 67.8% vs ml_mean 63.2%. Four months and one planta: a reference and not a proof. Unknown whether "Plant Forecast (TO)" is expected consumption or a production plan with buffer.
 
 ## Open items
-- [ ] Inference script: train on full history, predict next month (none in scripts/).
+- [x] Inference script: `scripts/predict_next_month.py`. Checked: with `--as-of 2026-08` it reproduces the rolling-origin 2026-09 forecast (max difference 0.0005 TO, SKU accuracy 66.2% both). First real forecast: `results/forecast_2026-10.csv` (total ml_mean 53,220 TO). Tuned parameters come from the h=1 tuning; the planta and total levels are bottom-up sums, not reconciled.
 - [ ] `data/consumos_long.csv` can show modified in `git status` with an empty `git diff` on Windows (line endings); check before committing.
 - [ ] Planner comparison covers SCAN and 4 months (2026-06..09). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
 - [x] Branches: `feature/dashboard` (app/, notebook, planner months) merged into `main`.
 - [ ] Not tested yet: the dashboard (`app/`), the row-level models (`compare_models.py`) and the MCS size problem (see below).
 - [ ] MCS with 12 test months and 25 models is oversized (simulation: it excludes about 6 of 25 truly equal models); only large loss gaps are reliable. Exactly tied models (ml_trimmed == ml_mean) make the elimination order depend on float noise: total-level p-values moved by up to 0.035 between two runs, with no change in who stays at 10%. Winner selection is done on the same test months (selection bias).
-- [ ] No check that the last month of a new export is complete.
+- [x] Last-month completeness check: `check_last_month_complete`, used by `predict_next_month.py` only (the other scripts still do not check).
 
 Update this file when a script, module or result changes.
