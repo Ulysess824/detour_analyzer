@@ -1,0 +1,45 @@
+{
+  "v": 4,
+  "attachments": {},
+  "createdOnFiles": {
+    "at": "2026-10-05T15:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "faces": {
+    "ibm-plex-mono": {
+      "family": "IBM Plex Mono",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+    },
+    "ibm-plex-sans": {
+      "family": "IBM Plex Sans",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap"
+    },
+    "ibm-plex-sans-condensed": {
+      "family": "IBM Plex Sans Condensed",
+      "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&display=swap"
+    }
+  },
+  "lists": "css",
+  "order": [
+    "cover",
+    "metodo",
+    "medida",
+    "total-mes",
+    "acierto-mes",
+    "tabla",
+    "cercania",
+    "variables"
+  ],
+  "sections": {
+    "detalle": {
+      "description": "Diez SKU al azar y en cuántas filas ganó cada uno.",
+      "start": "tabla"
+    },
+    "resultado": {
+      "description": "Los totales y el acierto del modelo frente al planificador.",
+      "start": "cover"
+    }
+  },
+  "title": "Planificador contra modelo"
+}
