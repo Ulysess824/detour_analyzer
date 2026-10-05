@@ -10,7 +10,7 @@ Read this first; open source files only for the function you need to change. REA
 
 ## Data
 `data/consumos_long.csv` (master): `planta, sku, fecha, consumo`; 347,502 rows, 15 plantas, 2024-01-02..2026-09-30 (33 months, last complete month 2026-09). `sku` = material description. Negatives clipped to 0. Built from `consumos_2024_2025.xlsx` + `consumos_2025_10_2026_09.xlsx` (both long) with `--drop-zeros`; the two overlap in 2025-10..12 with identical values, `combine_exports` keeps them once and stops only if values differ. `consumos_2026.xlsx` (wide, to 2026-06) and `consumos_2024_ene.xlsx` are superseded and no longer in the repo's flow.
-Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_planner, product_sap, strategy, forecast_to` in TO), SCAN only, months 2026-06, 2026-07, 2026-09 (August missing). June has no strategy column in the source; it was filled from the July file by product. `sku_planner` is `grade/subgrade/gsm/width` without core width.
+Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_planner, product_sap, strategy, forecast_to` in TO), SCAN only, months 2026-06, 2026-07, 2026-08, 2026-09 (four consecutive months). June has no strategy column in the source; it was filled from the July file by product. `sku_planner` is `grade/subgrade/gsm/width` without core width.
 
 ## Pipeline: script -> utils it uses -> output
 | script | main utils | output |
@@ -50,13 +50,13 @@ Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Pyth
 
 ## Latest results (test 2025-10..2026-09, h=1)
 SKU ~70%, planta ~92%, total ~97%. Best: ml_mean (SKU 70.4%, total 97.5%), ml_median (planta 91.9%). MCS 90%: 4 of 25 stay at SKU level (LGBM, XGB and all classical models are discarded), 11 at planta, 17 at total. Optuna gain is small and not consistent (only Random Forest improves SKU accuracy, 68.6% to 69.9%). `ml_trimmed` == `ml_mean` (3 members).
-Planner vs models (SCAN, 2026-06/07/09, 122 SKU-months, `compare_planner.py`): planner accuracy 81.3% (rank 24 of 26, bias -4.7%, over-forecast in 76 of 122), ml_weighted/ml_mean 85.3%, lgbm 85.1%. The planner beat ml_mean in 44 of 122 SKU-months. By month: 81.1% / 82.0% / 80.6% vs ml_mean 83.8% / 86.0% / 86.1%. VMI SKUs (96, 97% of the volume): planner 81.9% vs ml_mean 86.2%. NO VMI SKUs (26, tiny volume): planner 61.3% vs ml_mean 57.1%. Three months and one planta: a reference and not a proof. Unknown whether "Plant Forecast (TO)" is expected consumption or a production plan with buffer.
+Planner vs models (SCAN, 2026-06..09, 167 SKU-months, `compare_planner.py` / the notebook): planner accuracy 83.0% (rank 23 of 26, bias -3.4%, over-forecast in 100 of 167), ml_mean 85.2%, lgbm 85.0%, naive 82.5%. ml_mean was closer to the real in 95 of 167 SKU-months, the planner in 72. By month (planner / ml_mean): 06 81.1 / 83.8, 07 82.0 / 86.0, 08 88.3 / 84.7 (the planner wins), 09 80.6 / 86.1. VMI SKUs (128, 96.5% of the volume): planner 83.6% vs ml_mean 86.0%. NO VMI SKUs (39, tiny volume): planner 67.8% vs ml_mean 63.2%. Four months and one planta: a reference and not a proof. Unknown whether "Plant Forecast (TO)" is expected consumption or a production plan with buffer.
 
 ## Open items
 - [ ] Inference script: train on full history, predict next month (none in scripts/).
 - [ ] `data/consumos_long.csv` can show modified in `git status` with an empty `git diff` on Windows (line endings); check before committing.
-- [ ] Planner comparison covers SCAN and 3 months (no August). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
-- [ ] Branches: `main` has the data and scripts, `feature/dashboard` has `app/`; not merged yet.
+- [ ] Planner comparison covers SCAN and 4 months (2026-06..09). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
+- [x] Branches: `feature/dashboard` (app/, notebook, planner months) merged into `main`.
 - [ ] Not tested yet: the dashboard (`app/`), the row-level models (`compare_models.py`) and the MCS size problem (see below).
 - [ ] MCS with 12 test months and 25 models is oversized (simulation: it excludes about 6 of 25 truly equal models); only large loss gaps are reliable. Exactly tied models (ml_trimmed == ml_mean) make the elimination order depend on float noise: total-level p-values moved by up to 0.035 between two runs, with no change in who stays at 10%. Winner selection is done on the same test months (selection bias).
 - [ ] No check that the last month of a new export is complete.
