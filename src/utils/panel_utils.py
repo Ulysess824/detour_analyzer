@@ -35,6 +35,7 @@ class Panel:
     daily            (n_series, n_days) zero-filled daily consumption over the whole calendar
     dates            every calendar day covered
     month_first_date (n_months,) position in `dates` of the first day of each month
+    keys             (planta, sku) of every series, in row order (the series index used everywhere)
     """
 
     monthly: np.ndarray
@@ -51,6 +52,7 @@ class Panel:
     daily: np.ndarray
     dates: pd.DatetimeIndex
     month_first_date: np.ndarray
+    keys: list[tuple[str, str]]
 
 
 def build_panel(df: pd.DataFrame) -> Panel:
@@ -110,6 +112,7 @@ def build_panel(df: pd.DataFrame) -> Panel:
         daily=daily,
         dates=dates,
         month_first_date=month_first_date,
+        keys=list(table.index),
     )
 
 

@@ -17,8 +17,15 @@ DEFAULTS = {
 }
 
 
-def build_data(results: dict, test_start: str, tune_window: str, test_window: str) -> dict:
-    r"""The json embedded in the page: one entry per model plus the page metadata."""
+def build_data(results: dict, test_start: str | None = None, tune_window: str | None = None, test_window: str | None = None) -> dict:
+    r"""
+    The json embedded in the page: one entry per model plus the page metadata.
+
+    The windows and folds come from the `meta` saved by tune_trees.py; the arguments override them.
+    """
+    meta = results[MODELS[0][0]].get("meta")
+    if meta is None:
+        raise SystemExit("The tuning results have no 'meta' (windows and folds). Run tune_trees.py again.")
     models = []
     for key, label in MODELS:
         r = results[key]
@@ -48,10 +55,10 @@ def build_data(results: dict, test_start: str, tune_window: str, test_window: st
     trials = "/".join(str(m["n_trials"]) for m in models)
     return {
         "meta": {
-            "test_start": test_start,
-            "tune_window": tune_window,
-            "test_window": test_window,
-            "folds": ["2024-10 a 2024-12", "2025-01 a 2025-03", "2025-04 a 2025-06"],
+            "test_start": test_start or meta["test_window"].split(" a ")[0],
+            "tune_window": tune_window or meta["tune_window"],
+            "test_window": test_window or meta["test_window"],
+            "folds": meta["folds"],
             "subtitle": (
                 f"Ajuste bayesiano (Optuna, TPE) de LightGBM, XGBoost y Random Forest sobre el pronóstico mensual "
                 f"por SKU, con {trials} ensayos. Se compara contra los hiperparámetros que se usaban antes, en los "

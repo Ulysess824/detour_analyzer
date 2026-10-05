@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` impor
 
 from src.utils.panel_utils import GROUP_COLS, build_panel, load_consumption
 from src.utils.plot_utils import collect_forecasts, plot_forecasts
+from src.utils.tuning_utils import check_tuning_window
 
 
 def main() -> None:
@@ -46,7 +47,9 @@ def main() -> None:
         series = keys.get_loc((args.planta, args.sku))
         scope = f"{args.planta} / {args.sku}"
 
-    long, summary = collect_forecasts(S, json.loads(args.results.read_text()), args.h, args.n_test, args.seed, series)
+    tuned = json.loads(args.results.read_text())
+    check_tuning_window(tuned, S, args.n_test)
+    long, summary = collect_forecasts(S, tuned, args.h, args.n_test, args.seed, series)
     print(long.pivot_table(index="mes", columns=["modelo", "variante"], values="consumo").round(0).to_string())
     print(summary.round(4).to_string(index=False))
     if args.csv:

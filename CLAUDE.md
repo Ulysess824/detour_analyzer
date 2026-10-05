@@ -23,7 +23,7 @@ Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_plan
 | build_tuning_viewer.py | viewer_utils + src/utils/templates/tuning_viewer.html | results/tuning_viewer.html (not committed) |
 | plot_pred_vs_real.py | plot_utils | PNG |
 | compare_planner.py (`--month`) | planner_utils, ensemble_utils | results/planner_comparison_<month>.csv (planner vs models, one month) |
-| run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils | results/member_forecasts.csv (cache), results/ensembles.json |
+| run_ensembles.py (`--refit`) | member_utils, ensemble_utils, econometric_utils, mcs_utils, evaluation_utils, cache_utils | results/member_forecasts.csv (cache) + `.meta.json`, results/ensembles.json |
 
 ## Core objects
 - `Panel` (panel_utils): arrays series x month: `monthly` (NaN before first appearance), `active_days`, `daily` (zero-filled), `planta_monthly`, `total_monthly`, `business_days` (no Sundays), `labels`, `first_month`, `planta_code`. Built by `build_panel(load_consumption(csv))`. Window helpers: `window_mean/std/rate`.
@@ -32,6 +32,12 @@ Planner forecasts: `data/planner_forecast_<YYYY-MM>.csv` (`planta, mes, sku_plan
 - `reconcile` (evaluation_utils): rescales SKU forecasts to the direct planta `mean6_x_seasonal`. `score_models_by_level` ranks models at sku/planta/total.
 - Tuning: `make_folds` (3 walk-forward folds x 3 months), `run_study` (TPE, baseline enqueued as trial 0), `compare_base_and_tuned` (h=1 and h=3 on the test months), `to_jsonable`.
 - Ensembles: `ENSEMBLE_GROUPS` = ml (lgbm, xgb, rf), econ (naive, mean3/6/12, perday6, seasonal_naive, mean6_x_planta, ses, damped_holt, arima), ml_econ. `METHODS` = mean, median, trimmed (20%), weighted (1/past MAE, only months <= t-h). 25 models total. `model_confidence_set(loss, period, block, n_boot)` = Hansen-Lunde-Nason, block bootstrap over months.
+
+## Guards and tests
+- `cache_utils`: `panel_fingerprint` (hash of series, months and values, independent of line endings), `expected_meta`/`check_meta` (the cache `results/member_forecasts.meta.json` must match data, horizon, test window and tuned params, else stop with "--refit"), `check_alignment` (the series index stored in a cache must reproduce the panel's actuals).
+- The series index is the position in the alphabetical (planta, sku) list (`Panel.keys`); adding one SKU to the master shifts it, so a stale cache is rejected instead of silently misread.
+- `tuning_utils.tuning_meta` is saved as `meta` inside each model of `results/tuning_trees.json` (windows, folds, data hash); `check_tuning_window` rejects tuned parameters whose tuning window reaches the test months (leak); `run_study` refuses to resume an Optuna `--storage` study fitted to other data. The viewer takes its windows and folds from `meta`.
+- Tests: `python -m pytest -q` (synthetic data, about 5 s): no leakage in features, panel and daily sums, ensemble weights use only known months, reconcile totals, metric sign, tuning folds, cache and tuning guards, transform overlap rules, planner SKU matching, tree determinism, MCS. The suite was checked by mutation: 8 injected bugs were all caught.
 
 ## Dashboard (app/, Streamlit, read-only)
 Run from the repo root: `python -m streamlit run app/dashboard.py` (use the Python 3.12 path above). Never retrains; reads `results/` and `data/`. UI text in Spanish, no emojis, retrofuturistic theme.
@@ -50,6 +56,8 @@ Planner vs models (SCAN, 2026-06/07/09, 122 SKU-months, `compare_planner.py`): p
 - [ ] `data/consumos_long.csv` can show modified in `git status` with an empty `git diff` on Windows (line endings); check before committing.
 - [ ] Planner comparison covers SCAN and 3 months (no August). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
 - [ ] Branches: `main` has the data and scripts, `feature/dashboard` has `app/`; not merged yet.
-- [ ] No tests.
+- [ ] Not tested yet: the dashboard (`app/`), the row-level models (`compare_models.py`) and the MCS size problem (see below).
+- [ ] MCS with 12 test months and 25 models is oversized (simulation: it excludes about 6 of 25 truly equal models); only large loss gaps are reliable. Winner selection is done on the same test months (selection bias).
+- [ ] No check that the last month of a new export is complete.
 
 Update this file when a script, module or result changes.

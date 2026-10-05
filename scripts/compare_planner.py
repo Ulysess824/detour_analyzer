@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
+from src.utils.cache_utils import check_alignment, check_meta, panel_fingerprint
 from src.utils.ensemble_utils import add_ensembles
 from src.utils.member_utils import ENSEMBLE_GROUPS
 from src.utils.panel_utils import build_panel, load_consumption
@@ -33,7 +34,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("input", type=Path)
     parser.add_argument("planner", type=Path)
-    parser.add_argument("--month", default="2026-09", help="month the planner forecasted (YYYY-MM)")
+    parser.add_argument("--month", default=None, help="month the planner forecasted (YYYY-MM); default: the `mes` of the planner file")
     parser.add_argument("--predictions", type=Path, default=Path("results/member_forecasts.csv"))
     parser.add_argument("--out", type=Path, default=None, help="default: results/planner_comparison_<month>.csv")
     args = parser.parse_args()
@@ -42,11 +43,20 @@ def main() -> None:
 
     df = load_consumption(args.input)
     S = build_panel(df)
+    planner = pd.read_csv(args.planner)
+    args.month = args.month or planner["mes"].iloc[0]
+    if args.month not in S.labels:
+        raise SystemExit(f"Month {args.month} is not in the data ({S.labels[0]} .. {S.labels[-1]}).")
     month = S.labels.index(args.month)
-    res = add_ensembles(pd.read_csv(args.predictions), ENSEMBLE_GROUPS, horizon=1)
+    check_meta(args.predictions, {"data": panel_fingerprint(S), "n_series": len(S.keys), "horizon": 1}, keys=("data", "n_series", "horizon"))
+    res = pd.read_csv(args.predictions)
+    check_alignment(res, S)
+    if month not in set(res["t"]):
+        raise SystemExit(f"The saved forecasts do not include {args.month}; run run_ensembles.py with a test window that does.")
+    res = add_ensembles(res, ENSEMBLE_GROUPS, horizon=1)
     all_models = [c[2:] for c in res.columns if c.startswith("p_")]
 
-    table, missing = compare_month(pd.read_csv(args.planner), res, series_table(S, df), month, all_models)
+    table, missing = compare_month(planner, res, series_table(S, df), month, all_models)
     if missing:
         print("planner SKUs with no match in the data:", missing)
     print(f"month {args.month}: {len(table)} planner SKUs, real total {table['real'].sum():.1f}, planner {table['planner'].sum():.1f}\n")

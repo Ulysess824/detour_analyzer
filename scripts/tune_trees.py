@@ -32,7 +32,7 @@ from src.utils.feature_utils import make_frame
 from src.utils.panel_utils import build_panel, load_consumption
 from src.utils.search_space_utils import TREE_BASELINE_TRIAL, suggest_tree_params
 from src.utils.tree_utils import TREE_BASE, fit_predict_trees
-from src.utils.tuning_utils import compare_base_and_tuned, print_comparison, run_study, study_summary, to_jsonable
+from src.utils.tuning_utils import compare_base_and_tuned, print_comparison, run_study, study_summary, to_jsonable, tuning_meta
 
 
 def tree_predictor(kind: str, params: dict):
@@ -61,6 +61,7 @@ def main() -> None:
     print(f"tuning window: {S.labels[0]} .. {S.labels[tune_end]} | test: {S.labels[test_months[0]]} .. {S.labels[-1]}")
     frames = {h: make_frame(S, h) for h in (1, 3)}
     trials = dict(zip(args.models, args.trials))
+    meta = tuning_meta(S, args.n_test)
 
     results = {}
     for kind in args.models:
@@ -69,9 +70,11 @@ def main() -> None:
         study, fold_sizes = run_study(
             kind, lambda params, k=kind: tree_predictor(k, params), lambda trial, k=kind: suggest_tree_params(k, trial),
             TREE_BASELINE_TRIAL[kind], frames[1], 1, tune_end, trials[kind], args.seed, args.storage, print_every=10,
+            fingerprint=f"{meta['data']}:{args.n_test}",
         )  # fmt: skip
         minutes = (time.time() - start) / 60
         results[kind] = study_summary(study, fold_sizes, minutes, TREE_BASE[kind])
+        results[kind]["meta"] = meta
         print(f"    validation WAPE: baseline {study.trials[0].value:.4f} -> best {study.best_value:.4f} ({minutes:.1f} min)", flush=True)
 
         seeds = args.rf_seeds if kind == "rf" else args.seeds

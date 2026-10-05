@@ -35,15 +35,15 @@ from src.utils.evaluation_utils import evaluate, tercile_table
 from src.utils.panel_utils import build_panel, load_consumption
 
 
-def print_horizon(out: dict, horizon: int, daily: bool) -> None:
+def print_horizon(out: dict, horizon: int, daily: bool, n_plantas: int, n_test: int) -> None:
     print(f"\n===== horizon h={horizon} month(s) ahead =====")
     print("\nSummary (accuracy = 1 - WAPE; planta and total are bottom-up sums of the SKU forecasts):")
     print(out["summary"].round(4))
     print(f"\nSKU level (n = SKU-months, {out['sku']['n'].iloc[0]:_} each):")
     print(out["sku"])
-    print("\nPlanta level (180 planta-months):")
+    print(f"\nPlanta level ({n_plantas * n_test} planta-months):")
     print(out["planta"])
-    print("\nTotal level (12 months):")
+    print(f"\nTotal level ({n_test} months):")
     print(out["total"])
     print("\nAccuracy by planta:")
     print(out["by_planta"])
@@ -71,7 +71,7 @@ def main() -> None:
     print(f"test months: {S.labels[n_months - args.n_test]} .. {S.labels[-1]} ({args.n_test})")
 
     for horizon in args.horizons:
-        print_horizon(evaluate(S, horizon, args.n_test, daily=args.daily), horizon, args.daily)
+        print_horizon(evaluate(S, horizon, args.n_test, daily=args.daily), horizon, args.daily, len(S.plantas), args.n_test)
 
 
 if __name__ == "__main__":

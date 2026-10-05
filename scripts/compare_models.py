@@ -7,7 +7,7 @@ and XGBoost with a Tweedie objective, and per-series ARIMA.
 Each observed row is one time period; days without a row are not reconstructed.
 
 Usage:
-    python scripts/compare_models.py data/consumos_long.csv --cutoff 2026-04-30 
+    python scripts/compare_models.py data/consumos_long.csv --cutoff 2026-04-30
 """
 
 import argparse
@@ -47,11 +47,13 @@ def metrics_table(df: pd.DataFrame, models: dict, columns: list[str]) -> pd.Data
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("input", type=Path)
-    parser.add_argument("--cutoff", type=str, default="2026-04-30")
+    parser.add_argument("--cutoff", type=str, default=None, help="last train date; default: end of the month before the last --test-months")
+    parser.add_argument("--test-months", type=int, default=2, help="months at the end used as test when --cutoff is not given")
     args = parser.parse_args()
 
-    cutoff = pd.Timestamp(args.cutoff)
-    df = build_row_features(load_rows(args.input), cutoff)
+    rows = load_rows(args.input)
+    cutoff = pd.Timestamp(args.cutoff) if args.cutoff else (rows["fecha"].max().to_period("M") - args.test_months).end_time.normalize()
+    df = build_row_features(rows, cutoff)
     train_mask, test_mask = df["fecha"] <= cutoff, df["fecha"] > cutoff
 
     df["pred_naive"] = naive_lag1_forecast(df)

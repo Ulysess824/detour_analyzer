@@ -30,13 +30,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
+from src.utils.cache_utils import check_alignment, check_meta, expected_meta, write_meta
 from src.utils.ensemble_utils import METHODS, add_ensembles
 from src.utils.evaluation_utils import score_models_by_level, test_months_of
 from src.utils.feature_utils import make_frame
 from src.utils.mcs_utils import model_confidence_set
 from src.utils.member_utils import ENSEMBLE_GROUPS, ML_MODELS, collect_member_forecasts
 from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.tuning_utils import to_jsonable
+from src.utils.tuning_utils import check_tuning_window, to_jsonable
 
 
 def mcs_losses(S, res: pd.DataFrame, models: list[str], test_months: list[int], level: str):
@@ -81,14 +82,19 @@ def main() -> None:
     test_months = test_months_of(S, args.n_test)
     print(f"test: {S.labels[test_months[0]]} .. {S.labels[-1]} | horizon h={args.horizon}")
 
+    tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
+    check_tuning_window(tuned, S, args.n_test)  # the tuned parameters must not have seen the test months
+    meta = expected_meta(S, args.horizon, args.n_test, tuned)
     if args.predictions.exists() and not args.refit:
+        check_meta(args.predictions, meta)
         res = pd.read_csv(args.predictions)
+        check_alignment(res, S)
         print(f"loaded member forecasts from {args.predictions}")
     else:
-        tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
         res = collect_member_forecasts(S, make_frame(S, args.horizon), test_months, args.horizon, tuned, args.jobs)
         args.predictions.parent.mkdir(parents=True, exist_ok=True)
         res.to_csv(args.predictions, index=False)
+        write_meta(args.predictions, meta)
 
     res = add_ensembles(res, ENSEMBLE_GROUPS, args.horizon)
     members = [m for group in ("ml", "econ") for m in ENSEMBLE_GROUPS[group]]

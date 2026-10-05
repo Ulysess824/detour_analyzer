@@ -24,9 +24,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("results", type=Path)
     parser.add_argument("-o", "--out", type=Path, required=True)
-    parser.add_argument("--test-start", default="2025-07")
-    parser.add_argument("--tune-window", default="2024-01 a 2025-06")
-    parser.add_argument("--test-window", default="2025-07 a 2026-06")
+    parser.add_argument("--test-start", default=None, help="default: from the tuning results")
+    parser.add_argument("--tune-window", default=None)
+    parser.add_argument("--test-window", default=None)
     args = parser.parse_args()
 
     data = build_data(json.loads(args.results.read_text()), args.test_start, args.tune_window, args.test_window)

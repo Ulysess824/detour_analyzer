@@ -9,6 +9,7 @@ import pandas as pd
 
 from src.utils.evaluation_utils import reconcile
 from src.utils.metrics_utils import score
+from src.utils.cache_utils import panel_fingerprint
 from src.utils.panel_utils import Panel
 
 FOLD_MONTHS = 3
@@ -16,6 +17,11 @@ N_FOLDS = 3
 
 # predict(train, rows, seed) -> monthly forecast of each row of `rows`
 Predictor = Callable[[pd.DataFrame, pd.DataFrame, int], np.ndarray]
+
+
+def fold_starts(tune_end: int) -> list[int]:
+    r"""First validation month of each fold; the last fold ends at `tune_end`."""
+    return [tune_end - FOLD_MONTHS + 1 - FOLD_MONTHS * (N_FOLDS - 1 - k) for k in range(N_FOLDS)]
 
 
 def make_folds(frame: pd.DataFrame, horizon: int, tune_end: int) -> list[tuple[pd.DataFrame, pd.DataFrame]]:
@@ -27,8 +33,7 @@ def make_folds(frame: pd.DataFrame, horizon: int, tune_end: int) -> list[tuple[p
     """
     frame = frame[frame["t"] <= tune_end]
     folds = []
-    for k in range(N_FOLDS):
-        first_val = tune_end - FOLD_MONTHS + 1 - FOLD_MONTHS * (N_FOLDS - 1 - k)
+    for first_val in fold_starts(tune_end):
         train = frame[frame["t"] <= first_val - horizon]
         val = frame[(frame["t"] >= first_val) & (frame["t"] < first_val + FOLD_MONTHS)]
         folds.append((train, val))
@@ -47,6 +52,7 @@ def run_study(
     sampler_seed: int,
     storage: str | None,
     print_every: int = 1,
+    fingerprint: str | None = None,
 ):
     r"""
     TPE search of the hyperparameters; a trial's score is the mean SKU-month WAPE over the folds.
@@ -75,6 +81,12 @@ def run_study(
         storage=storage,
         load_if_exists=True,
     )
+    # A study kept in `storage` was fitted to some data; resuming it with other data would mix both.
+    stored = study.user_attrs.get("fingerprint")
+    if fingerprint is not None and stored is not None and stored != fingerprint:
+        raise SystemExit(f"The stored study {study.study_name!r} was fitted to other data or settings; use another --storage file.")
+    if fingerprint is not None:
+        study.set_user_attr("fingerprint", fingerprint)
     finished = sum(t.state.is_finished() for t in study.trials)  # count before enqueueing
     if len(study.trials) == 0:
         study.enqueue_trial(baseline_trial)
@@ -85,6 +97,39 @@ def run_study(
 
     study.optimize(objective, n_trials=max(n_trials - finished, 0), callbacks=[progress])
     return study, [(len(train), len(val)) for train, val in folds]
+
+
+def tuning_meta(S: Panel, n_test: int) -> dict:
+    r"""Windows of a tuning run, saved with its results so later steps can check them."""
+    n_months = S.monthly.shape[1]
+    tune_end = n_months - n_test - 1
+    return {
+        "data": panel_fingerprint(S),
+        "n_test": n_test,
+        "tune_window": f"{S.labels[0]} a {S.labels[tune_end]}",
+        "tune_end": S.labels[tune_end],
+        "test_window": f"{S.labels[n_months - n_test]} a {S.labels[-1]}",
+        "folds": [f"{S.labels[a]} a {S.labels[a + FOLD_MONTHS - 1]}" for a in fold_starts(tune_end)],
+    }
+
+
+def check_tuning_window(tuned: dict, S: Panel, n_test: int) -> None:
+    r"""
+    Stop if any tuned parameters were chosen using months that are test months now.
+
+    Reusing them would put the test into the hyperparameter choice. The tuning window of each
+    model must end before the first test month.
+    """
+    first_test = S.labels[S.monthly.shape[1] - n_test]
+    for kind, result in tuned.items():
+        meta = result.get("meta")
+        if meta is None:
+            raise SystemExit(f"The tuning of {kind} has no 'meta'; its tuning window is unknown. Run tune_trees.py again.")
+        if meta["tune_end"] >= first_test:
+            raise SystemExit(
+                f"The tuning of {kind} used data up to {meta['tune_end']}, but the test starts in {first_test}: "
+                "the test would leak into the parameters. Run tune_trees.py again with this test window."
+            )
 
 
 def study_summary(study, fold_sizes, minutes: float, base_params: dict) -> dict:
