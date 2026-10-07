@@ -7,7 +7,9 @@ planta and total level, over the last --n-test months with a rolling origin.
 
     1. strategy      direct (one model for the two-month target) vs iterated (a one-month model applied twice)
     2. partial month direct vs direct plus the consumption of the first --cutoff-day days of the month in progress
-    3. global vs local  the global trees vs per-series SES, damped Holt and ARIMA, and simple baselines
+    3. components    the three trees behind `ml_mean` (LightGBM, XGBoost, Random Forest) next to their mean
+
+Only machine-learning models are trained. With --with-local the per-series SES, damped Holt and ARIMA are added (slow).
 
 The reference is the one-month-ahead `ml_mean` of the report (more information: data to the end of the previous month).
 The combination with the planner forecast is left out on purpose.
@@ -39,9 +41,9 @@ from src.utils.tuning_utils import check_tuning_window
 SECTIONS = {
     "1. Strategy: direct vs iterated (reference: one month ahead)": ["ref_h1", "direct", "iterated", "naive"],
     "2. Month in progress: direct vs direct + first days of the month": ["direct", "partial", "naive"],
-    "3. Global trees vs local per-series models": [
-        "direct", "direct_lgbm", "direct_xgb", "direct_rf", "local_mean", "local_ses", "local_damped_holt",
-        "local_arima", "naive", "mean6", "seasonal_naive",
+    "3. Components of ml_mean (direct) and simple references": ["direct", "direct_lgbm", "direct_xgb", "direct_rf", "naive", "mean6", "seasonal_naive"],
+    "4. Optional: global trees vs local per-series models (--with-local)": [
+        "direct", "local_mean", "local_ses", "local_damped_holt", "local_arima", "naive",
     ],
 }  # fmt: skip
 
@@ -55,7 +57,7 @@ def main() -> None:
     parser.add_argument("--predictions", type=Path, default=Path("results/horizon_strategies.csv"))
     parser.add_argument("--reference", type=Path, default=Path("results/member_forecasts.csv"), help="one-month-ahead forecasts (run_ensembles.py)")
     parser.add_argument("--refit", action="store_true", help="recompute the forecasts even if cached")
-    parser.add_argument("--skip-local", action="store_true", help="skip SES, Holt and ARIMA (slow)")
+    parser.add_argument("--with-local", action="store_true", help="also fit SES, damped Holt and ARIMA per series (slow)")
     parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
@@ -66,7 +68,7 @@ def main() -> None:
     test_months = test_months_of(S, args.n_test)
     tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
     check_tuning_window(tuned, S, args.n_test)  # the tuned parameters (h=1) must not have seen the test months
-    meta = {**expected_meta(S, HORIZON, args.n_test, tuned), "cutoff_day": args.cutoff_day, "local": not args.skip_local}
+    meta = {**expected_meta(S, HORIZON, args.n_test, tuned), "cutoff_day": args.cutoff_day, "local": args.with_local}
     print(f"test targets {S.labels[test_months[0]]} .. {S.labels[-1]} | last complete month = target - {HORIZON}")
 
     if args.predictions.exists() and not args.refit:
@@ -77,7 +79,7 @@ def main() -> None:
     else:
         frame1, frame2 = make_frame(S, 1), make_frame(S, HORIZON)
         frame2_partial = add_partial_features(frame2, S, args.cutoff_day)
-        res = strategy_forecasts(S, frame1, frame2, frame2_partial, tuned, test_months, args.jobs, local=not args.skip_local)
+        res = strategy_forecasts(S, frame1, frame2, frame2_partial, tuned, test_months, args.jobs, local=args.with_local)
         args.predictions.parent.mkdir(parents=True, exist_ok=True)
         res.to_csv(args.predictions, index=False)
         write_meta(args.predictions, meta)
@@ -94,13 +96,15 @@ def main() -> None:
     tables = []
     for title, names in SECTIONS.items():
         models = [n for n in names if f"p_{n}" in res.columns]
+        if not any(n not in ("direct", "naive") for n in models):
+            continue
         print(f"\n=== {title} ===")
         for level, table in score_models_by_level(S, res, models, test_months).items():
             print(f"\n[{level}] rank 1 = lowest WAPE")
             print(table[["rank", "n", "mae", "wape", "accuracy", "bias_pct"]])
             tables.append(table.reset_index().assign(section=title, level=level))
 
-    shown = [c[2:] for c in ("p_ref_h1", "p_direct", "p_iterated", "p_partial", "p_local_mean", "p_naive") if c in res.columns]
+    shown = [c[2:] for c in ("p_ref_h1", "p_direct", "p_iterated", "p_partial", "p_naive") if c in res.columns]
     print("\n=== SKU accuracy (1 - WAPE) by target month ===")
     by_month = pd.DataFrame(
         {n: {S.labels[t]: score(g["y"].to_numpy(), g[f"p_{n}"].to_numpy())["accuracy"] for t, g in res.groupby("t")} for n in shown}

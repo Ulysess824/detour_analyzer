@@ -84,7 +84,7 @@ def strategy_forecasts(
     tuned: dict,
     test_months: list[int],
     n_jobs: int = 4,
-    local: bool = True,
+    local: bool = False,
     log=print,
 ) -> pd.DataFrame:
     r"""
