@@ -1,0 +1,43 @@
+model,rank,n,mae,wape,accuracy,bias_pct,section,level
+ref_h1,1,24407,7.6867,0.2903,0.7097,-0.8515,1. Strategy: direct vs iterated (reference: one month ahead),sku
+direct,2,24407,8.9633,0.3385,0.6615,0.6616,1. Strategy: direct vs iterated (reference: one month ahead),sku
+iterated,3,24407,9.1647,0.3461,0.6539,-2.4787,1. Strategy: direct vs iterated (reference: one month ahead),sku
+naive,4,24407,10.0375,0.3791,0.6209,-1.5894,1. Strategy: direct vs iterated (reference: one month ahead),sku
+ref_h1,1,180,301.8347,0.0825,0.9175,0.9814,1. Strategy: direct vs iterated (reference: one month ahead),planta
+direct,2,180,367.2331,0.1004,0.8996,2.467,1. Strategy: direct vs iterated (reference: one month ahead),planta
+iterated,3,180,372.3466,0.1018,0.8982,-0.6162,1. Strategy: direct vs iterated (reference: one month ahead),planta
+naive,4,180,527.1232,0.1442,0.8558,0.257,1. Strategy: direct vs iterated (reference: one month ahead),planta
+ref_h1,1,12,1380.4257,0.0252,0.9748,0.9814,1. Strategy: direct vs iterated (reference: one month ahead),total
+iterated,2,12,3047.3565,0.0556,0.9444,-0.6162,1. Strategy: direct vs iterated (reference: one month ahead),total
+direct,3,12,3221.7345,0.0587,0.9413,2.467,1. Strategy: direct vs iterated (reference: one month ahead),total
+naive,4,12,5145.9745,0.0938,0.9062,0.257,1. Strategy: direct vs iterated (reference: one month ahead),total
+partial,1,24407,8.2805,0.3128,0.6872,0.7737,2. Month in progress: direct vs direct + first days of the month,sku
+direct,2,24407,8.9633,0.3385,0.6615,0.6616,2. Month in progress: direct vs direct + first days of the month,sku
+naive,3,24407,10.0375,0.3791,0.6209,-1.5894,2. Month in progress: direct vs direct + first days of the month,sku
+partial,1,180,333.3312,0.0912,0.9088,2.577,2. Month in progress: direct vs direct + first days of the month,planta
+direct,2,180,367.2331,0.1004,0.8996,2.467,2. Month in progress: direct vs direct + first days of the month,planta
+naive,3,180,527.1232,0.1442,0.8558,0.257,2. Month in progress: direct vs direct + first days of the month,planta
+partial,1,12,2190.2274,0.0399,0.9601,2.577,2. Month in progress: direct vs direct + first days of the month,total
+direct,2,12,3221.7345,0.0587,0.9413,2.467,2. Month in progress: direct vs direct + first days of the month,total
+naive,3,12,5145.9745,0.0938,0.9062,0.257,2. Month in progress: direct vs direct + first days of the month,total
+direct,1,24407,8.9633,0.3385,0.6615,0.6616,3. Components of ml_mean (direct) and simple references,sku
+direct_xgb,2,24407,9.0068,0.3402,0.6598,2.1274,3. Components of ml_mean (direct) and simple references,sku
+direct_rf,3,24407,9.0862,0.3432,0.6568,-1.3167,3. Components of ml_mean (direct) and simple references,sku
+direct_lgbm,4,24407,9.1815,0.3468,0.6532,1.174,3. Components of ml_mean (direct) and simple references,sku
+naive,5,24407,10.0375,0.3791,0.6209,-1.5894,3. Components of ml_mean (direct) and simple references,sku
+mean6,6,24407,10.0618,0.38,0.62,-3.0984,3. Components of ml_mean (direct) and simple references,sku
+seasonal_naive,7,24407,13.122,0.4956,0.5044,-9.7611,3. Components of ml_mean (direct) and simple references,sku
+direct,1,180,367.2331,0.1004,0.8996,2.467,3. Components of ml_mean (direct) and simple references,planta
+direct_rf,2,180,372.4942,0.1019,0.8981,0.5246,3. Components of ml_mean (direct) and simple references,planta
+direct_lgbm,3,180,400.0415,0.1094,0.8906,2.9701,3. Components of ml_mean (direct) and simple references,planta
+direct_xgb,4,180,406.4348,0.1112,0.8888,3.9062,3. Components of ml_mean (direct) and simple references,planta
+seasonal_naive,5,180,446.1244,0.122,0.878,-7.7662,3. Components of ml_mean (direct) and simple references,planta
+mean6,6,180,485.3935,0.1327,0.8673,-1.2246,3. Components of ml_mean (direct) and simple references,planta
+naive,7,180,527.1232,0.1442,0.8558,0.257,3. Components of ml_mean (direct) and simple references,planta
+direct,1,12,3221.7345,0.0587,0.9413,2.467,3. Components of ml_mean (direct) and simple references,total
+direct_xgb,2,12,3282.3432,0.0598,0.9402,3.9062,3. Components of ml_mean (direct) and simple references,total
+direct_rf,3,12,3413.9657,0.0622,0.9378,0.5246,3. Components of ml_mean (direct) and simple references,total
+direct_lgbm,4,12,3462.7667,0.0631,0.9369,2.9701,3. Components of ml_mean (direct) and simple references,total
+mean6,5,12,3641.2251,0.0664,0.9336,-1.2246,3. Components of ml_mean (direct) and simple references,total
+seasonal_naive,6,12,4286.8478,0.0782,0.9218,-7.7662,3. Components of ml_mean (direct) and simple references,total
+naive,7,12,5145.9745,0.0938,0.9062,0.257,3. Components of ml_mean (direct) and simple references,total
