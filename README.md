@@ -44,7 +44,6 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     daily_utils.py         expansión de filas mensuales a días calendario
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
     tree_utils.py          LightGBM, XGBoost y Random Forest (mensual y diario)
-    row_model_utils.py     modelos sobre filas crudas: naive, Croston, hurdle, LightGBM, XGBoost, ARIMA
     econometric_utils.py   SES, Holt amortiguado y ARIMA por serie
     ensemble_utils.py      combinaciones: media, mediana, media recortada, ponderada
     mcs_utils.py           Model Confidence Set (Hansen, Lunde y Nason, 2011)
@@ -52,8 +51,6 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     evaluation_utils.py    evaluación con origen rodante a nivel SKU, planta y total
     search_space_utils.py  espacios de búsqueda de Optuna y trial base
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
-    plot_utils.py          gráfico seaborn de real contra base y Optuna
-    viewer_utils.py        visor HTML (plantilla en templates/)
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
     planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
@@ -70,30 +67,19 @@ Todos los comandos parten del CSV maestro y se ejecutan desde la raíz del repos
 # 1. Análisis exploratorio por planta y SKU
 python scripts/eda_consumos.py data/consumos_long.csv
 
-# 2. Comparación de modelos sobre filas crudas (naive, Croston, hurdle, LightGBM, XGBoost, ARIMA)
-python scripts/compare_models.py data/consumos_long.csv --cutoff 2026-04-30 
-
-# 3. Forecast mensual por SKU, planta y total (origen rodante, h=1 y h=3)
+# 2. Forecast mensual por SKU, planta y total (origen rodante, h=1 y h=3)
 python scripts/forecast_monthly.py data/consumos_long.csv --horizons 1 3 --n-test 12 [--daily]
 
-# 4. Tuning bayesiano (Optuna TPE) de LightGBM, XGBoost y Random Forest
+# 3. Tuning bayesiano (Optuna TPE) de LightGBM, XGBoost y Random Forest
 python scripts/tune_trees.py data/consumos_long.csv --trials 100 100 40 --out results/tuning_trees.json
 
-# 5. Visor interactivo Base vs Optuna (HTML autocontenido)
-python scripts/build_tuning_viewer.py results/tuning_trees.json -o results/tuning_viewer.html
-
-# 6. Real vs base vs Optuna en el test (total, o una serie con --planta y --sku)
-python scripts/plot_pred_vs_real.py data/consumos_long.csv results/tuning_trees.json -o pred_vs_real.png
-python scripts/plot_pred_vs_real.py data/consumos_long.csv results/tuning_trees.json \
-    --planta SCAN --sku "TSL/01/80gsm/2450mm/1200-1450" -o pred_scan.png
-
-# 7. Ensembles (machine learning, econometría clásica y ambos) y Model Confidence Set
+# 4. Ensembles (machine learning, econometría clásica y ambos) y Model Confidence Set
 python scripts/run_ensembles.py data/consumos_long.csv --tuning results/tuning_trees.json
 
-# 8. Pronóstico del mes siguiente con todo el histórico (con --as-of YYYY-MM se valida contra el real conocido)
+# 5. Pronóstico del mes siguiente con todo el histórico (con --as-of YYYY-MM se valida contra el real conocido)
 python scripts/predict_next_month.py data/consumos_long.csv
 
-# 9. Pronóstico a dos meses (plazo del planificador): directa, parcial e iterada, más la fila del planificador
+# 6. Pronóstico a dos meses (plazo del planificador): directa, parcial e iterada, más la fila del planificador
 python scripts/compare_horizon_strategies.py data/consumos_long.csv
 ```
 
@@ -254,8 +240,7 @@ consumo en la ventana.
   baselines y miembros de los ensembles, nunca como entrada de los modelos de machine learning.
 - **Modelo diario.** `forecast_monthly.py --daily` usa estos mismos 25 features más cuatro de día
   (`dow`, `dom`, `day_idx`, `days_left`), predice cada día calendario del mes y suma. No forma parte
-  de los ensembles. `compare_models.py` trabaja a nivel de fila diaria con su propio conjunto de
-  features (`src/utils/row_model_utils.py`), distinto de este.
+  de los ensembles.
 - **Modelos clásicos.** Los miembros clásicos de los ensembles (naive, medias, SES, Holt, ARIMA) no
   usan estos features, solo la historia mensual de cada serie.
 

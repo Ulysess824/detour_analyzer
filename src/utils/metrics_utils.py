@@ -29,22 +29,3 @@ def rank_by_wape(rows: list[dict]) -> pd.DataFrame:
     table = pd.DataFrame(rows).set_index("model")
     table.insert(0, "rank", table["wape"].rank(method="min").astype(int))
     return table.sort_values("rank").round(4)
-
-
-def row_metrics(y: np.ndarray, p: np.ndarray) -> dict:
-    r"""Metrics of the row-level (daily) comparison: n, mae, rmse, wape and mean error."""
-    error = y - p
-    return {
-        "n": len(y),
-        "mae": np.mean(np.abs(error)),
-        "rmse": np.sqrt(np.mean(error**2)),
-        "wape": np.sum(np.abs(error)) / np.sum(np.abs(y)),
-        "bias": np.mean(error),
-    }
-
-
-def rank_by_mae(table: pd.DataFrame) -> pd.DataFrame:
-    r"""Add a 1-based `rank` column (lowest MAE first) and sort the table by it."""
-    out = table.copy()
-    out.insert(0, "rank", out["mae"].rank(method="min").astype(int))
-    return out.sort_values("rank").round(4)

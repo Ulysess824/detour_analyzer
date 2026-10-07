@@ -233,15 +233,6 @@ def compare_base_and_tuned(
     return results
 
 
-def seed_mean_traces(runs: list[pd.DataFrame], test_months: list[int], series: int | None) -> tuple[np.ndarray, np.ndarray | None]:
-    r"""Seed-mean monthly forecast of the total, and of one series, for plotting."""
-    total = np.mean([[r.loc[r["t"] == t, "p"].sum() for t in test_months] for r in runs], axis=0)
-    if series is None:
-        return total, None
-    one = [[r.loc[(r["t"] == t) & (r["series"] == series), "p"].sum() for t in test_months] for r in runs]
-    return total, np.mean(one, axis=0)
-
-
 def to_jsonable(obj):
     r"""Convert numpy values and arrays inside nested dicts and lists, so they can be written as json."""
     if isinstance(obj, dict):
