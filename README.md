@@ -54,6 +54,11 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
     plot_utils.py          gráfico seaborn de real contra base y Optuna
     viewer_utils.py        visor HTML (plantilla en templates/)
+    cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
+    planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
+    inference_utils.py     pronóstico del mes siguiente con todo el histórico
+    horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
+    partial_utils.py       variables del mes en curso (consumo de los primeros días)
 scripts/                   puntos de entrada de línea de comandos
 ```
 
@@ -84,6 +89,12 @@ python scripts/plot_pred_vs_real.py data/consumos_long.csv results/tuning_trees.
 
 # 7. Ensembles (machine learning, econometría clásica y ambos) y Model Confidence Set
 python scripts/run_ensembles.py data/consumos_long.csv --tuning results/tuning_trees.json
+
+# 8. Pronóstico del mes siguiente con todo el histórico (con --as-of YYYY-MM se valida contra el real conocido)
+python scripts/predict_next_month.py data/consumos_long.csv
+
+# 9. Pronóstico a dos meses (plazo del planificador): directa, parcial e iterada, más la fila del planificador
+python scripts/compare_horizon_strategies.py data/consumos_long.csv
 ```
 
 ## Ensembles y Model Confidence Set
@@ -272,14 +283,76 @@ consumo en la ventana.
 
 ## Pendiente
 
-- Script de inferencia: entrenar con todo el histórico y predecir el mes siguiente.
+- Pronóstico de producción a dos meses (estrategia principal y secundaria): `predict_next_month.py` hoy pronostica el mes
+  siguiente (h=1). Falta una opción `--horizon 2` y la versión con mes parcial, que necesita un exporte de SAP a mitad de mes.
 
 ## Comparación con el planificador
 
 `scripts/compare_planner.py --month <YYYY-MM>` compara el pronóstico de los planificadores (`data/planner_forecast_<mes>.csv`,
-SCAN, meses 2026-06, 2026-07 y 2026-09) con el de los modelos sobre los mismos SKU y el mismo mes. El SKU del
+SCAN, meses 2026-06, 2026-07, 2026-08 y 2026-09) con el de los modelos sobre los mismos SKU y el mismo mes. El SKU del
 planificador no trae el ancho de núcleo, así que se suman las series del dataset con igual tipo, gramaje y ancho.
-Resultado en `results/planner_comparison_<mes>.csv`. Son tres meses y una sola planta: sirve como referencia, no como prueba.
+Resultado en `results/planner_comparison_<mes>.csv`. Son cuatro meses y una sola planta: sirve como referencia, no como prueba.
+Esta comparación usa el modelo con datos hasta fin del mes anterior, que son más de los que tiene el planificador a mitad de mes;
+la comparación en igualdad de condiciones está en la sección siguiente.
+
+## Pronóstico a dos meses: estrategia principal y secundaria
+
+**Problema.** El planificador envía a mitad de mes el pronóstico del mes siguiente (a mitad de octubre, noviembre). En ese momento
+se tiene el último mes completo (septiembre) y un mes en curso incompleto. El modelo del resto del README pronostica con datos
+hasta fin del mes anterior, que son más de los que tiene el planificador. Para comparar en igualdad de condiciones y pronosticar
+noviembre hay que pronosticar **dos meses** desde el último mes completo (`t = o + 2`).
+
+**Decisión.**
+
+| | Estrategia | Qué es |
+|---|---|---|
+| Principal | **Directa** | `ml_mean` (promedio de LightGBM, XGBoost y Random Forest) entrenado con el objetivo a dos meses. Mismas 25 variables, calculadas en el origen `o`; se entrena con las filas cuyo objetivo ya se conoce (`t <= o`) |
+| Secundaria | **Directa + mes parcial** | La directa más 4 variables del mes en curso (`mtd`, `mtd_rate`, `mtd_occ`, `mtd_proj`: consumo de los primeros 15 días, por día hábil, proporción de días con consumo y proyección del mes). Requiere un exporte de SAP a mitad de mes |
+
+La iterada (un modelo a un mes aplicado dos veces) y los modelos locales por SKU (SES, Holt, ARIMA; opción `--with-local`) se
+midieron pero no se adoptan.
+
+**De dónde sale.** La literatura describe las alternativas; la elección se hizo con la prueba de este proyecto (origen rodante,
+12 meses), porque las fuentes no coinciden entre sí:
+
+| Tema | Fuente | Qué aporta aquí |
+|---|---|---|
+| Estrategias a varios pasos (directa, iterada, de múltiples salidas) | Ben Taieb, Bontempi, Atiya y Sorjamaa (2012), *Expert Systems with Applications* 39(8): [A review and comparison of strategies for multi-step ahead time series forecasting](https://research.monash.edu/en/publications/a-review-and-comparison-of-strategies-for-multi-step-ahead-time-s/) | Define las estrategias que se comparan. En su prueba (111 series) ganan las de múltiples salidas; esa estrategia no se probó aquí |
+| Directa contra iterada | Marcellino, Stock y Watson (2006), *Journal of Econometrics* 135: [A comparison of direct and iterated multistep AR methods](https://cadmus.eui.eu/handle/1814/42713) | En teoría la iterada es más eficiente si el modelo está bien especificado y la directa es más robusta a errores de especificación; en sus datos macroeconómicos gana la iterada. Como no hay consenso, se midió |
+| Información parcial del período en curso | Giannone, Reichlin y Small (2008), *Journal of Monetary Economics*: [Nowcasting: the real-time informational content of macroeconomic data](https://lbsresearch.london.edu/id/eprint/315) | Idea de actualizar el pronóstico con datos incompletos del período actual: origen de la estrategia secundaria |
+| Un modelo global para todas las series | Montero-Manso y Hyndman (2021), *International Journal of Forecasting* 37(4): [Principles and algorithms for forecasting groups of time series](https://arxiv.org/pdf/2008.00444) | Respalda entrenar un solo modelo con todos los SKU en lugar de uno por serie |
+| Combinar modelo y criterio experto | Blattberg y Hoch (1990), *Management Science* 36(8): [Database models and managerial intuition](https://ideas.repec.org/a/inm/ormnsc/v36y1990i8p887-899.html) | Queda aparte: la mezcla con el pronóstico del planificador no se implementó |
+
+**Resultado** (`scripts/compare_horizon_strategies.py`, test 2025-10 a 2026-09, 24.407 SKU-mes; acierto = 1 − WAPE):
+
+| Estrategia | SKU | Planta | Total |
+|---|---|---|---|
+| Referencia a un mes (más información) | 71,0% | 91,8% | 97,5% |
+| **Directa (principal)** | 66,2% | 90,0% | 94,1% |
+| Iterada | 65,4% | 89,8% | 94,4% |
+| **Directa + mes parcial (secundaria)** | 68,7% | 90,9% | 96,0% |
+| Naive (mes anterior) | 62,1% | 85,6% | 90,6% |
+
+- La directa es igual o mejor que la iterada a nivel SKU en los 12 meses de prueba.
+- El mes parcial mejora a la directa en los 12 meses a nivel SKU (+2,6 puntos en promedio).
+
+**Contra el planificador** (SCAN, 167 SKU-mes, junio a septiembre de 2026, `results/horizon_planner_comparison.csv`):
+
+| | Acierto | Filas más cerca del real que el planificador |
+|---|---|---|
+| Planificador | 83,0% | |
+| Referencia a un mes | 85,2% | 95 de 167 |
+| Directa | 84,3% | 88 |
+| Directa + mes parcial | 84,1% | 91 |
+| Iterada | 84,1% | 84 |
+
+En igualdad de condiciones la ventaja sobre el planificador es de 1 a 1,3 puntos, y en agosto de 2026 el planificador gana a las
+tres estrategias. En los SKU grandes y estables de SCAN el mes parcial no mejora a la directa; la mejora viene de los SKU
+pequeños o intermitentes.
+
+**Límites.** Son 12 meses de prueba, y para SCAN cuatro meses y una planta. Los parámetros de Optuna son los ajustados a un mes.
+El corte al día 15 se simula con los datos diarios históricos. Cada pronóstico del mes `t` usa solo lo conocido al fin del mes
+`t − 2` (y, en la secundaria, los primeros días de `t − 1`); hay una prueba que lo verifica.
 
 ## Pruebas
 
@@ -287,8 +360,8 @@ Resultado en `results/planner_comparison_<mes>.csv`. Son tres meses y una sola p
 python -m pytest -q
 ```
 
-Usan datos sintéticos y tardan unos 5 segundos. Cubren: ausencia de fuga en los features, sumas del panel y de la expansión diaria,
-pesos de los ensembles, reconciliación, signo del bias, folds de Optuna, protecciones de caché y de ventana de ajuste,
+Usan datos sintéticos y tardan unos 15 segundos (43 pruebas). Cubren: ausencia de fuga en los features, sumas del panel y de la expansión diaria,
+pesos de los ensembles, pronóstico del mes siguiente y a dos meses (sin mirar el futuro), reconciliación, signo del bias, folds de Optuna, protecciones de caché y de ventana de ajuste,
 reglas de solape al combinar exportes, emparejamiento de SKU del planificador, determinismo de los árboles y el MCS.
 Los resultados guardados llevan metadatos (`results/member_forecasts.meta.json` y `meta` dentro de `results/tuning_trees.json`):
 si cambian los datos o la ventana de test, los scripts se detienen y piden recalcular (`--refit` o `tune_trees.py`).
