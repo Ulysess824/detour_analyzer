@@ -15,10 +15,12 @@ ECON_MODELS = SIMPLE_MODELS + ECONOMETRIC_MODELS
 ENSEMBLE_GROUPS = {"ml": ML_MODELS, "econ": ECON_MODELS, "ml_econ": ML_MODELS + ECON_MODELS}
 
 
-def ml_forecast(kind: str, train: pd.DataFrame, rows: pd.DataFrame, tuned: dict) -> np.ndarray:
+def ml_forecast(
+    kind: str, train: pd.DataFrame, rows: pd.DataFrame, tuned: dict, features: list[str] | None = None
+) -> np.ndarray:
     r"""One machine-learning member, with the Optuna-tuned parameters when available (the baseline otherwise)."""
     params = tuned.get(kind, {}).get("best_params", TREE_BASE[kind])
-    return fit_predict_trees(kind, params, train, rows, seed=0)
+    return fit_predict_trees(kind, params, train, rows, seed=0, features=features)
 
 
 def collect_member_forecasts(

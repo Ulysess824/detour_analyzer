@@ -27,7 +27,12 @@ TREE_BASE = {
 
 
 def fit_predict_trees(
-    kind: str, params: dict, train: pd.DataFrame, test: pd.DataFrame, seed: int | None = None
+    kind: str,
+    params: dict,
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    seed: int | None = None,
+    features: list[str] | None = None,
 ) -> np.ndarray:
     r"""
     Fit on `train` and predict `test`; the monthly total of each row.
@@ -35,7 +40,9 @@ def fit_predict_trees(
     LightGBM and XGBoost: early stopping on the last two target months of train picks the
     number of trees, then the model is refit on all of train with that number.
     Random Forest: no early stopping; missing values are filled with -1 (trees need a sentinel).
+    `features` are the input columns (default: SERIES_FEATURES; must contain planta_code).
     """
+    cols = features or SERIES_FEATURES
     y = train["y"]
     last_two_months = (train["t"] >= train["t"].max() - 1).to_numpy()
     seed_args = {} if seed is None else {"random_state": seed}
@@ -44,8 +51,8 @@ def fit_predict_trees(
         from sklearn.ensemble import RandomForestRegressor
 
         model = RandomForestRegressor(n_estimators=RF_TREES, n_jobs=-1, random_state=seed, **params)
-        model.fit(train[SERIES_FEATURES].fillna(-1.0), y)
-        return np.clip(model.predict(test[SERIES_FEATURES].fillna(-1.0)), 0.0, None).astype(float)
+        model.fit(train[cols].fillna(-1.0), y)
+        return np.clip(model.predict(test[cols].fillna(-1.0)), 0.0, None).astype(float)
 
     fit_part, val_part = train[~last_two_months], train[last_two_months]
 
@@ -55,28 +62,28 @@ def fit_predict_trees(
         p = dict(objective="tweedie", subsample_freq=1, verbose=-1, **seed_args, **params)
         probe = lgb.LGBMRegressor(n_estimators=MAX_TREES, **p)
         probe.fit(
-            fit_part[SERIES_FEATURES],
+            fit_part[cols],
             fit_part["y"],
-            eval_X=val_part[SERIES_FEATURES],
+            eval_X=val_part[cols],
             eval_y=val_part["y"],
             eval_metric="mae",
             categorical_feature=["planta_code"],
             callbacks=[lgb.early_stopping(PATIENCE, verbose=False)],
         )
         final = lgb.LGBMRegressor(n_estimators=max(probe.best_iteration_, 20), **p)
-        final.fit(train[SERIES_FEATURES], y, categorical_feature=["planta_code"])
-        return np.clip(final.predict(test[SERIES_FEATURES]), 0.0, None).astype(float)
+        final.fit(train[cols], y, categorical_feature=["planta_code"])
+        return np.clip(final.predict(test[cols]), 0.0, None).astype(float)
 
     import xgboost as xgb
 
     p = dict(objective="reg:tweedie", tree_method="hist", verbosity=0, **seed_args, **params)
     probe = xgb.XGBRegressor(n_estimators=MAX_TREES, early_stopping_rounds=PATIENCE, eval_metric="mae", **p)
     probe.fit(
-        fit_part[SERIES_FEATURES], fit_part["y"], eval_set=[(val_part[SERIES_FEATURES], val_part["y"])], verbose=False
+        fit_part[cols], fit_part["y"], eval_set=[(val_part[cols], val_part["y"])], verbose=False
     )
     final = xgb.XGBRegressor(n_estimators=max(int(probe.best_iteration) + 1, 20), **p)
-    final.fit(train[SERIES_FEATURES], y, verbose=False)
-    return np.clip(final.predict(test[SERIES_FEATURES]), 0.0, None).astype(float)
+    final.fit(train[cols], y, verbose=False)
+    return np.clip(final.predict(test[cols]), 0.0, None).astype(float)
 
 
 def lgbm_forecast(frame: pd.DataFrame, origin: int) -> pd.Series:

@@ -141,3 +141,8 @@ def make_frame(S: Panel, horizon: int) -> pd.DataFrame:
     n_months = S.monthly.shape[1]
     frames = [_origin_frame(S, origin, horizon) for origin in range(MIN_ORIGIN, n_months - horizon)]
     return pd.concat(frames, ignore_index=True)
+
+
+def frame_at_origin(S: Panel, origin: int, horizon: int) -> pd.DataFrame:
+    r"""Rows of every series alive at one `origin` (the building block of `make_frame`)."""
+    return _origin_frame(S, origin, horizon)
