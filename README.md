@@ -354,6 +354,18 @@ pequeños o intermitentes.
 El corte al día 15 se simula con los datos diarios históricos. Cada pronóstico del mes `t` usa solo lo conocido al fin del mes
 `t − 2` (y, en la secundaria, los primeros días de `t − 1`); hay una prueba que lo verifica.
 
+## Hiperparámetros: cuándo se ajustan
+
+Los árboles de `ml_mean` (LightGBM, XGBoost y Random Forest) se **reentrenan cada mes** con todo el historial disponible, pero sus
+**hiperparámetros se ajustan una sola vez** (Optuna, `scripts/tune_trees.py`, ventana 2024-01 a 2025-09, para pronosticar un mes
+adelante; resultado en `results/tuning_trees.json`, unos 20 minutos). `ml_mean` es un promedio simple y no tiene parámetros propios.
+
+Criterio de reajuste (práctico, no sale de una fuente): cada 6 a 12 meses; cuando el WAPE de los últimos meses suba de forma
+sostenida; cuando cambien los datos (plantas o SKU nuevos, otro registro del consumo); y antes de usar el pronóstico a dos meses,
+porque los parámetros actuales son los de un mes. La ganancia del ajuste fue pequeña (solo Random Forest mejoró de forma creíble),
+así que reajustar cada mes no se justifica. `check_tuning_window` impide evaluar con parámetros cuya ventana de ajuste toque los
+meses de prueba.
+
 ## Pruebas
 
 ```bash
