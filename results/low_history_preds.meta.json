@@ -1,0 +1,9 @@
+{
+ "data": "729f6f97f581669e",
+ "n_series": 2247,
+ "horizon": 1,
+ "test_first": "2025-10",
+ "test_last": "2026-09",
+ "tuning": "bff27ef60dd3ad28",
+ "k0": 0.5
+}

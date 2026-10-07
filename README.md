@@ -351,6 +351,31 @@ porque los parámetros actuales son los de un mes. La ganancia del ajuste fue pe
 así que reajustar cada mes no se justifica. `check_tuning_window` impide evaluar con parámetros cuya ventana de ajuste toque los
 meses de prueba.
 
+## SKU con poca historia (rama `low_history`)
+
+`scripts/compare_low_history.py` mide, un mes adelante y sobre los 12 meses de prueba, cómo pronostica `ml_mean` a los SKU con
+1 a 3 meses de historia y si cuatro estrategias lo mejoran (`src/utils/lowhist_utils.py`): **e1** atributos del SKU (tipo,
+subtipo, gramaje, ancho) como variables, **e2** mezcla con la mediana de su familia, **e3** regla por cohortes (cuánto consumieron
+el mes siguiente los SKU anteriores de la misma edad) y **e5** LightGBM con pérdida de error absoluto (mediana). La política
+`pol_*` usa la estrategia solo con hasta 3 meses de historia y `ml_mean` en el resto. El parámetro de e2 se eligió antes de los
+meses de prueba.
+
+| Meses de historia | Filas | Acierto `ml_mean` | naive | e1 | e2 | e3 | e5 |
+|---|---|---|---|---|---|---|---|
+| 1 | 352 | 20,4% | 23,2% | 21,5% | 3,8% | 20,0% | 22,9% |
+| 2 | 331 | 30,2% | 31,8% | 30,9% | 14,1% | 26,8% | 37,9% |
+| 3 | 309 | 31,3% | 35,8% | 31,0% | 2,1% | 13,9% | 38,6% |
+| 1 a 3 (política) | 992 | 26,6% | 29,4% | 27,2% | 7,0% | 20,9% | **32,1%** |
+
+- **e5 es la única que mejora.** En 1 a 3 meses sube el acierto de 26,6% a 32,1% y gana en 11 de los 12 meses. Total de la política:
+  SKU 70,4% a 70,6%, planta 91,9% a 92,0%, total 97,5% a 97,6%. Con 1 mes de historia solo iguala al naive (22,9% contra 23,2%).
+- **e1 apenas se nota; e2 y e3 empeoran.** La mediana de la familia no da el tamaño de un SKU nuevo, y la regla por cohortes queda por
+  debajo del naive también con todo el histórico (790 filas con 1 mes: 16% contra 32%).
+- **Pronosticar de menos.** e5 sesga a la baja (en 1 a 3 meses el real supera al pronóstico en 17%). Aplicado a todos los SKU mejora el
+  acierto por SKU (71,4%) pero empeora planta (91,2%) y total (95,2%), por eso se usa solo con poca historia.
+- **Límites.** 992 filas y 2,6% del consumo; el 37% de los SKU con 1 mes consumen 0 el mes siguiente, lo que limita el techo.
+  e5 se comparó contra otras tres estrategias en los mismos meses de prueba (sesgo de selección), con parámetros sin ajustar.
+
 ## Pruebas
 
 ```bash
