@@ -41,3 +41,9 @@ direct_lgbm,4,12,3462.7667,0.0631,0.9369,2.9701,3. Components of ml_mean (direct
 mean6,5,12,3641.2251,0.0664,0.9336,-1.2246,3. Components of ml_mean (direct) and simple references,total
 seasonal_naive,6,12,4286.8478,0.0782,0.9218,-7.7662,3. Components of ml_mean (direct) and simple references,total
 naive,7,12,5145.9745,0.0938,0.9062,0.257,3. Components of ml_mean (direct) and simple references,total
+ref_h1,1,167,11.908335628650704,0.14833754545803998,0.85166245454196,0.29782858629536846,"5. Planner row: SCAN planner SKUs, months 2026-06, 2026-07, 2026-08, 2026-09 (167 SKU-months)",sku_planner
+direct,2,167,12.569671249706701,0.15657554829996448,0.8434244517000355,-0.8872372662688947,"5. Planner row: SCAN planner SKUs, months 2026-06, 2026-07, 2026-08, 2026-09 (167 SKU-months)",sku_planner
+iterated,3,167,12.80054207517302,0.15945141715649466,0.8405485828435053,-1.541166349543763,"5. Planner row: SCAN planner SKUs, months 2026-06, 2026-07, 2026-08, 2026-09 (167 SKU-months)",sku_planner
+partial,4,167,12.801184865523481,0.15945942414805123,0.8405405758519487,-2.317279722597341,"5. Planner row: SCAN planner SKUs, months 2026-06, 2026-07, 2026-08, 2026-09 (167 SKU-months)",sku_planner
+planner,5,167,13.656071856287424,0.1701084217752958,0.8298915782247042,-3.3973588397058982,"5. Planner row: SCAN planner SKUs, months 2026-06, 2026-07, 2026-08, 2026-09 (167 SKU-months)",sku_planner
+naive,6,167,15.442467065868263,0.19236085812497966,0.8076391418750204,-0.23713813535073758,"5. Planner row: SCAN planner SKUs, months 2026-06, 2026-07, 2026-08, 2026-09 (167 SKU-months)",sku_planner

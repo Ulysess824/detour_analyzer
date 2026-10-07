@@ -12,7 +12,8 @@ planta and total level, over the last --n-test months with a rolling origin.
 Only machine-learning models are trained. With --with-local the per-series SES, damped Holt and ARIMA are added (slow).
 
 The reference is the one-month-ahead `ml_mean` of the report (more information: data to the end of the previous month).
-The combination with the planner forecast is left out on purpose.
+When planner files exist (data/planner_forecast_<month>.csv, SCAN only), a last section scores the planner and the strategies on
+the planner SKUs of those months. The combination of both forecasts is left out on purpose.
 
 Usage:
     python scripts/compare_horizon_strategies.py data/consumos_long.csv
@@ -35,6 +36,7 @@ from src.utils.feature_utils import make_frame
 from src.utils.horizon_utils import HORIZON, strategy_forecasts
 from src.utils.metrics_utils import score
 from src.utils.panel_utils import build_panel, load_consumption
+from src.utils.planner_utils import accuracy_table, compare_month, series_table
 from src.utils.partial_utils import add_partial_features
 from src.utils.tuning_utils import check_tuning_window
 
@@ -48,6 +50,42 @@ SECTIONS = {
 }  # fmt: skip
 
 
+def planner_section(S, df, res: pd.DataFrame, pattern: str):
+    r"""Score the planner and the strategies on the planner SKUs of every month that has a planner file."""
+    files = sorted(Path().glob(pattern))
+    if not files:
+        return None
+    models = [n for n in ("ref_h1", "direct", "iterated", "partial", "naive") if f"p_{n}" in res.columns]
+    pairs, parts = series_table(S, df), []
+    for file in files:
+        planner = pd.read_csv(file)
+        month = planner["mes"].iloc[0]
+        if month not in S.labels or S.labels.index(month) not in set(res["t"]):
+            continue
+        table, missing = compare_month(planner, res, pairs, S.labels.index(month), models)
+        if missing:
+            print(f"{month}: planner SKUs with no match: {missing}")
+        parts.append(table.assign(mes=month))
+    if not parts:
+        return None
+    T = pd.concat(parts, ignore_index=True)
+    title = f"5. Planner row: SCAN planner SKUs, months {', '.join(sorted(T['mes'].unique()))} ({len(T)} SKU-months)"
+    print(f"\n=== {title} ===")
+    ranking = accuracy_table(T, ["planner", *models])
+    print(ranking.round(4))
+    by_month = pd.DataFrame(
+        {m: {c: score(g["real"].to_numpy(), g[c].to_numpy())["accuracy"] for c in ["planner", *models]} for m, g in T.groupby("mes")}
+    )
+    print("\naccuracy by month:")
+    print((by_month * 100).round(1))
+    for name in models:
+        wins = int(((T["real"] - T[name]).abs() < (T["real"] - T["planner"]).abs()).sum())
+        print(f"  {name:8s} closer to the real than the planner in {wins} of {len(T)} SKU-months")
+    T.to_csv("results/horizon_planner_comparison.csv", index=False)
+    print("saved results/horizon_planner_comparison.csv")
+    return ranking.reset_index(drop=True).assign(section=title, level="sku_planner")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("input", type=Path)
@@ -58,13 +96,15 @@ def main() -> None:
     parser.add_argument("--reference", type=Path, default=Path("results/member_forecasts.csv"), help="one-month-ahead forecasts (run_ensembles.py)")
     parser.add_argument("--refit", action="store_true", help="recompute the forecasts even if cached")
     parser.add_argument("--with-local", action="store_true", help="also fit SES, damped Holt and ARIMA per series (slow)")
+    parser.add_argument("--planner-glob", default="data/planner_forecast_*.csv", help="planner forecasts (SCAN) to add as a row")
     parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
     pd.set_option("display.width", 220)
     pd.set_option("display.max_columns", 30)
 
-    S = build_panel(load_consumption(args.input))
+    df = load_consumption(args.input)
+    S = build_panel(df)
     test_months = test_months_of(S, args.n_test)
     tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
     check_tuning_window(tuned, S, args.n_test)  # the tuned parameters (h=1) must not have seen the test months
@@ -103,6 +143,10 @@ def main() -> None:
             print(f"\n[{level}] rank 1 = lowest WAPE")
             print(table[["rank", "n", "mae", "wape", "accuracy", "bias_pct"]])
             tables.append(table.reset_index().assign(section=title, level=level))
+
+    planner_rows = planner_section(S, df, res, args.planner_glob)
+    if planner_rows is not None:
+        tables.append(planner_rows)
 
     shown = [c[2:] for c in ("p_ref_h1", "p_direct", "p_iterated", "p_partial", "p_naive") if c in res.columns]
     print("\n=== SKU accuracy (1 - WAPE) by target month ===")
