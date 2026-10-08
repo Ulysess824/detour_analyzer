@@ -376,6 +376,25 @@ meses de prueba.
 - **Límites.** 992 filas y 2,6% del consumo; el 37% de los SKU con 1 mes consumen 0 el mes siguiente, lo que limita el techo.
   e5 se comparó contra otras tres estrategias en los mismos meses de prueba (sesgo de selección), con parámetros sin ajustar.
 
+## Modelo interno de la empresa (SCAN)
+
+`data/internal_model_forecast.csv` es el pronóstico propuesto por el modelo interno de la empresa para junio a septiembre de 2026
+(45 SKU de SCAN; el SKU se toma del código SAP, porque el archivo no trae subtipo y tres productos THP aparecen como TSL; tres
+productos TWTC2 no existen en los datos y quedan fuera). `scripts/compare_internal_model.py` lo compara con el real, con el
+planificador y con nuestro modelo sobre los mismos SKU-mes (156 con los tres pronósticos), usando la estrategia directa a dos meses
+(plazo del planificador) y, de referencia, la de un mes.
+
+| Acierto, 156 SKU-mes, jun a sep 2026 | |
+|---|---|
+| Modelo, directo a dos meses | 84,5% |
+| Planificador | 83,2% |
+| Naive (mes anterior) | 81,0% |
+| Modelo interno | 76,7% |
+
+El modelo interno pronostica de más (+7,3% sobre el real, el planificador +3,2% y el modelo +0,8%) y queda por debajo del naive.
+El modelo quedó más cerca del real en 69 de 156 SKU-mes, el planificador en 56 y el modelo interno en 31. Los resultados por fila
+están en `results/internal_model_comparison.csv`. La presentación (`presentacion/artifact/`) usa estas cifras.
+
 ## Pruebas
 
 ```bash

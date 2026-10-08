@@ -26,6 +26,7 @@
     "metodo",
     "medida",
     "total-mes",
+    "acierto",
     "acierto-mes",
     "tabla",
     "cercania",
@@ -33,11 +34,11 @@
   ],
   "sections": {
     "detalle": {
-      "description": "Diez SKU al azar y en cuántas filas ganó cada uno.",
+      "description": "Diez SKU al azar y qué pronóstico quedó más cerca en cada SKU y mes.",
       "start": "tabla"
     },
     "resultado": {
-      "description": "Los totales y el acierto del modelo frente al planificador.",
+      "description": "Los totales y el acierto del modelo frente al planificador y al modelo interno.",
       "start": "cover"
     }
   },
