@@ -87,6 +87,7 @@ def load_planner_months() -> dict[str, pd.DataFrame]:
     for path in sorted(RESULTS_DIR.glob("planner_comparison_*.csv"), reverse=True):
         month = path.stem.removeprefix("planner_comparison_")
         table = pd.read_csv(path)
-        planta = pd.read_csv(DATA_DIR / f"planner_forecast_{month}.csv", usecols=["planta"])["planta"].iloc[0]
-        months[month] = table.assign(mes=month, planta=planta)
+        # Tables written by compare_planner.py with several plantas carry a `planta` column; the SCAN-only tables of
+        # before do not, and the planner files now hold several plantas, so their planta cannot be read from there.
+        months[month] = table.assign(mes=month) if "planta" in table.columns else table.assign(mes=month, planta="SCAN")
     return months

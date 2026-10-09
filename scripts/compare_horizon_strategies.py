@@ -50,7 +50,7 @@ SECTIONS = {
 }  # fmt: skip
 
 
-def planner_section(S, df, res: pd.DataFrame, pattern: str):
+def planner_section(S, df, res: pd.DataFrame, pattern: str, planta: str):
     r"""Score the planner and the strategies on the planner SKUs of every month that has a planner file."""
     files = sorted(Path().glob(pattern))
     if not files:
@@ -59,6 +59,9 @@ def planner_section(S, df, res: pd.DataFrame, pattern: str):
     pairs, parts = series_table(S, df), []
     for file in files:
         planner = pd.read_csv(file)
+        planner = planner[planner["planta"] == planta]
+        if planner.empty:
+            continue
         month = planner["mes"].iloc[0]
         if month not in S.labels or S.labels.index(month) not in set(res["t"]):
             continue
@@ -69,7 +72,7 @@ def planner_section(S, df, res: pd.DataFrame, pattern: str):
     if not parts:
         return None
     T = pd.concat(parts, ignore_index=True)
-    title = f"5. Planner row: SCAN planner SKUs, months {', '.join(sorted(T['mes'].unique()))} ({len(T)} SKU-months)"
+    title = f"5. Planner row: {planta} planner SKUs, months {', '.join(sorted(T['mes'].unique()))} ({len(T)} SKU-months)"
     print(f"\n=== {title} ===")
     ranking = accuracy_table(T, ["planner", *models])
     print(ranking.round(4))
@@ -96,7 +99,8 @@ def main() -> None:
     parser.add_argument("--reference", type=Path, default=Path("results/member_forecasts.csv"), help="one-month-ahead forecasts (run_ensembles.py)")
     parser.add_argument("--refit", action="store_true", help="recompute the forecasts even if cached")
     parser.add_argument("--with-local", action="store_true", help="also fit SES, damped Holt and ARIMA per series (slow)")
-    parser.add_argument("--planner-glob", default="data/planner_forecast_*.csv", help="planner forecasts (SCAN) to add as a row")
+    parser.add_argument("--planner-glob", default="data/planner_forecast_*.csv", help="planner forecasts to add as a row")
+    parser.add_argument("--planta", default="SCAN", help="planta of the planner row (the planner files hold several plantas)")
     parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
@@ -144,7 +148,7 @@ def main() -> None:
             print(table[["rank", "n", "mae", "wape", "accuracy", "bias_pct"]])
             tables.append(table.reset_index().assign(section=title, level=level))
 
-    planner_rows = planner_section(S, df, res, args.planner_glob)
+    planner_rows = planner_section(S, df, res, args.planner_glob, args.planta)
     if planner_rows is not None:
         tables.append(planner_rows)
 

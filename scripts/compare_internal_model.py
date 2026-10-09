@@ -25,7 +25,7 @@ from src.utils.internal_utils import load_internal_forecast
 from src.utils.member_utils import ML_MODELS
 from src.utils.metrics_utils import score
 from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.planner_utils import accuracy_table, compare_month, series_table
+from src.utils.planner_utils import accuracy_table, attach_planner, compare_month, series_table
 
 MODELS = ["ref_h1", "direct", "partial", "iterated", "naive"]
 
@@ -75,9 +75,8 @@ def main() -> None:
         parts.append(table.assign(mes=month))
     T = pd.concat(parts, ignore_index=True).rename(columns={"planner": "internal"})
     T = T[T["real"] > 0].reset_index(drop=True)
-    planner = pd.concat([pd.read_csv(f)[["mes", "sku_planner", "forecast_to"]] for f in planner_files], ignore_index=True)
-    planner = planner.rename(columns={"sku_planner": "sku", "forecast_to": "planner"})
-    T = T.merge(planner, on=["mes", "sku"], how="left")
+    planner = pd.concat([pd.read_csv(f) for f in planner_files], ignore_index=True)
+    T = attach_planner(T, planner)
     T.to_csv(args.out, index=False)
 
     cols = ["internal", *MODELS]

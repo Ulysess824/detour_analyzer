@@ -54,7 +54,7 @@ def test_planner_and_dataset_skus_share_a_key(planner_sku, data_sku):
 
 def test_planner_comparison_adds_up_series_with_different_core_widths():
     pairs = pd.DataFrame({"planta": ["SCAN"] * 3, "sku": ["K/01/160gsm/2450mm/1200-1250", "K/01/160gsm/2450mm/1200-1450", "K/01/110gsm/2100mm/1200-1450"],
-                          "series": [0, 1, 2]})  # fmt: skip
+                          "series": [0, 1, 2], "first_month": [0, 0, 0]})  # fmt: skip
     pairs["key"] = pairs["sku"].map(dataset_key)
     res = pd.DataFrame({"series": [0, 1, 2], "t": [5, 5, 5], "y": [10.0, 20.0, 7.0], "p_ml": [9.0, 18.0, 8.0]})
     planner = pd.DataFrame({"planta": ["SCAN", "SCAN", "SCAN"], "sku_planner": ["K/01/160gsm/2450mm", "K/01/110gsm/2100mm", "X/01/9gsm/9mm"],

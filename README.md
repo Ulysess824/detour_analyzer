@@ -52,6 +52,7 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     search_space_utils.py  espacios de búsqueda de Optuna y trial base
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
+    planner_io_utils.py    lectura de los libros de asignación del planificador (todas las plantas)
     planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
     horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
@@ -81,6 +82,10 @@ python scripts/predict_next_month.py data/consumos_long.csv
 
 # 6. Pronóstico a dos meses (plazo del planificador): directa, parcial e iterada, más la fila del planificador
 python scripts/compare_horizon_strategies.py data/consumos_long.csv
+
+# 7. Pronóstico del planificador contra el modelo: convertir los libros del planificador y comparar (septiembre, VMI, un mes)
+python scripts/transform_planner.py Asignacion_jun_26.xlsx Asignacion_jul_26.xlsx Asignacion_ago_26.xlsx Asignacion_SEPT_26.xlsx --out-dir data
+python scripts/compare_planner.py data/consumos_long.csv --months 2026-09
 ```
 
 ## Ensembles y Model Confidence Set
@@ -276,15 +281,17 @@ consumo en la ventana.
   meses seguidos), que mide el pronóstico a varios horizontes desde un mismo punto. Hay que cuidar que las variables de los meses
   del rango no usen el consumo real de meses anteriores del propio rango, porque eso sería pronóstico a un mes y no a varios. Los
   resultados a dos y tres meses de hoy (`forecast_monthly.py --horizons`, `compare_horizon_strategies.py`) usan origen móvil por horizonte.
-- Varias plantas en las comparaciones: los modelos ya entrenan con las 15 plantas, pero la comparación con el planificador y el modelo
-  interno solo está probada con SCAN. Antes de agregar otra planta hay que corregir tres cosas: (1) el cruce con el planificador al final de
-  `scripts/compare_internal_model.py` une por mes y SKU, sin la planta, y mezclaría filas si dos plantas comparten el mismo SKU; (2) los
-  meses del modelo interno están fijos en `src/utils/internal_utils.py` (2026-06 a 2026-09); (3) las tablas `results/planner_comparison_*.csv`
-  y `results/internal_model_comparison.csv` no guardan la columna `planta`. Además, si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
+- Varias plantas en las comparaciones: `compare_planner.py` ya compara las 11 plantas del planificador y guarda la planta en cada fila, y el
+  cruce con el planificador de `compare_internal_model.py` usa planta, mes y SKU. Falta que los meses del modelo interno, fijos en
+  `src/utils/internal_utils.py` (2026-06 a 2026-09), salgan del propio archivo, y la pestaña PLANIFICADOR del dashboard sigue leyendo solo los
+  `results/planner_comparison_<mes>.csv` de SCAN (no hay selector de planta). Si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
 - Subgrado distinto en el archivo del planificador de septiembre de 2026: 16 filas VMI (SALI 8 y SALM 8, `KS/01/215gsm/<ancho>mm`) aparecen
   con subgrado 01, pero en `data/consumos_long.csv` esos SKU existen como `KS/257/215gsm/<ancho>mm`. No se cruzan y se ignoran en la comparación
   con el planificador (1.484 TO, 3,5% del volumen VMI de septiembre). Pendiente: confirmar con el planificador si es el mismo producto y, si lo es,
   enlazarlos (por ejemplo ignorando el subgrado cuando hay un único candidato en la planta).
+  Evidencia de que es el mismo producto: los códigos SAP de esas filas (por ejemplo 1454942, 1519037, 1520783) aparecen como `KS/257/215gsm` en el
+  archivo de junio y como `KS/01/215gsm` en el de septiembre. El código SAP serviría para enlazarlos sin adivinar. `compare_planner.py` ya las
+  deja fuera con el motivo "subgrado distinto" en `results/filas_excluidas_planificador.csv`.
 - Modelo interno: no se sabe en qué fecha se generó cada pronóstico, así que no se puede descartar que use información posterior a la que
   tenía el planificador. Conviene preguntarlo a quien lo envió.
 - Rama `low_history`: sigue sin fusionar a `main` por decisión del usuario. Tiene la prueba para SKU con poca historia (1 a 3 meses) y la versión
@@ -295,12 +302,51 @@ consumo en la ventana.
 
 ## Comparación con el planificador
 
-`scripts/compare_planner.py --month <YYYY-MM>` compara el pronóstico de los planificadores (`data/planner_forecast_<mes>.csv`,
-SCAN, meses 2026-06, 2026-07, 2026-08 y 2026-09) con el de los modelos sobre los mismos SKU y el mismo mes. El SKU del
-planificador no trae el ancho de núcleo, así que se suman las series del dataset con igual tipo, gramaje y ancho.
-Resultado en `results/planner_comparison_<mes>.csv`. Son cuatro meses y una sola planta: sirve como referencia, no como prueba.
-Esta comparación usa el modelo con datos hasta fin del mes anterior, que son más de los que tiene el planificador a mitad de mes;
-la comparación en igualdad de condiciones está en la sección siguiente.
+**Datos.** Los archivos de asignación del planificador (un libro por mes, con la planta en `Customer`) se convierten con
+`scripts/transform_planner.py` a `data/planner_forecast_<mes>.csv`: junio a septiembre de 2026, 11 plantas, unas 770 filas por mes y todas las
+estrategias (VMI, NO VMI, VMI EST). El mes se lee de la cabecera de la hoja y la columna `allocation` (la fábrica que produce) se descarta.
+Las filas de SCAN de junio a agosto coinciden con las de antes; septiembre pasa de 32 a 45 SKU de SCAN (los 13 que faltaban eran NO VMI).
+
+**Comparación.** `scripts/compare_planner.py data/consumos_long.csv --months 2026-09` compara el pronóstico del planificador con el de los
+modelos sobre los mismos SKU y el mismo mes. El SKU del planificador no trae el ancho de núcleo, así que se suman las series del dataset con
+igual planta, tipo, gramaje y ancho. Parámetros: `--months`, `--plantas` (por defecto todas), `--strategies` (por defecto solo `VMI`; agregar
+NO VMI es `--strategies VMI "NO VMI"`, sin tocar código) y `--min-history` (por defecto 3). Resultado por mes en `results/planner_plantas_<mes>.csv`.
+Usa el modelo con datos hasta fin del mes anterior, que son más de los que tiene el planificador a mitad de mes; la comparación en igualdad de
+condiciones está en la sección siguiente.
+
+**Qué se deja fuera, y dónde queda registrado.**
+
+| Motivo | Archivo |
+|---|---|
+| Menos de 3 meses de historia antes del mes que se pronostica (el primer consumo cuenta como mes 1) | `results/skus_poca_historia.csv`: planta, SKU y primera fecha con consumo |
+| El SKU no existe en los datos (nunca tuvo consumo) | `results/skus_poca_historia.csv` (sin fecha) y `results/filas_excluidas_planificador.csv` |
+| Subgrado distinto entre el archivo y los datos (ver Pendiente) | `results/filas_excluidas_planificador.csv` |
+| El modelo no tiene pronóstico para el SKU | `results/filas_excluidas_planificador.csv` |
+
+Septiembre de 2026, solo VMI, un mes de horizonte: 463 filas en los archivos, 443 comparadas, 16 fuera por subgrado y 4 por poca historia.
+
+| Planta | Filas | Real (TO) | Planificador (TO) | Acierto planificador | Acierto `ml_mean` |
+|---|---|---|---|---|---|
+| PCEL | 20 | 1.856 | 2.055 | 68,4% | 71,7% |
+| SALC | 36 | 4.284 | 4.491 | 82,2% | 83,9% |
+| SALI | 52 | 2.559 | 3.855 | 44,9% | 35,2% |
+| SALM | 39 | 3.111 | 3.080 | 76,1% | 55,4% |
+| SBUR | 54 | 5.505 | 5.745 | 81,6% | 81,1% |
+| SCAN | 32 | 3.169 | 3.391 | 80,6% | 86,1% |
+| SCOC | 45 | 4.161 | 3.913 | 79,7% | 81,4% |
+| SCVA | 44 | 2.968 | 3.133 | 80,0% | 76,8% |
+| SPAL | 43 | 2.920 | 3.221 | 69,9% | 77,9% |
+| SQUA | 52 | 4.503 | 4.705 | 78,4% | 79,2% |
+| SVIG | 26 | 2.473 | 2.515 | 85,6% | 82,6% |
+| **Total** | **443** | **37.509** | **40.104** | **76,6%** | **75,4%** |
+
+En las 11 plantas el planificador queda 1,2 puntos por encima del modelo, y `ml_mean` queda más cerca del real que el planificador en 233 de
+443 SKU-mes. En SCAN el modelo gana (86,1% contra 80,6%), pero la diferencia total la deciden SALI y SALM. El modelo pierde por mucho
+en SALM (55,4% contra 76,1%), y en SALI los dos fallan (el planificador pronostica 3.855 TO y el real fue 2.559). Esas plantas cambiaron de
+nivel: el consumo de SALI cae de 6.381 TO en agosto a 3.653 TO en septiembre (17 días con consumo, contra 21 a 26 en las otras plantas del planificador), el de SALM
+pasa de 7.173 TO en mayo a 4.867 TO en junio, y el de SPAL baja en julio. Un modelo que aprende del pasado no anticipa esos cambios.
+Pendiente de revisar con quien entrega los datos si son cambios reales o exportaciones incompletas.
+Un mes y 11 plantas son una referencia, no una prueba.
 
 ## Pronóstico a dos meses: estrategia principal y secundaria
 
