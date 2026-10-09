@@ -63,6 +63,7 @@ Internal model (company's own model, `data/internal_model_forecast.csv`, SCAN, 2
 ## Open items
 - [x] Inference script: `scripts/predict_next_month.py`. Checked: with `--as-of 2026-08` it reproduces the rolling-origin 2026-09 forecast (max difference 0.0005 TO, SKU accuracy 66.2% both). First real forecast: `results/forecast_2026-10.csv` (total ml_mean 53,220 TO). Tuned parameters come from the h=1 tuning; the planta and total levels are bottom-up sums, not reconciled.
 - [ ] `data/consumos_long.csv` can show modified in `git status` with an empty `git diff` on Windows (line endings); check before committing.
+- [ ] Future evaluation idea: besides rolling origin at h=1 (kept for now), try a single cutoff with a range of months as test (multi-horizon from one origin); features inside the range must not use the range's actual values. Noted in README.md, section "Pendiente".
 - [ ] Planner comparison covers SCAN and 4 months (2026-06..09). New months: add `data/planner_forecast_<month>.csv` and run `compare_planner.py --month <month>`; the tab finds the files by name.
 - [x] Branches: `feature/dashboard` (app/, notebook, planner months) merged into `main`.
 - [ ] Not tested yet: the dashboard (`app/`) and the MCS size problem (see below).

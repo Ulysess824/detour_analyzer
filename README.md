@@ -270,6 +270,12 @@ consumo en la ventana.
 
 - Pronóstico de producción a dos meses (estrategia principal y secundaria): `predict_next_month.py` hoy pronostica el mes
   siguiente (h=1). Falta una opción `--horizon 2` y la versión con mes parcial, que necesita un exporte de SAP a mitad de mes.
+- Evaluación con un rango de meses como test: hoy la prueba es un origen móvil a un mes (cada mes de prueba se pronostica con los
+  datos hasta el mes anterior, reentrenando cada vez; 12 pruebas de octubre de 2025 a septiembre de 2026). Se mantiene esa metodología.
+  A futuro conviene valorar además un corte único con un rango de meses como test (entrenar hasta una fecha y pronosticar varios
+  meses seguidos), que mide el pronóstico a varios horizontes desde un mismo punto. Hay que cuidar que las variables de los meses
+  del rango no usen el consumo real de meses anteriores del propio rango, porque eso sería pronóstico a un mes y no a varios. Los
+  resultados a dos y tres meses de hoy (`forecast_monthly.py --horizons`, `compare_horizon_strategies.py`) usan origen móvil por horizonte.
 
 ## Comparación con el planificador
 
