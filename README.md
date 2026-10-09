@@ -373,8 +373,8 @@ material (`K/01/110gsm/2100mm/1200-1450`), y se usan sus cuatro primeras partes,
 `scripts/export_comparison_excel.py` escribe `results/comparacion_<mes>.xlsx` con tres tablas: Comparación (SKU, planta, mes, real y los tres
 pronósticos, con "faltante" donde el modelo interno no tiene, más columnas de fórmulas: `Tiene interno`, errores en TO, errores absolutos y
 errores en porcentaje), Excluidos (cada fila fuera de las métricas con su motivo) y Resumen por planta (WAPE, acierto y sesgo de cada fuente,
-con fórmulas, solo sobre los SKU de las tres fuentes). Las columnas del modelo interno devuelven vacío, no error, cuando falta el pronóstico,
-para que una tabla dinámica pueda sumarlas. En una tabla dinámica no se suman los errores en porcentaje: el WAPE se obtiene con un campo
+con fórmulas, solo sobre los SKU de las tres fuentes). Las columnas del modelo interno dicen "faltante", no dan error, cuando falta el pronóstico
+(una tabla dinámica ignora ese texto al sumar, pero si una columna mezcla números y texto Excel propone Cuenta en vez de Suma: hay que cambiarla a Suma). En una tabla dinámica no se suman los errores en porcentaje: el WAPE se obtiene con un campo
 calculado (suma de errores absolutos entre suma del real), filtrando `Tiene interno` en VERDADERO.
 
 | | Planificador | `ml_mean` | Modelo interno |

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import openpyxl
 import pandas as pd
+from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -21,13 +22,13 @@ EXCLUDED_COLUMNS = ["SKU", "Planta", "Mes", "Planificador (TO)", "Motivo", "Expl
 HELPER_FORMULAS = {
     "Tiene interno": "=ISNUMBER(F{r})",
     "Error planificador (TO)": "=E{r}-D{r}",
-    "Error modelo interno (TO)": '=IF(ISNUMBER(F{r}),F{r}-D{r},"")',
+    "Error modelo interno (TO)": '=IF(ISNUMBER(F{r}),F{r}-D{r},"faltante")',
     "Error nuestro modelo (TO)": "=G{r}-D{r}",
     "Error abs. planificador (TO)": "=ABS(I{r})",
-    "Error abs. modelo interno (TO)": '=IF(ISNUMBER(F{r}),ABS(F{r}-D{r}),"")',
+    "Error abs. modelo interno (TO)": '=IF(ISNUMBER(F{r}),ABS(F{r}-D{r}),"faltante")',
     "Error abs. nuestro modelo (TO)": "=ABS(K{r})",
     "Error % planificador": '=IF(D{r}=0,"",(E{r}-D{r})/D{r})',
-    "Error % modelo interno": '=IF(ISNUMBER(F{r}),IF(D{r}=0,"",(F{r}-D{r})/D{r}),"")',
+    "Error % modelo interno": '=IF(ISNUMBER(F{r}),IF(D{r}=0,"",(F{r}-D{r})/D{r}),"faltante")',
     "Error % nuestro modelo": '=IF(D{r}=0,"",(G{r}-D{r})/D{r})',
 }
 SUMMARY_COLUMNS = [
@@ -145,5 +146,7 @@ def write_workbook(path: str | Path, sheets: dict[str, pd.DataFrame]) -> None:
                 if cell.value == MISSING_TEXT:
                     cell.font = Font(italic=True, color="808080")
                     cell.alignment = Alignment(horizontal="right")
+        if len(frame):  # formulas that return "faltante" get the same grey italic as the typed ones
+            ws.conditional_formatting.add(f"A2:{last}", CellIsRule(operator="equal", formula=[f'"{MISSING_TEXT}"'], font=Font(italic=True, color="808080")))
         ws.row_dimensions[1].height = 32
     wb.save(path)

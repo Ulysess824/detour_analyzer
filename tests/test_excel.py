@@ -53,8 +53,9 @@ def test_error_columns_are_formulas_that_survive_a_missing_internal_forecast():
     assert list(out.columns) == COMPARISON_COLUMNS + list(HELPER_FORMULAS)
     assert out.loc[0, "Tiene interno"] == "=ISNUMBER(F2)" and out.loc[1, "Tiene interno"] == "=ISNUMBER(F3)"
     assert out.loc[0, "Error planificador (TO)"] == "=E2-D2"
-    # the internal columns return "" instead of an error when the forecast is "faltante", and no percent divides by a real of 0
-    assert 'ISNUMBER(F2)' in out.loc[0, "Error modelo interno (TO)"] and out.loc[0, "Error modelo interno (TO)"].endswith(',"")')
+    # the internal columns say "faltante" instead of an error when the forecast is missing, and no percent divides by a real of 0
+    for column in ("Error modelo interno (TO)", "Error abs. modelo interno (TO)", "Error % modelo interno"):
+        assert "ISNUMBER(F2)" in out.loc[0, column] and out.loc[0, column].endswith(',"faltante")')
     assert all("D2=0" in out.loc[0, c] for c in ("Error % planificador", "Error % modelo interno", "Error % nuestro modelo"))
 
 
