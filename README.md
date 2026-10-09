@@ -54,6 +54,7 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
     planner_io_utils.py    lectura de los libros de asignación del planificador (todas las plantas)
     internal_io_utils.py   lectura del libro del modelo interno (todas las plantas), reglas de faltantes
+    excel_utils.py         el cruce de predicciones como libro de Excel: hoja de comparación y hoja de excluidos
     planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
     horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
@@ -91,6 +92,9 @@ python scripts/compare_planner.py data/consumos_long.csv --months 2026-09
 # 8. Con el modelo interno: convertir su libro y comparar solo los SKU que están en las tres fuentes
 python scripts/transform_internal.py proposed_forecast_internal_model_all_plants.xlsx
 python scripts/compare_planner.py data/consumos_long.csv --months 2026-09 --internal data/internal_forecast_plantas.csv
+
+# 9. Excel con dos tablas: predicciones (real, planificador, modelo interno, ml_mean) y excluidos con su motivo
+python scripts/export_comparison_excel.py --month 2026-09
 ```
 
 ## Ensembles y Model Confidence Set
@@ -360,6 +364,14 @@ en todos los meses indica que el modelo no dio pronóstico (43 SKU). Con `--inte
 con los SKU que están en el planificador (VMI), en el modelo interno y en la comparación de `ml_mean`. Los SKU sin pronóstico del modelo
 interno quedan en la tabla guardada con `internal_status = faltante` y fuera de las métricas.
 Septiembre de 2026, VMI: 443 SKU comparados con `ml_mean`, 407 con las tres fuentes, 36 con el modelo interno faltante.
+
+**Cómo se cruzan las fuentes.** Planificador y modelo interno se cruzan por planta y nombre del SKU, que se arma con las columnas del libro
+(tipo, subgrado, gramaje y ancho: `K/01/110gsm/2100mm`); el código SAP viaja en las tablas pero no se usa para cruzar. En septiembre, por
+nombre y por código se encuentran los mismos 445 SKU VMI y ningún par tiene nombres o códigos distintos (en junio 4 SKU `KW2` tienen el mismo
+nombre y distinto código). `ml_mean` se cruza también por planta y nombre: los datos de consumo no traen código SAP, solo la descripción del
+material (`K/01/110gsm/2100mm/1200-1450`), y se usan sus cuatro primeras partes, sumando las series que difieren solo en el ancho de núcleo.
+`scripts/export_comparison_excel.py` escribe `results/comparacion_<mes>.xlsx` con dos tablas: Comparación (SKU, planta, mes, real y los tres
+pronósticos, con "faltante" donde el modelo interno no tiene) y Excluidos (cada fila fuera de las métricas con su motivo).
 
 | | Planificador | `ml_mean` | Modelo interno |
 |---|---|---|---|

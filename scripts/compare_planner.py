@@ -13,7 +13,7 @@ has no forecast for are kept in the saved table with internal_status "faltante" 
 A planner SKU-month is left out of the comparison when its strategy is not selected, the SKU is not in the data, its sub-grade
 differs from the data, its series have less than --min-history months before the forecast origin, or the models have no
 forecast for it. The left-out rows are saved: results/skus_poca_historia.csv (planta, sku, first date with consumption) and
-results/filas_excluidas_planificador.csv (the other reasons).
+results/filas_excluidas_planificador.csv (every left-out row with its reason).
 
 Usage:
     python scripts/compare_planner.py data/consumos_long.csv --months 2026-09
@@ -150,8 +150,8 @@ def main() -> None:
     short = short.sort_values(["planta", "sku"])[["planta", "sku", "primera_fecha_consumo"]]
     short["primera_fecha_consumo"] = pd.to_datetime(short["primera_fecha_consumo"]).dt.strftime("%Y-%m-%d").fillna("")
     short.to_csv(args.out_dir / "skus_poca_historia.csv", index=False)
-    X[X["reason"] != LOW_HISTORY].to_csv(args.out_dir / "filas_excluidas_planificador.csv", index=False)
-    print(f"\nsaved {args.out_dir / 'skus_poca_historia.csv'} ({len(short)} SKUs) and {args.out_dir / 'filas_excluidas_planificador.csv'} ({int((X['reason'] != LOW_HISTORY).sum())} rows)")
+    X.to_csv(args.out_dir / "filas_excluidas_planificador.csv", index=False)
+    print(f"\nsaved {args.out_dir / 'skus_poca_historia.csv'} ({len(short)} SKUs) and {args.out_dir / 'filas_excluidas_planificador.csv'} ({len(X)} rows, every left-out row with its reason)")
 
 
 if __name__ == "__main__":
