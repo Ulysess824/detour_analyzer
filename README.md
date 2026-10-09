@@ -276,6 +276,18 @@ consumo en la ventana.
   meses seguidos), que mide el pronóstico a varios horizontes desde un mismo punto. Hay que cuidar que las variables de los meses
   del rango no usen el consumo real de meses anteriores del propio rango, porque eso sería pronóstico a un mes y no a varios. Los
   resultados a dos y tres meses de hoy (`forecast_monthly.py --horizons`, `compare_horizon_strategies.py`) usan origen móvil por horizonte.
+- Varias plantas en las comparaciones: los modelos ya entrenan con las 15 plantas, pero la comparación con el planificador y el modelo
+  interno solo está probada con SCAN. Antes de agregar otra planta hay que corregir tres cosas: (1) el cruce con el planificador al final de
+  `scripts/compare_internal_model.py` une por mes y SKU, sin la planta, y mezclaría filas si dos plantas comparten el mismo SKU; (2) los
+  meses del modelo interno están fijos en `src/utils/internal_utils.py` (2026-06 a 2026-09); (3) las tablas `results/planner_comparison_*.csv`
+  y `results/internal_model_comparison.csv` no guardan la columna `planta`. Además, si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
+- Modelo interno: no se sabe en qué fecha se generó cada pronóstico, así que no se puede descartar que use información posterior a la que
+  tenía el planificador. Conviene preguntarlo a quien lo envió.
+- Rama `low_history`: sigue sin fusionar a `main` por decisión del usuario. Tiene la prueba para SKU con poca historia (1 a 3 meses) y la versión
+  de la presentación con el modelo directo a dos meses.
+- Presentación: la versión LaTeX (`presentacion/presentacion.tex`) está desactualizada frente a la presentación en vivo
+  (`presentacion/artifact/`): no tiene las diapositivas de método, medida, variables ni modelo interno. Las cifras de las diapositivas se
+  escriben a mano a partir de `results/internal_model_comparison.csv`.
 
 ## Comparación con el planificador
 
