@@ -370,8 +370,12 @@ Septiembre de 2026, VMI: 443 SKU comparados con `ml_mean`, 407 con las tres fuen
 nombre y por código se encuentran los mismos 445 SKU VMI y ningún par tiene nombres o códigos distintos (en junio 4 SKU `KW2` tienen el mismo
 nombre y distinto código). `ml_mean` se cruza también por planta y nombre: los datos de consumo no traen código SAP, solo la descripción del
 material (`K/01/110gsm/2100mm/1200-1450`), y se usan sus cuatro primeras partes, sumando las series que difieren solo en el ancho de núcleo.
-`scripts/export_comparison_excel.py` escribe `results/comparacion_<mes>.xlsx` con dos tablas: Comparación (SKU, planta, mes, real y los tres
-pronósticos, con "faltante" donde el modelo interno no tiene) y Excluidos (cada fila fuera de las métricas con su motivo).
+`scripts/export_comparison_excel.py` escribe `results/comparacion_<mes>.xlsx` con tres tablas: Comparación (SKU, planta, mes, real y los tres
+pronósticos, con "faltante" donde el modelo interno no tiene, más columnas de fórmulas: `Tiene interno`, errores en TO, errores absolutos y
+errores en porcentaje), Excluidos (cada fila fuera de las métricas con su motivo) y Resumen por planta (WAPE, acierto y sesgo de cada fuente,
+con fórmulas, solo sobre los SKU de las tres fuentes). Las columnas del modelo interno devuelven vacío, no error, cuando falta el pronóstico,
+para que una tabla dinámica pueda sumarlas. En una tabla dinámica no se suman los errores en porcentaje: el WAPE se obtiene con un campo
+calculado (suma de errores absolutos entre suma del real), filtrando `Tiene interno` en VERDADERO.
 
 | | Planificador | `ml_mean` | Modelo interno |
 |---|---|---|---|

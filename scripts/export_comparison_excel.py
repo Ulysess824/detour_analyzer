@@ -1,5 +1,5 @@
 """
-Write the planner / internal model / ml_mean comparison as an Excel workbook with two tables.
+Write the planner / internal model / ml_mean comparison as an Excel workbook with three tables.
 
 Sheet "Comparación": one row per planta, month and SKU with the real and the forecasts of our model (ml_mean), the planner and the
 internal model; the internal model reads "faltante" where it has no forecast. Sheet "Excluidos": every row left out of the metrics,
@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.excel_utils import comparison_sheet, excluded_sheet, write_workbook
+from src.utils.excel_utils import COMPARISON_SHEET, add_error_columns, comparison_sheet, excluded_sheet, summary_sheet, write_workbook
 
 
 def main() -> None:
@@ -36,9 +36,15 @@ def main() -> None:
     excluded = pd.read_csv(args.excluded)
     excluded = excluded[excluded["mes"] == args.month]
     out = args.out or Path(f"results/comparacion_{args.month}.xlsx")
-    sheets = {"Comparación": comparison_sheet(table), "Excluidos": excluded_sheet(excluded)}
+    comparison = comparison_sheet(table)
+    in_metrics = comparison[comparison["Modelo interno (TO)"] != "faltante"]
+    sheets = {
+        COMPARISON_SHEET: add_error_columns(comparison),
+        "Excluidos": excluded_sheet(excluded),
+        "Resumen por planta": summary_sheet(sorted(in_metrics["Planta"].unique()), len(comparison)),
+    }
     write_workbook(out, sheets)
-    print(f"wrote {out}: {len(sheets['Comparación'])} rows of predictions ({int((sheets['Comparación']['Modelo interno (TO)'] == 'faltante').sum())} with the internal model faltante), {len(sheets['Excluidos'])} excluded rows")
+    print(f"wrote {out}: {len(comparison)} rows of predictions ({len(comparison) - len(in_metrics)} with the internal model faltante), {len(sheets['Excluidos'])} excluded rows")
     print(sheets["Excluidos"]["Motivo"].value_counts().to_string())
 
 

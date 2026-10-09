@@ -4,7 +4,7 @@ import numpy as np
 import openpyxl
 import pandas as pd
 
-from src.utils.excel_utils import COMPARISON_COLUMNS, EXCLUDED_COLUMNS, comparison_sheet, excluded_sheet, write_workbook
+from src.utils.excel_utils import COMPARISON_COLUMNS, EXCLUDED_COLUMNS, HELPER_FORMULAS, SUMMARY_COLUMNS, add_error_columns, comparison_sheet, excluded_sheet, summary_sheet, write_workbook
 from src.utils.planner_utils import LOW_HISTORY, MISSING_INTERNAL, SUBGRADE
 
 
@@ -15,8 +15,8 @@ def test_comparison_sheet_has_only_the_keys_and_the_four_values_and_marks_the_mi
     out = comparison_sheet(table)
     assert list(out.columns) == COMPARISON_COLUMNS
     assert out["Planta"].tolist() == ["A", "B"]  # sorted by planta
-    assert out["Modelo interno (TO)"].tolist() == [18.3, "faltante"]
-    assert out["Real (TO)"].tolist() == [20.0, 10.0]
+    assert out["Modelo interno (TO)"].tolist() == [18.26, "faltante"]  # three decimals are kept, the cells show one
+    assert out["Real (TO)"].tolist() == [20.0, 10.04]
 
 
 def test_every_excluded_row_gets_a_reason_and_an_explanation():
@@ -45,3 +45,22 @@ def test_workbook_has_two_sheets_each_with_an_excel_table(tmp_path):
     assert wb.sheetnames == ["Comparación", "Excluidos"]
     assert all(len(ws.tables) == 1 for ws in wb)
     assert wb["Comparación"]["C2"].value == "faltante" and wb["Comparación"]["B2"].value == 1.5
+
+
+def test_error_columns_are_formulas_that_survive_a_missing_internal_forecast():
+    frame = pd.DataFrame({c: [1.0, 2.0] for c in COMPARISON_COLUMNS})
+    out = add_error_columns(frame)
+    assert list(out.columns) == COMPARISON_COLUMNS + list(HELPER_FORMULAS)
+    assert out.loc[0, "Tiene interno"] == "=ISNUMBER(F2)" and out.loc[1, "Tiene interno"] == "=ISNUMBER(F3)"
+    assert out.loc[0, "Error planificador (TO)"] == "=E2-D2"
+    # the internal columns return "" instead of an error when the forecast is "faltante", and no percent divides by a real of 0
+    assert 'ISNUMBER(F2)' in out.loc[0, "Error modelo interno (TO)"] and out.loc[0, "Error modelo interno (TO)"].endswith(',"")')
+    assert all("D2=0" in out.loc[0, c] for c in ("Error % planificador", "Error % modelo interno", "Error % nuestro modelo"))
+
+
+def test_summary_sheet_has_one_row_per_planta_plus_all_and_uses_only_rows_with_an_internal_forecast():
+    out = summary_sheet(["A", "B"], 100)
+    assert list(out.columns) == SUMMARY_COLUMNS and out["Planta"].tolist() == ["Todas", "A", "B"]
+    assert all("$H$2:$H$101,TRUE" in out.loc[i, "SKU en las tres fuentes"] for i in range(3))  # the "Tiene interno" column filters every row
+    assert "$B$2:$B$101,$A3" in out.loc[1, "Real (TO)"] and "$B$2:$B$101" not in out.loc[0, "Real (TO)"]
+    assert out.loc[1, "Acierto planificador"] == "=1-G3" and out.loc[1, "Sesgo nuestro modelo"] == "=F3/C3-1"
