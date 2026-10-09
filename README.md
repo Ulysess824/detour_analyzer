@@ -53,6 +53,7 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
     planner_io_utils.py    lectura de los libros de asignación del planificador (todas las plantas)
+    internal_io_utils.py   lectura del libro del modelo interno (todas las plantas), reglas de faltantes
     planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
     horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
@@ -86,6 +87,10 @@ python scripts/compare_horizon_strategies.py data/consumos_long.csv
 # 7. Pronóstico del planificador contra el modelo: convertir los libros del planificador y comparar (septiembre, VMI, un mes)
 python scripts/transform_planner.py Asignacion_jun_26.xlsx Asignacion_jul_26.xlsx Asignacion_ago_26.xlsx Asignacion_SEPT_26.xlsx --out-dir data
 python scripts/compare_planner.py data/consumos_long.csv --months 2026-09
+
+# 8. Con el modelo interno: convertir su libro y comparar solo los SKU que están en las tres fuentes
+python scripts/transform_internal.py proposed_forecast_internal_model_all_plants.xlsx
+python scripts/compare_planner.py data/consumos_long.csv --months 2026-09 --internal data/internal_forecast_plantas.csv
 ```
 
 ## Ensembles y Model Confidence Set
@@ -347,6 +352,23 @@ nivel: el consumo de SALI cae de 6.381 TO en agosto a 3.653 TO en septiembre (17
 pasa de 7.173 TO en mayo a 4.867 TO en junio, y el de SPAL baja en julio. Un modelo que aprende del pasado no anticipa esos cambios.
 Pendiente de revisar con quien entrega los datos si son cambios reales o exportaciones incompletas.
 Un mes y 11 plantas son una referencia, no una prueba.
+
+**Con el modelo interno.** `scripts/transform_internal.py` convierte el libro del modelo interno (11 plantas, junio a septiembre) a
+`data/internal_forecast_plantas.csv`. Dos reglas: SCAN viene en cero en el libro, así que se toman sus valores del archivo anterior
+(`data/internal_model_forecast.csv`, 42 SKU), y un SKU con 0 en los cuatro meses se escribe como faltante (vacío), porque un cero exacto
+en todos los meses indica que el modelo no dio pronóstico (43 SKU). Con `--internal`, `compare_planner.py` calcula todas las métricas solo
+con los SKU que están en el planificador (VMI), en el modelo interno y en la comparación de `ml_mean`. Los SKU sin pronóstico del modelo
+interno quedan en la tabla guardada con `internal_status = faltante` y fuera de las métricas.
+Septiembre de 2026, VMI: 443 SKU comparados con `ml_mean`, 407 con las tres fuentes, 36 con el modelo interno faltante.
+
+| | Planificador | `ml_mean` | Modelo interno |
+|---|---|---|---|
+| Acierto (407 SKU) | 77,2% | 77,2% | 62,8% |
+| Más cerca del real (de 407) | 141 | 171 | 95 |
+
+El modelo interno no tiene sesgo (pronóstico total igual al real, -0,2%) pero se equivoca mucho SKU por SKU (WAPE 37%). `ml_mean` y el
+planificador quedan empatados en las 11 plantas. Los 16 `KS/01/215gsm` del pendiente de subgrado no están en el archivo del modelo
+interno (ni como 01 ni como 257), así que no entrarían a este conjunto aunque se enlazaran.
 
 ## Pronóstico a dos meses: estrategia principal y secundaria
 

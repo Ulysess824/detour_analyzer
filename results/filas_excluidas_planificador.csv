@@ -15,3 +15,39 @@ SALM,2026-09,KS/01/215gsm/2150mm,VMI,150.0,subgrado distinto,en los datos: KS/25
 SALM,2026-09,KS/01/215gsm/2250mm,VMI,60.0,subgrado distinto,en los datos: KS/257/215gsm/2250mm
 SALM,2026-09,KS/01/215gsm/2370mm,VMI,70.0,subgrado distinto,en los datos: KS/257/215gsm/2370mm
 SALM,2026-09,KS/01/215gsm/2450mm,VMI,70.0,subgrado distinto,en los datos: KS/257/215gsm/2450mm
+SALC,2026-09,HP2/01/155gsm/2500mm,VMI,110.0,faltante en el modelo interno,0 en todos los meses
+SALC,2026-09,KW2/01/160gsm/2500mm,VMI,150.0,faltante en el modelo interno,0 en todos los meses
+SALC,2026-09,TW2000/51/115gsm/2000mm,VMI,25.0,faltante en el modelo interno,no está en el archivo del modelo interno
+SALI,2026-09,HP2/01/115gsm/1790mm,VMI,88.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/1850mm,VMI,110.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/1955mm,VMI,90.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/2040mm,VMI,56.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/2150mm,VMI,58.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/2250mm,VMI,54.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/2370mm,VMI,35.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,HP2/01/115gsm/2440mm,VMI,79.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,KW2/01/115gsm/1850mm,VMI,42.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,KW2/01/115gsm/1955mm,VMI,12.0,faltante en el modelo interno,0 en todos los meses
+SALI,2026-09,KW2/01/115gsm/2250mm,VMI,35.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/1850mm,VMI,120.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/1955mm,VMI,130.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/2040mm,VMI,60.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/2150mm,VMI,70.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/2250mm,VMI,50.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/2370mm,VMI,30.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,HP2/01/115gsm/2440mm,VMI,40.0,faltante en el modelo interno,0 en todos los meses
+SALM,2026-09,TSL/01/80gsm/2250mm,VMI,20.0,faltante en el modelo interno,no está en el archivo del modelo interno
+SBUR,2026-09,HP2/01/127gsm/2640mm,VMI,274.0,faltante en el modelo interno,0 en todos los meses
+SBUR,2026-09,HP2/01/127gsm/2790mm,VMI,306.0,faltante en el modelo interno,0 en todos los meses
+SCOC,2026-09,HP2/01/127gsm/2640mm,VMI,145.0,faltante en el modelo interno,0 en todos los meses
+SCOC,2026-09,HP2/01/127gsm/2790mm,VMI,175.0,faltante en el modelo interno,0 en todos los meses
+SCOC,2026-09,KW2/01/115gsm/2200mm,VMI,40.0,faltante en el modelo interno,0 en todos los meses
+SCOC,2026-09,KW2/01/115gsm/2450mm,VMI,65.0,faltante en el modelo interno,0 en todos los meses
+SCOC,2026-09,KW2/01/115gsm/2650mm,VMI,55.0,faltante en el modelo interno,0 en todos los meses
+SCOC,2026-09,KW2/01/115gsm/2800mm,VMI,85.0,faltante en el modelo interno,0 en todos los meses
+SQUA,2026-09,HP2/01/127gsm/2640mm,VMI,110.0,faltante en el modelo interno,0 en todos los meses
+SQUA,2026-09,HP2/01/127gsm/2790mm,VMI,270.0,faltante en el modelo interno,0 en todos los meses
+SVIG,2026-09,K/01/125gsm/2450mm,VMI,35.0,faltante en el modelo interno,0 en todos los meses
+SVIG,2026-09,TSL/01/80gsm/2300mm,VMI,55.0,faltante en el modelo interno,0 en todos los meses
+SVIG,2026-09,TSL/01/100gsm/2000mm,VMI,30.0,faltante en el modelo interno,0 en todos los meses
+SVIG,2026-09,TSL/01/125gsm/2000mm,VMI,35.0,faltante en el modelo interno,0 en todos los meses

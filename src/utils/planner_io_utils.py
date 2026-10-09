@@ -22,6 +22,11 @@ def parse_month(header: str) -> str:
     return f"{2000 + int(found.group(2))}-{MONTH_NUMBERS[found.group(1).upper()]:02d}"
 
 
+def build_sku(grade: pd.Series, sub_grade: pd.Series, grammage: pd.Series, width: pd.Series) -> pd.Series:
+    r"""Planner SKU name `grade/sub-grade (two digits)/gsm/width`, for example "K/01/110gsm/2100mm"."""
+    return grade.astype(str).str.strip() + "/" + sub_grade.astype(int).astype(str).str.zfill(2) + "/" + grammage.astype(int).astype(str) + "gsm/" + width.astype(int).astype(str) + "mm"
+
+
 def read_assignment(path: str | Path) -> pd.DataFrame:
     r"""
     One row per (planta, planner SKU) of the first sheet, with the columns of `data/planner_forecast_<month>.csv`.
@@ -37,16 +42,7 @@ def read_assignment(path: str | Path) -> pd.DataFrame:
     forecast = pd.to_numeric(raw["Plant Forecast"], errors="coerce")
     if forecast.isna().any() or (forecast < 0).any():
         raise ValueError(f"{path}: Plant Forecast has missing or negative values in {int(forecast.isna().sum() + (forecast < 0).sum())} rows")
-    sku = (
-        raw["Grade"].astype(str).str.strip()
-        + "/"
-        + raw["Sub-grade"].astype(int).astype(str).str.zfill(2)
-        + "/"
-        + raw["Grammage"].astype(int).astype(str)
-        + "gsm/"
-        + raw["Width"].astype(int).astype(str)
-        + "mm"
-    )
+    sku = build_sku(raw["Grade"], raw["Sub-grade"], raw["Grammage"], raw["Width"])
     out = pd.DataFrame(
         {
             "planta": raw["Customer"].astype(str).str.strip(),

@@ -114,10 +114,34 @@ def compare_month(planner: pd.DataFrame, res: pd.DataFrame, pairs: pd.DataFrame,
     return table, excluded.loc[excluded["reason"].isin([NO_SERIES, SUBGRADE]), "sku"].tolist()
 
 
+def attach_source(table: pd.DataFrame, source: pd.DataFrame, column: str) -> pd.DataFrame:
+    r"""Add the forecast of `source` (planta, mes, sku_planner, forecast_to) as `column`, matched by planta, month and SKU; NaN when absent."""
+    forecast = source[["planta", "mes", "sku_planner", "forecast_to"]].rename(columns={"sku_planner": "sku", "forecast_to": column})
+    return table.merge(forecast, on=["planta", "mes", "sku"], how="left")
+
+
+MISSING_INTERNAL = "faltante en el modelo interno"
+
+
+def add_internal(table: pd.DataFrame, internal: pd.DataFrame, month: str):
+    r"""
+    Add the internal model's forecast of `month` to `table` (columns `internal` and `internal_status`, "ok" or "faltante").
+
+    A SKU is "faltante" when its forecast is blank in the internal file (0 in every month there) or the SKU is not in the file.
+    Returns (table, one row per "faltante" SKU with planta, mes, sku, strategy, planner, reason and detail).
+    """
+    table = attach_source(table, internal[internal["mes"] == month], "internal")
+    table["internal_status"] = np.where(table["internal"].notna(), "ok", "faltante")
+    known = set(zip(internal["planta"], internal["sku_planner"]))
+    gone = table[table["internal"].isna()]
+    detail = ["0 en todos los meses" if (p, s) in known else "no está en el archivo del modelo interno" for p, s in zip(gone["planta"], gone["sku"])]
+    missing = pd.DataFrame({"planta": gone["planta"], "mes": month, "sku": gone["sku"], "strategy": gone["strategy"], "planner": gone["planner"], "reason": MISSING_INTERNAL, "detail": detail})
+    return table, missing
+
+
 def attach_planner(table: pd.DataFrame, planner: pd.DataFrame) -> pd.DataFrame:
     r"""Add the planner forecast of the same (planta, month, SKU) to `table` (columns planta, mes, sku); NaN when absent."""
-    forecast = planner[["planta", "mes", "sku_planner", "forecast_to"]].rename(columns={"sku_planner": "sku", "forecast_to": "planner"})
-    return table.merge(forecast, on=["planta", "mes", "sku"], how="left")
+    return attach_source(table, planner, "planner")
 
 
 def accuracy_table(table: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
