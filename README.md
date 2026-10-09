@@ -281,6 +281,10 @@ consumo en la ventana.
   `scripts/compare_internal_model.py` une por mes y SKU, sin la planta, y mezclaría filas si dos plantas comparten el mismo SKU; (2) los
   meses del modelo interno están fijos en `src/utils/internal_utils.py` (2026-06 a 2026-09); (3) las tablas `results/planner_comparison_*.csv`
   y `results/internal_model_comparison.csv` no guardan la columna `planta`. Además, si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
+- Subgrado distinto en el archivo del planificador de septiembre de 2026: 16 filas VMI (SALI 8 y SALM 8, `KS/01/215gsm/<ancho>mm`) aparecen
+  con subgrado 01, pero en `data/consumos_long.csv` esos SKU existen como `KS/257/215gsm/<ancho>mm`. No se cruzan y se ignoran en la comparación
+  con el planificador (1.484 TO, 3,5% del volumen VMI de septiembre). Pendiente: confirmar con el planificador si es el mismo producto y, si lo es,
+  enlazarlos (por ejemplo ignorando el subgrado cuando hay un único candidato en la planta).
 - Modelo interno: no se sabe en qué fecha se generó cada pronóstico, así que no se puede descartar que use información posterior a la que
   tenía el planificador. Conviene preguntarlo a quien lo envió.
 - Rama `low_history`: sigue sin fusionar a `main` por decisión del usuario. Tiene la prueba para SKU con poca historia (1 a 3 meses) y la versión
