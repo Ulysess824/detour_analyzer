@@ -41,12 +41,20 @@ from src.utils.planner_utils import LOW_HISTORY, NO_SERIES, accuracy_table, add_
 HIGHLIGHT = ["ml_mean", "lgbm", "xgb", "rf", "naive", "mean6"]
 
 
+def closest_counts(g: pd.DataFrame, sources: list[str]) -> dict:
+    r"""How many SKU-months each source has the smallest absolute error in; a tie for the smallest counts for nobody."""
+    err = g[sources].sub(g["real"], axis=0).abs()
+    best = err.min(axis=1)
+    unique = (err.eq(best, axis=0)).sum(axis=1) == 1
+    return err[unique].idxmin(axis=1).value_counts().to_dict()
+
+
 def by_planta(table: pd.DataFrame, sources: list[str]) -> pd.DataFrame:
     r"""Rows, real and planner volume, accuracy of each source and of naive, and how many SKUs each source was the closest to, per planta."""
     rows = {}
     for planta, g in table.groupby("planta"):
         real = g["real"].to_numpy()
-        closest = g[sources].sub(g["real"], axis=0).abs().idxmin(axis=1).value_counts()
+        closest = closest_counts(g, sources)
         rows[planta] = {
             "rows": len(g),
             "real_TO": round(real.sum()),
@@ -133,8 +141,8 @@ def main() -> None:
     if T["mes"].nunique() > 1:
         print("\nBy month (accuracy in %):")
         print(pd.DataFrame({m: {c: 100 * score(g["real"].to_numpy(), g[c].to_numpy())["accuracy"] for c in [*sources[:1], *sources[2:], *HIGHLIGHT]} for m, g in T.groupby("mes")}).round(1))
-    closest = T[sources].sub(T["real"], axis=0).abs().idxmin(axis=1).value_counts().to_dict()
-    print(f"\nclosest to the real, in SKU-months of {kept}: {closest}")
+    closest = closest_counts(T, sources)
+    print(f"\nclosest to the real, in SKU-months of {kept} (ties count for nobody): {closest}")
 
     first = first_consumption_dates(df)
     short = X[X["reason"].isin([LOW_HISTORY, NO_SERIES])].drop_duplicates(["planta", "sku"]).copy()

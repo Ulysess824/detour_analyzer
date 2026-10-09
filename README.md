@@ -364,7 +364,7 @@ Septiembre de 2026, VMI: 443 SKU comparados con `ml_mean`, 407 con las tres fuen
 | | Planificador | `ml_mean` | Modelo interno |
 |---|---|---|---|
 | Acierto (407 SKU) | 77,2% | 77,2% | 62,8% |
-| Más cerca del real (de 407) | 141 | 171 | 95 |
+| Más cerca del real (de 407; un empate no cuenta para nadie) | 138 | 171 | 95 |
 
 El modelo interno no tiene sesgo (pronóstico total igual al real, -0,2%) pero se equivoca mucho SKU por SKU (WAPE 37%). `ml_mean` y el
 planificador quedan empatados en las 11 plantas. Los 16 `KS/01/215gsm` del pendiente de subgrado no están en el archivo del modelo
