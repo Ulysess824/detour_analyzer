@@ -41,14 +41,13 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     eda_utils.py           estadísticas descriptivas por serie y por planta
     panel_utils.py         panel mensual (Panel, build_panel) y ventanas móviles
     feature_utils.py       features, baselines simples y make_frame
-    daily_utils.py         expansión de filas mensuales a días calendario
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
-    tree_utils.py          LightGBM, XGBoost y Random Forest (mensual y diario)
+    tree_utils.py          LightGBM, XGBoost y Random Forest
     econometric_utils.py   SES, Holt amortiguado y ARIMA por serie
     ensemble_utils.py      combinaciones: media, mediana, media recortada, ponderada
     mcs_utils.py           Model Confidence Set (Hansen, Lunde y Nason, 2011)
     member_utils.py        pronósticos de todos los miembros de los ensembles
-    evaluation_utils.py    evaluación con origen rodante a nivel SKU, planta y total
+    evaluation_utils.py    meses de prueba, reconciliación y acierto a nivel SKU, planta y total
     search_space_utils.py  espacios de búsqueda de Optuna y trial base
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
@@ -249,9 +248,6 @@ consumo en la ventana.
 - **Las columnas `p_*` del frame no son features.** `make_frame` guarda junto a los features los
   pronósticos de los modelos simples (`p_naive`, `p_mean3`, `p_mean6`, ...), pero se usan solo como
   baselines y miembros de los ensembles, nunca como entrada de los modelos de machine learning.
-- **Modelo diario.** `tree_utils.daily_lgbm_forecast` (sin script que lo ejecute desde que se retiró `forecast_monthly.py`) usa estos mismos 25 features más cuatro de día
-  (`dow`, `dom`, `day_idx`, `days_left`), predice cada día calendario del mes y suma. No forma parte
-  de los ensembles.
 - **Modelos clásicos.** Los miembros clásicos de los ensembles (naive, medias, SES, Holt, ARIMA) no
   usan estos features, solo la historia mensual de cada serie.
 

@@ -3,10 +3,8 @@
 import copy
 
 import numpy as np
-import pandas as pd
 import pytest
 
-from src.utils.daily_utils import expand_to_days
 from src.utils.feature_utils import SERIES_FEATURES, make_frame
 
 
@@ -67,12 +65,3 @@ def test_target_month_is_origin_plus_horizon(toy_panel):
     assert ((frame["t"] - frame["o"]) == 3).all()
     S = toy_panel
     assert np.allclose(frame["y"], S.monthly[frame["series"], frame["t"]], equal_nan=True)
-
-
-def test_daily_expansion_adds_up_to_the_monthly_target(toy_panel):
-    S = toy_panel
-    rows = make_frame(S, 1).query("o == 20").reset_index(drop=True)
-    X, y, position = expand_to_days(S, rows, SERIES_FEATURES, None, 0)
-    per_row = pd.Series(y).groupby(position).sum().reindex(range(len(rows))).to_numpy()
-    assert np.allclose(per_row, rows["y"].to_numpy(), atol=1e-3)
-    assert (pd.Series(position).value_counts().sort_index().to_numpy() == S.calendar_days[rows["t"].to_numpy()]).all()

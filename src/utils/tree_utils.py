@@ -1,11 +1,10 @@
-"""Tree ensembles (LightGBM, XGBoost, Random Forest) on the monthly frame, plus the daily LightGBM."""
+"""Tree ensembles (LightGBM, XGBoost, Random Forest) on the monthly frame."""
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
-from src.utils.daily_utils import expand_to_days
 from src.utils.feature_utils import SERIES_FEATURES
 
 MAX_TREES = 1_500
@@ -84,49 +83,3 @@ def fit_predict_trees(
     final = xgb.XGBRegressor(n_estimators=max(int(probe.best_iteration) + 1, 20), **p)
     final.fit(train[cols], y, verbose=False)
     return np.clip(final.predict(test[cols]), 0.0, None).astype(float)
-
-
-def lgbm_forecast(frame: pd.DataFrame, origin: int) -> pd.Series:
-    r"""LightGBM with the baseline parameters: fit on rows known at `origin`, predict the rows at it."""
-    train = frame[frame["t"] <= origin]
-    test = frame[frame["o"] == origin]
-    pred = fit_predict_trees("lgbm", TREE_BASE["lgbm"], train, test)
-    return pd.Series(pred, index=test.index)
-
-
-def daily_lgbm_forecast(S, frame: pd.DataFrame, origin: int, frac: float = 0.35, seed: int = 0) -> pd.Series:
-    r"""
-    Daily-then-aggregate LightGBM: predict every calendar day of the target month, then sum.
-
-    The daily target is zero-filled (a day without a row is 0), so the sum is an honest monthly
-    forecast. Tweedie loss keeps the daily predictions mean-coherent. Early stopping uses the
-    daily rows of the last two target months of the training window.
-    """
-    import lightgbm as lgb
-
-    train_rows = frame[frame["t"] <= origin]
-    test_rows = frame[frame["o"] == origin]
-
-    x_train, y_train, row_pos = expand_to_days(S, train_rows, SERIES_FEATURES, frac, seed)
-    is_val = train_rows["t"].to_numpy()[row_pos] >= origin - 1
-
-    params = dict(
-        objective="tweedie", tweedie_variance_power=1.3, learning_rate=0.1, num_leaves=31, min_child_samples=100,
-        subsample=0.8, subsample_freq=1, colsample_bytree=0.8, max_bin=63, verbose=-1,
-    )  # fmt: skip
-    probe = lgb.LGBMRegressor(n_estimators=400, **params)
-    probe.fit(
-        x_train[~is_val],
-        y_train[~is_val],
-        eval_X=x_train[is_val],
-        eval_y=y_train[is_val],
-        categorical_feature=["planta_code"],
-        callbacks=[lgb.early_stopping(30, verbose=False)],
-    )
-    final = lgb.LGBMRegressor(n_estimators=max(probe.best_iteration_, 20), **params)
-    final.fit(x_train, y_train, categorical_feature=["planta_code"])
-
-    x_test, _, test_pos = expand_to_days(S, test_rows, SERIES_FEATURES, None, seed)
-    daily = np.clip(final.predict(x_test), 0.0, None)
-    monthly = np.bincount(test_pos, weights=daily, minlength=len(test_rows))
-    return pd.Series(monthly, index=test_rows.index)
