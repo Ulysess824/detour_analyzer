@@ -445,6 +445,52 @@ pequeños o intermitentes.
 El corte al día 15 se simula con los datos diarios históricos. Cada pronóstico del mes `t` usa solo lo conocido al fin del mes
 `t − 2` (y, en la secundaria, los primeros días de `t − 1`); hay una prueba que lo verifica.
 
+### Prueba sin el mes anterior: origen julio, agosto y septiembre, 11 plantas
+
+**Estrategia.** Se simula que el último mes conocido es julio de 2026 (origen `o` = 2026-07) y se pronostican **dos meses**, agosto
+(1 mes después) y septiembre (2 meses después), sin usar ningún dato posterior a julio. Se muestra el resultado de cada mes y del
+conjunto. No tiene script propio: se hizo en memoria con las mismas funciones del proyecto.
+
+| Mes | Horizonte | Pronóstico de `ml_mean` | De dónde sale |
+|---|---|---|---|
+| 2026-08 | 1 mes | modelo a un mes con origen julio | `results/member_forecasts.csv` (filas con `o` = 2026-07) |
+| 2026-09 | 2 meses | estrategia **directa** con origen julio | `results/horizon_strategies.csv` (columna `p_direct`, `o` = 2026-07) |
+
+Cómo se arma la comparación (para repetirla): se leen los archivos de pronóstico, `compare_month_audit(planificador, pronósticos, pares,
+mes, modelos, min_history=3, strategies=["VMI"], horizon=h)` con `h` = 1 para agosto y 2 para septiembre, y `add_internal` agrega el modelo
+interno. Cada mes se mide solo sobre los SKU que tienen planificador (VMI), modelo interno y `ml_mean` (agosto 422, septiembre 407; los demás
+tienen el modelo interno faltante). Antes de usar las cachés se comprueba que la huella de los datos coincide (`check_alignment`,
+`panel_fingerprint`).
+
+**Resultado** (todas las plantas, VMI, acierto = 1 − WAPE):
+
+| Mes | SKU | Planificador | Modelo interno | `ml_mean` | naive |
+|---|---|---|---|---|---|
+| 2026-08 (1 mes) | 422 | 76,3% | 62,4% | **79,7%** | 68,8% |
+| 2026-09 (2 meses) | 407 | 77,2% | 62,8% | **77,8%** | 71,8% |
+| Ambos meses | 829 | 76,8% | 62,6% | **78,7%** | 70,3% |
+
+Sesgo (pronóstico / real − 1), agosto y septiembre: planificador +6,7% y +6,1%, modelo interno +1,7% y −0,2%, `ml_mean` +1,5% y +1,6%.
+Fuente más cercana al real (agosto / septiembre): `ml_mean` 190 / 178 SKU, planificador 136 / 135, modelo interno 88 / 90.
+
+Acierto por planta, `ml_mean` / planificador / modelo interno (ambos meses): PCEL 64,9 / 67,0 / 49,9; SALC 83,2 / 79,7 / 72,8;
+SALI 64,1 / 60,6 / 20,4; SALM 65,4 / 68,0 / 50,2; SBUR 81,5 / 83,2 / 78,0; SCAN 83,3 / 84,7 / 78,3; SCOC 83,9 / 80,4 / 67,8;
+SCVA 75,9 / 73,3 / 52,8; SPAL 80,6 / 71,5 / 55,4; SQUA 81,9 / 80,2 / 72,7; SVIG 88,4 / 82,5 / 61,7. Septiembre de SVIG solo
+(22 SKU): `ml_mean` a dos meses 90,0%, planificador 86,6%, modelo interno 60,3% (sesgo −31,4%).
+
+**Cómo leerlo.**
+- `ml_mean` supera al modelo interno en los dos meses y en las 11 plantas (unos 15 puntos). Frente al planificador gana por 3,4 puntos en agosto y
+  queda casi empatado en septiembre (77,8% contra 77,2%, diferencia que no es significativa).
+- A dos meses `ml_mean` pierde 1,9 puntos respecto a un mes (79,7% a 77,8%), mientras que el planificador casi no cambia; coincide con los 12 meses
+  de prueba, donde dos meses es peor que uno. El 90,0% de SVIG en septiembre (mejor que a un mes, 85,7%) es un resultado de un solo mes y una
+  planta: no sirve de evidencia de que dos meses mejore.
+- SALI en septiembre es mala para las tres fuentes (planificador 44,2%, modelo interno 14,3%, `ml_mean` 42,3%): es el cambio de nivel pendiente de revisar con quien entrega
+  los datos.
+- El acierto de "Ambos meses" es 1 − Σ|error| / Σ real sobre los 829 SKU-mes, no un promedio de los dos meses ni de las plantas.
+
+**Límites.** Dos meses y un solo origen (julio); los parámetros de Optuna son los de un mes; los 16 `KS/01/215gsm` siguen fuera
+(ver Pendiente). Es una referencia, no una prueba.
+
 ## Hiperparámetros: cuándo se ajustan
 
 Los árboles de `ml_mean` (LightGBM, XGBoost y Random Forest) se **reentrenan cada mes** con todo el historial disponible, pero sus
