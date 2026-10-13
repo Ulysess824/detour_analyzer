@@ -70,30 +70,27 @@ Todos los comandos parten del CSV maestro y se ejecutan desde la raíz del repos
 # 1. Análisis exploratorio por planta y SKU
 python scripts/eda_consumos.py data/consumos_long.csv
 
-# 2. Forecast mensual por SKU, planta y total (origen rodante, h=1 y h=3)
-python scripts/forecast_monthly.py data/consumos_long.csv --horizons 1 3 --n-test 12 [--daily]
-
-# 3. Tuning bayesiano (Optuna TPE) de LightGBM, XGBoost y Random Forest
+# 2. Tuning bayesiano (Optuna TPE) de LightGBM, XGBoost y Random Forest
 python scripts/tune_trees.py data/consumos_long.csv --trials 100 100 40 --out results/tuning_trees.json
 
-# 4. Ensembles (machine learning, econometría clásica y ambos) y Model Confidence Set
+# 3. Ensembles (machine learning, econometría clásica y ambos) y Model Confidence Set
 python scripts/run_ensembles.py data/consumos_long.csv --tuning results/tuning_trees.json
 
-# 5. Pronóstico del mes siguiente con todo el histórico (con --as-of YYYY-MM se valida contra el real conocido)
+# 4. Pronóstico del mes siguiente con todo el histórico (con --as-of YYYY-MM se valida contra el real conocido)
 python scripts/predict_next_month.py data/consumos_long.csv
 
-# 6. Pronóstico a dos meses (plazo del planificador): directa, parcial e iterada, más la fila del planificador
+# 5. Pronóstico a dos meses (plazo del planificador): directa, parcial e iterada, más la fila del planificador
 python scripts/compare_horizon_strategies.py data/consumos_long.csv
 
-# 7. Pronóstico del planificador contra el modelo: convertir los libros del planificador y comparar (septiembre, VMI, un mes)
+# 6. Pronóstico del planificador contra el modelo: convertir los libros del planificador y comparar (septiembre, VMI, un mes)
 python scripts/transform_planner.py Asignacion_jun_26.xlsx Asignacion_jul_26.xlsx Asignacion_ago_26.xlsx Asignacion_SEPT_26.xlsx --out-dir data
 python scripts/compare_planner.py data/consumos_long.csv --months 2026-09
 
-# 8. Con el modelo interno: convertir su libro y comparar solo los SKU que están en las tres fuentes
+# 7. Con el modelo interno: convertir su libro y comparar solo los SKU que están en las tres fuentes
 python scripts/transform_internal.py proposed_forecast_internal_model_all_plants.xlsx
 python scripts/compare_planner.py data/consumos_long.csv --months 2026-09 --internal data/internal_forecast_plantas.csv
 
-# 9. Excel con dos tablas: predicciones (real, planificador, modelo interno, ml_mean) y excluidos con su motivo
+# 8. Excel con dos tablas: predicciones (real, planificador, modelo interno, ml_mean) y excluidos con su motivo
 python scripts/export_comparison_excel.py --month 2026-09
 ```
 
@@ -252,7 +249,7 @@ consumo en la ventana.
 - **Las columnas `p_*` del frame no son features.** `make_frame` guarda junto a los features los
   pronósticos de los modelos simples (`p_naive`, `p_mean3`, `p_mean6`, ...), pero se usan solo como
   baselines y miembros de los ensembles, nunca como entrada de los modelos de machine learning.
-- **Modelo diario.** `forecast_monthly.py --daily` usa estos mismos 25 features más cuatro de día
+- **Modelo diario.** `tree_utils.daily_lgbm_forecast` (sin script que lo ejecute desde que se retiró `forecast_monthly.py`) usa estos mismos 25 features más cuatro de día
   (`dow`, `dom`, `day_idx`, `days_left`), predice cada día calendario del mes y suma. No forma parte
   de los ensembles.
 - **Modelos clásicos.** Los miembros clásicos de los ensembles (naive, medias, SES, Holt, ARIMA) no
@@ -289,7 +286,7 @@ consumo en la ventana.
   A futuro conviene valorar además un corte único con un rango de meses como test (entrenar hasta una fecha y pronosticar varios
   meses seguidos), que mide el pronóstico a varios horizontes desde un mismo punto. Hay que cuidar que las variables de los meses
   del rango no usen el consumo real de meses anteriores del propio rango, porque eso sería pronóstico a un mes y no a varios. Los
-  resultados a dos y tres meses de hoy (`forecast_monthly.py --horizons`, `compare_horizon_strategies.py`) usan origen móvil por horizonte.
+  resultado a dos meses de hoy (`compare_horizon_strategies.py`) usa origen móvil por horizonte. El de tres meses lo calculaba `forecast_monthly.py`, retirado.
 - Varias plantas en las comparaciones: `compare_planner.py` ya compara las 11 plantas del planificador y guarda la planta en cada fila, y el
   cruce con el planificador de `compare_internal_model.py` usa planta, mes y SKU. Falta que los meses del modelo interno, fijos en
   `src/utils/internal_utils.py` (2026-06 a 2026-09), salgan del propio archivo, y la pestaña PLANIFICADOR del dashboard sigue leyendo solo los
