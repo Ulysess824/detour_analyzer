@@ -38,7 +38,7 @@ from src.utils.metrics_utils import score
 from src.utils.panel_utils import build_panel, load_consumption
 from src.utils.planner_utils import LOW_HISTORY, NO_SERIES, accuracy_table, add_internal, compare_month_audit, first_consumption_dates, planner_key, series_table
 
-HIGHLIGHT = ["ml_mean", "lgbm", "xgb", "rf", "naive", "mean6"]
+HIGHLIGHT = ["ml_mean", "lgbm", "xgb", "rf", "naive"]
 
 
 def closest_counts(g: pd.DataFrame, sources: list[str]) -> dict:

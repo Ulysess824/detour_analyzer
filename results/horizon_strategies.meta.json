@@ -5,6 +5,5 @@
  "test_first": "2025-10",
  "test_last": "2026-09",
  "tuning": "bff27ef60dd3ad28",
- "cutoff_day": 15,
- "local": false
+ "cutoff_day": 15
 }

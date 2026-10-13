@@ -43,7 +43,6 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     feature_utils.py       features, baselines simples y make_frame
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
     tree_utils.py          LightGBM, XGBoost y Random Forest
-    econometric_utils.py   SES, Holt amortiguado y ARIMA por serie
     ensemble_utils.py      combinaciones: media, mediana, media recortada, ponderada
     mcs_utils.py           Model Confidence Set (Hansen, Lunde y Nason, 2011)
     member_utils.py        pronósticos de todos los miembros de los ensembles
@@ -72,7 +71,7 @@ python scripts/eda_consumos.py data/consumos_long.csv
 # 2. Tuning bayesiano (Optuna TPE) de LightGBM, XGBoost y Random Forest
 python scripts/tune_trees.py data/consumos_long.csv --trials 100 100 40 --out results/tuning_trees.json
 
-# 3. Ensembles (machine learning, econometría clásica y ambos) y Model Confidence Set
+# 3. Ensembles de machine learning y Model Confidence Set
 python scripts/run_ensembles.py data/consumos_long.csv --tuning results/tuning_trees.json
 
 # 4. Pronóstico del mes siguiente con todo el histórico (con --as-of YYYY-MM se valida contra el real conocido)
@@ -98,24 +97,27 @@ python scripts/export_comparison_excel.py --month 2026-09
 `run_ensembles.py` pronostica el total mensual de cada SKU (origen rodante, h=1) con:
 
 - **Machine learning:** LightGBM, XGBoost y Random Forest con los parámetros de Optuna.
-- **Econometría clásica:** naive, medias de 3, 6 y 12 meses, tasa por día, naive estacional, media de
-  6 meses por razón estacional de la planta, suavizado exponencial simple, Holt amortiguado y ARIMA
-  elegido por AIC.
+- **Referencia:** `naive` (el consumo del mes anterior), fuera del ensamble.
 
-Cada grupo se combina con cuatro métodos (media, mediana, media recortada y media ponderada por el
-inverso del MAE pasado), y un tercer grupo combina los dos anteriores (`ml_econ`). El Model
+Los tres modelos de machine learning se combinan con cuatro métodos (media, mediana, media recortada
+y media ponderada por el inverso del MAE pasado): `ml_mean`, `ml_median`, `ml_trimmed` y
+`ml_weighted`. Se retiraron los modelos clásicos (medias de 3, 6 y 12 meses, tasa por día, naive
+estacional, media por razón estacional, suavizado exponencial, Holt amortiguado y ARIMA) y los
+ensembles que los incluían (`econ`, `ml_econ`). El Model
 Confidence Set (pérdida de error absoluto, bootstrap por bloques de meses) indica qué modelos se
 pueden descartar con confianza 90% y 75%. Los pronósticos de los miembros se guardan en
 `results/member_forecasts.csv` y los resultados en `results/ensembles.json`.
 
-Resultado (test 2025-10 a 2026-09, h=1, confianza 90%, 25 modelos: 3 de machine learning, 10
-clásicos y 12 ensembles):
+Resultado (test 2025-10 a 2026-09, h=1, confianza 90%, 8 modelos: 3 de machine learning, `naive`
+y 4 ensembles):
 
 | nivel | mejor por accuracy | modelos que se pueden descartar |
 |---|---|---|
-| SKU-mes | `ml_mean` (70.4%) | 21 de 25: todos los clásicos, XGBoost, LightGBM y casi todos los ensembles |
-| planta-mes | `ml_median` (91.9%) | 14 de 25: XGBoost, ARIMA, SES, Holt y las medias simples |
-| total-mes | `ml_mean` (97.5%) | 8 de 25: XGBoost, ARIMA, `naive` y las medias simples |
+| SKU-mes | `ml_mean` (70.4%) | 4 de 8: LightGBM, XGBoost, `naive` y `ml_weighted` |
+| planta-mes | `ml_median` (91.9%) | 3 de 8: XGBoost, `naive` y `ml_weighted` |
+| total-mes | `ml_mean` (97.5%) | 2 de 8: XGBoost y `naive` |
+
+`naive` queda 3,5 puntos por debajo de `ml_mean` a nivel SKU (67.0% contra 70.4%).
 
 Con 3 miembros de machine learning la media recortada (20%) no recorta ninguno, así que
 `ml_trimmed` es igual a `ml_mean`. Con solo 12 meses de test el MCS tiene poca potencia a nivel
@@ -246,10 +248,8 @@ consumo en la ventana.
   cae antes del inicio de los datos o la serie aún no existía, o los rezagos en series muy nuevas). LightGBM y XGBoost los manejan
   directamente; Random Forest los rellena con -1.
 - **Las columnas `p_*` del frame no son features.** `make_frame` guarda junto a los features los
-  pronósticos de los modelos simples (`p_naive`, `p_mean3`, `p_mean6`, ...), pero se usan solo como
-  baselines y miembros de los ensembles, nunca como entrada de los modelos de machine learning.
-- **Modelos clásicos.** Los miembros clásicos de los ensembles (naive, medias, SES, Holt, ARIMA) no
-  usan estos features, solo la historia mensual de cada serie.
+  pronósticos de los modelos simples (`p_naive`, `p_mean3`, `p_mean6`, ...), pero solo `p_naive` se usa
+  (como referencia); nunca son entrada de los modelos de machine learning.
 
 ## Métricas
 
@@ -393,8 +393,8 @@ noviembre hay que pronosticar **dos meses** desde el último mes completo (`t = 
 | Principal | **Directa** | `ml_mean` (promedio de LightGBM, XGBoost y Random Forest) entrenado con el objetivo a dos meses. Mismas 25 variables, calculadas en el origen `o`; se entrena con las filas cuyo objetivo ya se conoce (`t <= o`) |
 | Secundaria | **Directa + mes parcial** | La directa más 4 variables del mes en curso (`mtd`, `mtd_rate`, `mtd_occ`, `mtd_proj`: consumo de los primeros 15 días, por día hábil, proporción de días con consumo y proyección del mes). Requiere un exporte de SAP a mitad de mes |
 
-La iterada (un modelo a un mes aplicado dos veces) y los modelos locales por SKU (SES, Holt, ARIMA; opción `--with-local`) se
-midieron pero no se adoptan.
+La iterada (un modelo a un mes aplicado dos veces) se midió pero no se adopta. Los modelos locales por SKU (SES, Holt, ARIMA) se
+midieron y se retiraron del proyecto.
 
 **De dónde sale.** La literatura describe las alternativas; la elección se hizo con la prueba de este proyecto (origen rodante,
 12 meses), porque las fuentes no coinciden entre sí:

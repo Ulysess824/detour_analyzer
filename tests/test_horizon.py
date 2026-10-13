@@ -74,10 +74,10 @@ def test_strategies_ignore_the_future_of_the_last_complete_month(toy_panel):
 
     def run(P):
         f1, f2 = make_frame(P, 1), make_frame(P, 2)
-        return strategy_forecasts(P, f1, f2, add_partial_features(f2, P, DAY), {}, [target], local=False, log=lambda *_: None)
+        return strategy_forecasts(P, f1, f2, add_partial_features(f2, P, DAY), {}, [target], log=lambda *_: None)
 
     a, b = run(S), run(S2)
     assert not np.allclose(a["y"], b["y"])  # the actuals of the target did change
-    for col in ("p_direct", "p_iterated", "p_partial", "p_naive", "p_mean6", "p_seasonal_naive"):
+    for col in ("p_direct", "p_iterated", "p_partial", "p_naive"):
         assert np.allclose(a[col], b[col]), col
     assert (a[["p_direct", "p_iterated", "p_partial"]] >= 0).all().all()

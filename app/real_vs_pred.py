@@ -10,7 +10,7 @@ from theme import MODEL_COLORS, add_model_trace, add_real_trace, plotly_layout
 ALL_PLANTAS = "Todas las plantas"
 ALL_SKUS = "Todos los SKU"
 SEARCH_HINT = "Escribe para buscar"
-DEFAULT_MODELS = ["lgbm", "ml_econ_mean"]
+DEFAULT_MODELS = ["lgbm", "ml_mean"]
 
 
 def select_view(forecasts: pd.DataFrame, monthly: pd.DataFrame, planta: str | None, sku: str | None):

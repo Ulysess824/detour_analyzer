@@ -7,7 +7,6 @@ Strategies compared (the model of the report, `ml_mean`, is the mean of LightGBM
     direct      one model trained with the target two months ahead
     iterated    a one-month-ahead model applied twice: its forecast of month `o + 1` is used as if it were observed
     partial     the direct model plus the consumption of the first days of month `o + 1` (mid-month cutoff)
-    local       per-series models (SES, damped Holt, ARIMA) and simple baselines, to compare with the global trees
 
 Every forecast of month `t` uses only what is known at the end of month `o` (and, for `partial`, the first days of `o + 1`).
 """
@@ -19,14 +18,13 @@ import dataclasses
 import numpy as np
 import pandas as pd
 
-from src.utils.econometric_utils import ECONOMETRIC_MODELS, econometric_forecasts
 from src.utils.feature_utils import SERIES_FEATURES, frame_at_origin
 from src.utils.member_utils import ML_MODELS, ml_forecast
 from src.utils.panel_utils import Panel
 from src.utils.partial_utils import PARTIAL_FEATURES
 
 HORIZON = 2
-BASELINES = ["naive", "mean6", "seasonal_naive"]
+BASELINES = ["naive"]
 
 
 def mask_panel(S: Panel, last_known: int) -> Panel:
@@ -83,8 +81,6 @@ def strategy_forecasts(
     frame2_partial: pd.DataFrame,
     tuned: dict,
     test_months: list[int],
-    n_jobs: int = 4,
-    local: bool = False,
     log=print,
 ) -> pd.DataFrame:
     r"""
@@ -112,11 +108,6 @@ def strategy_forecasts(
 
         for name in BASELINES:
             block[f"p_{name}"] = rows[f"p_{name}"].to_numpy()
-        if local:
-            econ = econometric_forecasts(S, rows, origin, HORIZON, n_jobs)
-            for name in ECONOMETRIC_MODELS:
-                block[f"p_local_{name}"] = econ[name].to_numpy()
-            block["p_local_mean"] = econ[ECONOMETRIC_MODELS].mean(axis=1).to_numpy()
         parts.append(block)
         log(f"    target {S.labels[t]} done")
     return pd.concat(parts, ignore_index=True)

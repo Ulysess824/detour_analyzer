@@ -1,13 +1,12 @@
 """
-Ensembles of machine-learning and classical econometric forecasts, and a Model Confidence Set.
+Ensembles of machine-learning forecasts, and a Model Confidence Set.
 
 Members (forecast of the monthly total of each SKU, rolling origin, horizon --horizon):
     machine learning   LightGBM, XGBoost, Random Forest (Optuna-tuned parameters from the tuning json)
-    classical          naive, mean3/6/12, per-day rate, seasonal naive, mean6 x planta seasonal
-                       ratio, simple exponential smoothing, damped Holt, ARIMA (AIC)
+    reference          naive (last month's value), outside the ensemble
 
-Ensembles, for each of the three groups (ml, econ, ml_econ = both together) and four methods
-(mean, median, trimmed mean, weighted by inverse past MAE): see src/utils/ensemble_utils.py.
+Ensembles of the three machine-learning members with four methods (ml_mean, ml_median, ml_trimmed, ml_weighted;
+mean, median, trimmed mean, weighted by inverse past MAE): see src/utils/ensemble_utils.py.
 
 The Model Confidence Set of Hansen, Lunde and Nason (2011) is then run on the absolute-error loss
 at SKU-month, planta-month and total-month level to see which models can be discarded.
@@ -35,7 +34,7 @@ from src.utils.ensemble_utils import METHODS, add_ensembles
 from src.utils.evaluation_utils import score_models_by_level, test_months_of
 from src.utils.feature_utils import make_frame
 from src.utils.mcs_utils import model_confidence_set
-from src.utils.member_utils import ENSEMBLE_GROUPS, ML_MODELS, collect_member_forecasts
+from src.utils.member_utils import ENSEMBLE_GROUPS, ML_MODELS, SIMPLE_MODELS, collect_member_forecasts
 from src.utils.panel_utils import build_panel, load_consumption
 from src.utils.tuning_utils import check_tuning_window, to_jsonable
 
@@ -72,7 +71,6 @@ def main() -> None:
     parser.add_argument("--alphas", nargs="+", type=float, default=[0.10, 0.25])
     parser.add_argument("--boot", type=int, default=5_000)
     parser.add_argument("--block", type=int, default=3, help="block length of the bootstrap, in months")
-    parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
     pd.set_option("display.width", 220)
@@ -91,13 +89,13 @@ def main() -> None:
         check_alignment(res, S)
         print(f"loaded member forecasts from {args.predictions}")
     else:
-        res = collect_member_forecasts(S, make_frame(S, args.horizon), test_months, args.horizon, tuned, args.jobs)
+        res = collect_member_forecasts(S, make_frame(S, args.horizon), test_months, args.horizon, tuned)
         args.predictions.parent.mkdir(parents=True, exist_ok=True)
         res.to_csv(args.predictions, index=False)
         write_meta(args.predictions, meta)
 
     res = add_ensembles(res, ENSEMBLE_GROUPS, args.horizon)
-    members = [m for group in ("ml", "econ") for m in ENSEMBLE_GROUPS[group]]
+    members = ML_MODELS + SIMPLE_MODELS
     ensembles = [f"{g}_{m}" for g in ENSEMBLE_GROUPS for m in METHODS]
     models = members + ensembles
 

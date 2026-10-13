@@ -7,9 +7,9 @@ planta and total level, over the last --n-test months with a rolling origin.
 
     1. strategy      direct (one model for the two-month target) vs iterated (a one-month model applied twice)
     2. partial month direct vs direct plus the consumption of the first --cutoff-day days of the month in progress
-    3. components    the three trees behind `ml_mean` (LightGBM, XGBoost, Random Forest) next to their mean
+    3. components    the three trees behind `ml_mean` (LightGBM, XGBoost, Random Forest) next to their mean and naive
 
-Only machine-learning models are trained. With --with-local the per-series SES, damped Holt and ARIMA are added (slow).
+Only machine-learning models are trained; naive is the reference.
 
 The reference is the one-month-ahead `ml_mean` of the report (more information: data to the end of the previous month).
 When planner files exist (data/planner_forecast_<month>.csv, SCAN only), a last section scores the planner and the strategies on
@@ -43,11 +43,8 @@ from src.utils.tuning_utils import check_tuning_window
 SECTIONS = {
     "1. Strategy: direct vs iterated (reference: one month ahead)": ["ref_h1", "direct", "iterated", "naive"],
     "2. Month in progress: direct vs direct + first days of the month": ["direct", "partial", "naive"],
-    "3. Components of ml_mean (direct) and simple references": ["direct", "direct_lgbm", "direct_xgb", "direct_rf", "naive", "mean6", "seasonal_naive"],
-    "4. Optional: global trees vs local per-series models (--with-local)": [
-        "direct", "local_mean", "local_ses", "local_damped_holt", "local_arima", "naive",
-    ],
-}  # fmt: skip
+    "3. Components of ml_mean (direct) and naive": ["direct", "direct_lgbm", "direct_xgb", "direct_rf", "naive"],
+}
 
 
 def planner_section(S, df, res: pd.DataFrame, pattern: str, planta: str):
@@ -98,10 +95,8 @@ def main() -> None:
     parser.add_argument("--predictions", type=Path, default=Path("results/horizon_strategies.csv"))
     parser.add_argument("--reference", type=Path, default=Path("results/member_forecasts.csv"), help="one-month-ahead forecasts (run_ensembles.py)")
     parser.add_argument("--refit", action="store_true", help="recompute the forecasts even if cached")
-    parser.add_argument("--with-local", action="store_true", help="also fit SES, damped Holt and ARIMA per series (slow)")
     parser.add_argument("--planner-glob", default="data/planner_forecast_*.csv", help="planner forecasts to add as a row")
     parser.add_argument("--planta", default="SCAN", help="planta of the planner row (the planner files hold several plantas)")
-    parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
     warnings.filterwarnings("ignore")
     pd.set_option("display.width", 220)
@@ -112,7 +107,7 @@ def main() -> None:
     test_months = test_months_of(S, args.n_test)
     tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
     check_tuning_window(tuned, S, args.n_test)  # the tuned parameters (h=1) must not have seen the test months
-    meta = {**expected_meta(S, HORIZON, args.n_test, tuned), "cutoff_day": args.cutoff_day, "local": args.with_local}
+    meta = {**expected_meta(S, HORIZON, args.n_test, tuned), "cutoff_day": args.cutoff_day}
     print(f"test targets {S.labels[test_months[0]]} .. {S.labels[-1]} | last complete month = target - {HORIZON}")
 
     if args.predictions.exists() and not args.refit:
@@ -123,7 +118,7 @@ def main() -> None:
     else:
         frame1, frame2 = make_frame(S, 1), make_frame(S, HORIZON)
         frame2_partial = add_partial_features(frame2, S, args.cutoff_day)
-        res = strategy_forecasts(S, frame1, frame2, frame2_partial, tuned, test_months, args.jobs, local=args.with_local)
+        res = strategy_forecasts(S, frame1, frame2, frame2_partial, tuned, test_months)
         args.predictions.parent.mkdir(parents=True, exist_ok=True)
         res.to_csv(args.predictions, index=False)
         write_meta(args.predictions, meta)
