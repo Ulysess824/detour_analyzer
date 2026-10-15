@@ -3,6 +3,16 @@
 Forecast del consumo por planta y SKU a partir de exportes de SAP. El objetivo es predecir la serie
 (no los picos): consumo mensual por SKU, por planta y total, agregando a partir de series por SKU.
 
+## Versiones
+
+| Versión | Rama / commit | Qué incluye |
+|---|---|---|
+| **v1** | rama `v1` (commit `4150a26`) | Pronóstico mensual por SKU, planta y total con el ensamble de LightGBM, XGBoost y Random Forest (`ml_mean`), comparación con el planificador y con el modelo interno, pronóstico a dos meses, dashboard y Excel |
+| **v2** | `main` (commit `2876c4f`) | Todo lo de la v1 más el nowcasting del mes en curso (media, mediana y Monte Carlo), la carpeta `bibliografia/` y su documentación |
+
+La v2 solo añadió archivos y secciones de documentación; no cambió ningún modelo ni resultado de la v1. Para recuperar la v1: `git checkout v1`
+(o `git checkout 4150a26`). Para ejecutarla en otra carpeta sin tocar `main`: `git worktree add ../detour_v1 v1`.
+
 ## Datos
 
 | archivo | contenido |
