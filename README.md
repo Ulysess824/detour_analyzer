@@ -57,6 +57,9 @@ src/utils/                 funciones reutilizables, una responsabilidad por mód
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
     horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
     partial_utils.py       variables del mes en curso (consumo de los primeros días)
+    montecarlo_utils.py    simulador Monte Carlo de los días que faltan del mes (experimento)
+    now_casting_current_month.py  nowcasting del mes en curso: media, mediana y dos simuladores Monte Carlo
+    bibliography_utils.py  descarga de los papers de bibliografia/ (solo acceso abierto)
 scripts/                   puntos de entrada de línea de comandos
 ```
 
@@ -91,6 +94,60 @@ python scripts/compare_planner.py data/consumos_long.csv --months 2026-09 --inte
 # 8. Excel con dos tablas: predicciones (real, planificador, modelo interno, ml_mean) y excluidos con su motivo
 python scripts/export_comparison_excel.py --month 2026-09
 ```
+
+## Nowcasting del mes en curso (versión 2)
+
+**Qué se hizo.** A mitad de mes (día 15) se conoce el consumo de los primeros días. La pregunta fue si se puede predecir el consumo de los días que faltan con
+esa información parcial, y si completar el mes sirve para pronosticar el siguiente. Pasos:
+
+1. **Idea inicial:** completar el resto del mes con una simulación de Monte Carlo (solo en días en que hay consumo) y usar el mes completado como dato.
+2. **Bibliografía** (`bibliografia/README.md`): Giannone, Reichlin y Small (2008) y Bańbura, Giannone, Modugno y Reichlin (2013) respaldan el uso de datos incompletos
+   del mes en curso, pero con un modelo de factores y filtro de Kalman, **no con Monte Carlo**. La simulación se apoya en Rubin (imputación múltiple) y en Willemain et al.
+   (demanda intermitente). No se encontró un trabajo que respalde usar el mes simulado como si fuera dato real; es la estrategia iterada, que en este proyecto rindió menos
+   que la directa. La metodología de Giannone se dejó fuera del experimento. El PDF de 2008 no se pudo descargar (el entorno bloquea los servidores); se revisó el de 2013.
+3. **Calendario:** el consumo es casi todo de lunes a viernes (97,5% de las toneladas; sábado 2,4%; domingo 0,1%). Los modelos no fijan la regla a mano: cuentan los días
+   sin domingos y el simulador estima la probabilidad de consumo por día de la semana y por planta.
+4. **Benchmark** con cuatro modelos, todos con la misma regla de información (solo lo conocido hasta el día de corte), con una prueba automática de que no miran el futuro.
+
+**Modelos.** Cada modelo predice el consumo de los días que faltan, por serie; planta y total son sumas de las series.
+
+| Modelo | Información que usa | Cómo predice |
+|---|---|---|
+| Media | Solo los días hábiles ya vistos del mes | Cada día que falta vale la media diaria de los días vistos |
+| Mediana | Solo los días vistos | Cada día que falta vale la mediana de los días vistos |
+| Monte Carlo con historia y mes | 365 días anteriores al corte y los días vistos | Media de 200 escenarios simulados |
+| Monte Carlo solo mes | Solo los días vistos | Media de 200 escenarios simulados |
+
+Código en `src/utils/now_casting_current_month.py` y `src/utils/montecarlo_utils.py`; se ejecuta con
+`python scripts/now_casting_month_benchmark.py data/consumos_long.csv --month 2026-09 --last-months 12`. Plan y detalle en `docs/plan_montecarlo_mes_parcial.md`.
+
+**Resultados** (acierto = 1 − WAPE del consumo que falta, corte al día 15, series vivas el mes anterior):
+
+| Modelo | SKU, 12 meses | Planta, 12 meses | Total, 12 meses | SKU, junio a septiembre | Total, junio a septiembre |
+|---|---|---|---|---|---|
+| Media | 59,8% | 84,6% | **92,2%** | **55,2%** | **97,2%** |
+| Monte Carlo con historia y mes | **60,0%** | **85,0%** | 90,9% | 55,1% | 91,9% |
+| Monte Carlo solo mes | 59,3% | 84,2% | 91,3% | 54,8% | 95,0% |
+| Mediana | 41,1% | 53,4% | 53,6% | 39,8% | 54,1% |
+
+Con el mes completo (primeros 15 días reales más la media del resto) el acierto del mes es de 79,4% por SKU, 92,0% por planta y 95,9% en el total, contra 66,7%, 87,8% y 92,4%
+sin datos del mes (mes anterior repetido). Esa cifra está inflada porque la mitad del mes ya es real: lo que se pronostica de verdad (el resto) acierta ~60% por SKU.
+
+**Por qué se usa la media.**
+
+- **Rinde lo mismo que los simuladores:** la diferencia con el Monte Carlo es de 0,2 puntos por SKU y 0,4 por planta en 12 meses, dentro del ruido de un backtest de 12 meses.
+- **Es la mejor para el total** (92,2% en 12 meses, 97,2% de junio a septiembre), que es la cifra que suele usarse para decidir, y nunca es la peor en ningún mes.
+- **Se adapta al nivel del mes.** Solo mira lo que está pasando ese mes. El Monte Carlo con historia arrastra el nivel de los 365 días anteriores: en agosto y septiembre,
+  cuando el consumo bajó, sobreestimó 15,6% y 13,4% (la media, 0,0% y 6,8%).
+- **Es simple y verificable:** una división, sin semillas ni parámetros (el Monte Carlo usa 365 días de historia, un peso de suavizado y 200 escenarios).
+- **La mediana no sirve:** el 54% de las series tiene días sin consumo y su mediana diaria es 0, así que subestima 46%.
+- **Las bandas de los simuladores no están calibradas:** el total real cae dentro de la banda 10-90% en solo el 25% de los meses, así que no justifican su costo.
+
+**Límites.** La media se equivoca en los meses con cambio de nivel en la segunda quincena: el error del total del resto del mes fue de −20,9% a +17,5% en los 12 meses (enero y
+abril de 2026 con −20%). En promedio sobreestima el 25% de las series y subestima el 26%; el resto tiene consumo 0 y pronóstico 0. Entre 54 y 136 series por mes tuvieron consumo real
+0 y la media les asignó consumo (en septiembre, 136 series y 1.665 TO). SALI, PCEL y SALM concentran el error de cada mes (en septiembre, SALI: el resto fue 411 TO
+contra unas 3.200 esperadas, pendiente de confirmar con quien entrega los datos). Es un backtest de 12 meses, un corte (día 15) y sin prueba estadística pareada. Falta medir el
+siguiente paso de la idea original: usar el mes completado para pronosticar el mes siguiente y compararlo con la estrategia "directa + mes parcial" (68,7% por SKU).
 
 ## Ensembles y Model Confidence Set
 
