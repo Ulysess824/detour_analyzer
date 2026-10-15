@@ -28,8 +28,11 @@
     "total-mes",
     "acierto",
     "acierto-mes",
+    "mitad-mes",
+    "mitad-meses",
     "tabla",
     "cercania",
+    "mitad-cercania",
     "variables"
   ],
   "sections": {

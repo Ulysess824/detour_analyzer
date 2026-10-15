@@ -5,3 +5,5 @@ Source of the "Planificador contra modelo" deck (Slides artifact on claude.ai, 9
 - Numbers are typed by hand from `results/planner_comparison_*.csv` (rolling-origin test, `ml_mean`). The LaTeX version in `../presentacion.tex` is older (no method, metric and variables slides).
 
 - All numbers use the 156 SKU-months with real, `ml_mean` (one month ahead), planner and internal model (`results/internal_model_comparison.csv`, columns `ref_h1`, `planner`, `internal`); the table slide keeps the same 10 September SKUs.
+
+- Slides `mitad-mes`, `mitad-meses` and `mitad-cercania` (added with the nowcast input experiment, docs/plan_nowcast_input_ml_mean.md): the model fed with the month in progress completed by the mean of its first 15 days (84.0%) against the planner (83.2%) and the internal model (76.7%) on the same 156 SKU-months; closest to the real: 77 / 44 / 35. The slides before them keep the one-month model (85.3%).
