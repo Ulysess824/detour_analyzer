@@ -153,6 +153,13 @@ sin datos del mes (mes anterior repetido). Esa cifra está inflada porque la mit
 - **La mediana no sirve:** el 54% de las series tiene días sin consumo y su mediana diaria es 0, así que subestima 46%.
 - **Las bandas de los simuladores no están calibradas:** el total real cae dentro de la banda 10-90% en solo el 25% de los meses, así que no justifican su costo.
 
+**El mes completado como entrada del `ml_mean`.** Se probó usar ese mes completado (primeros 15 días reales y el resto igual a la media) como dato de entrada del
+`ml_mean` a un mes, para pronosticar el mes siguiente a mitad de mes (`scripts/nowcast_input_ml_mean.py`, plan y resultados en `docs/plan_nowcast_input_ml_mean.md`). De junio a
+septiembre de 2026 acierta 65,4% por SKU (89,1% por planta, 97,7% en el total), contra 63,0% de la directa a dos meses y 65,8% de la directa con las variables de los primeros 15 días;
+con el mes anterior completo y real sería 68,1%. Mejora a la directa en los 4 meses (en 10 de 12 en el año), pero no a la directa con las variables parciales (11 de 12 meses a favor de esta):
+completar con la media usa la misma información que `mtd_proj`. Frente al planificador, que también pronostica a mitad de mes, el modelo a mitad de mes acierta 84,0% contra 83,2% (SCAN, 156 SKU y mes;
+modelo interno 76,7%) y queda más cerca del real en 77 de 156 casos; las diapositivas `mitad-mes`, `mitad-meses` y `mitad-cercania` del deck "Planificador contra modelo" muestran esa comparación.
+
 **Límites.** La media se equivoca en los meses con cambio de nivel en la segunda quincena: el error del total del resto del mes fue de −20,9% a +17,5% en los 12 meses (enero y
 abril de 2026 con −20%). En promedio sobreestima el 25% de las series y subestima el 26%; el resto tiene consumo 0 y pronóstico 0. Entre 54 y 136 series por mes tuvieron consumo real
 0 y la media les asignó consumo (en septiembre, 136 series y 1.665 TO). SALI, PCEL y SALM concentran el error de cada mes (en septiembre, SALI: el resto fue 411 TO
