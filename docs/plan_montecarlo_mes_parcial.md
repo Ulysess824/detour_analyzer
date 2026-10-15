@@ -69,3 +69,12 @@ Calibración de la banda 10-90%: a nivel SKU cubre el 84,1% de los casos (nomina
   sorteado de la distribución histórica de (resto del mes / primeros días), y escalar los tamaños con la intensidad de la primera mitad.
 - Septiembre es un caso malo (49,4%): SALI cayó de nivel y tuvo solo 17 días con consumo.
 - Fases 3 a 5 solo valen la pena si, con esos ajustes, el simulador supera a la prorrata a nivel planta y total.
+
+## Nowcasting month benchmark (cuatro modelos)
+
+`src/utils/now_casting_current_month.py` y `scripts/now_casting_month_benchmark.py`. Modelos: media, mediana, Monte Carlo con historia y mes en curso, Monte Carlo
+solo con el mes en curso. Todos usan solo lo conocido al corte (día 15); prueba automática en `tests/test_now_casting_current_month.py`.
+
+Acierto (1 − WAPE) del resto del mes, promedio de 12 meses: SKU 60,0% (Monte Carlo con historia), 59,8% (media), 59,3% (Monte Carlo solo mes), 41,1% (mediana);
+planta 85,0 / 84,6 / 84,2 / 53,4%; total 90,9 / 92,2 / 91,3 / 53,6%. Las tres primeras opciones quedan dentro de un punto: no se distinguen.
+Septiembre de 2026: gana el Monte Carlo solo con el mes (SKU 50,1%, planta 81,2%) y la media a nivel total (93,2%); SALI (cayó de nivel) tiene acierto negativo en todos.

@@ -57,7 +57,7 @@ def consumption_share(S: Panel, cutoff: int, month_start: int, lookback: int = L
     seen = slice(month_start - lo, cutoff - lo)
     n_seen = works_series[:, seen].sum(axis=1)
     n_pos = (consumes[:, seen] & works_series[:, seen]).sum(axis=1)
-    return np.clip((n_pos + shrink * long_run) / (n_seen + shrink), 0.0, 1.0)
+    return np.clip((n_pos + shrink * long_run) / np.maximum(n_seen + shrink, 1e-9), 0.0, 1.0)
 
 
 def positive_sizes(S: Panel, cutoff: int, lookback: int = LOOKBACK_DAYS) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -70,21 +70,29 @@ def positive_sizes(S: Panel, cutoff: int, lookback: int = LOOKBACK_DAYS) -> tupl
 
 
 def simulate_rest_of_month(
-    S: Panel, month: int, cutoff_day: int, draws: int = 200, seed: int = 0, series: np.ndarray | None = None
+    S: Panel,
+    month: int,
+    cutoff_day: int,
+    draws: int = 200,
+    seed: int = 0,
+    series: np.ndarray | None = None,
+    lookback: int = LOOKBACK_DAYS,
+    shrink: float = SHRINK,
 ) -> np.ndarray:
     r"""
     (draws, n_series) simulated consumption of the days after the first `cutoff_day` days of `month`.
 
-    Only the days before the cutoff are read (`S.daily[:, :cutoff]`).
+    Only the days before the cutoff are read (`S.daily[:, :cutoff]`). With `lookback = cutoff_day` and `shrink = 0` the
+    simulator learns from the month in progress alone.
     """
     month_start = int(S.month_first_date[month])
     cutoff = month_start + cutoff_day
     month_end = month_start + int(S.calendar_days[month])
     rng = np.random.default_rng(seed)
 
-    profile = working_day_profile(S, cutoff)
-    share = consumption_share(S, cutoff, month_start)
-    sizes, start, count = positive_sizes(S, cutoff)
+    profile = working_day_profile(S, cutoff, lookback)
+    share = consumption_share(S, cutoff, month_start, lookback, shrink)
+    sizes, start, count = positive_sizes(S, cutoff, lookback)
     n_series = S.daily.shape[0]
     out = np.zeros((draws, n_series))
     can_draw = count > 0
