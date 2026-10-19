@@ -8,6 +8,9 @@ the model used in the report. SKU forecasts are added up to planta and total (bo
 The last month of the export must be complete. With --as-of YYYY-MM the data after that month is ignored,
 so the forecast can be compared with the real value that is already known (a check of this script).
 
+Next to the forecast csv it writes `forecast_<month>.manifest.json`: the commit, data, parameters and library versions the run used
+(src/engine/run_manifest.py). Commit the data file before a run you want to be able to reproduce.
+
 Usage:
     python scripts/predict_next_month.py data/consumos_long.csv
     python scripts/predict_next_month.py data/consumos_long.csv --as-of 2026-08
@@ -15,7 +18,9 @@ Usage:
 
 import argparse
 import json
+import time
 import warnings
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -24,9 +29,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
+from src.engine.data_checks import validate_consumption
 from src.engine.inference_utils import check_last_month_complete, forecast_next_month
-from src.evaluation.metrics_utils import score
 from src.engine.panel_utils import build_panel, load_consumption
+from src.engine.run_manifest import build_manifest, git_info, manifest_path, write_manifest
+from src.evaluation.metrics_utils import score
 
 
 def main() -> None:
@@ -39,7 +46,10 @@ def main() -> None:
     warnings.filterwarnings("ignore")
     pd.set_option("display.width", 200)
 
-    full = load_consumption(args.input)
+    started, clock = datetime.now(timezone.utc), time.perf_counter()
+    git = git_info(Path(__file__).resolve().parents[1])  # before the run writes anything, so its own outputs do not count as changes
+    full = load_consumption(args.input, validate=False)
+    validation = validate_consumption(full)  # stops on errors, prints the warnings
     df = full
     if args.as_of:
         df = full[full["fecha"] <= pd.Period(args.as_of, freq="M").end_time]
@@ -56,12 +66,18 @@ def main() -> None:
     out = args.out or Path(f"results/forecast_{month}.csv")
     out.parent.mkdir(parents=True, exist_ok=True)
     result.round(3).to_csv(out, index=False)
+    manifest = build_manifest(
+        S=S, df=df, input_path=args.input, tuned=tuned, tuning_path=args.tuning, result=result, forecast_path=out, as_of=args.as_of,
+        started_at=started, seconds=time.perf_counter() - clock, git=git, validation=validation, rows_in_file=len(full),
+    )
+    write_manifest(manifest_path(out), manifest)
 
     by_planta = result.groupby("planta")[["ml_mean"]].sum().round(1).sort_values("ml_mean", ascending=False)
     print("\nforecast by planta (ml_mean, TO):")
     print(by_planta.to_string())
     print(f"\ntotal ml_mean: {result['ml_mean'].sum():,.1f}")
     print(f"saved {out}")
+    print(f"saved {manifest_path(out)}  (run {manifest['run']['run_id']}, commit {manifest['code']['commit'][:8]}, data {manifest['data']['panel_fingerprint']})")
 
     if args.as_of:
         actual = full[full["fecha"].dt.strftime("%Y-%m") == month].groupby(["planta", "sku"])["consumo"].sum().rename("real")
