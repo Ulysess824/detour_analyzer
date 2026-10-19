@@ -13,23 +13,17 @@ Usage:
 """
 
 import argparse
-import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.engine.db_utils import connect, create_schema, replace_tracking, upsert_run
-from src.engine.fingerprints import file_sha256, panel_fingerprint
 from src.engine.panel_utils import build_panel, load_consumption
-from src.engine.run_manifest import git_info, manifest_path
-from src.evaluation.cache_utils import check_alignment, check_meta
-from src.evaluation.tracking_utils import THRESHOLDS, backtest_forecasts, check_month_closed, find_alerts, month_scores, tracking_rows, write_tracking_csv
-
-BACKTEST_RUN = "backtest-h1"
+from src.engine.run_manifest import manifest_path
+from src.evaluation.tracking_run import save_tracking, track_backtest, track_saved_forecast
+from src.evaluation.tracking_utils import THRESHOLDS
 
 
 def show(scores: pd.DataFrame, alerts: pd.DataFrame) -> None:
@@ -66,48 +60,21 @@ def main() -> None:
     df = load_consumption(args.data)
     S = build_panel(df)
     if args.backtest:
-        cache = pd.read_csv(args.reference)
-        check_meta(args.reference, {"data": panel_fingerprint(S), "n_series": len(S.keys), "horizon": 1}, keys=("data", "n_series", "horizon"))
-        check_alignment(cache, S)
-        jobs = {BACKTEST_RUN: backtest_forecasts(S, cache)}
-        manifests = {BACKTEST_RUN: {"run": {"run_id": BACKTEST_RUN, "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "forecast_month": "backtest"},
-                                    "code": git_info(Path(__file__).resolve().parents[1]), "data": {"panel_fingerprint": panel_fingerprint(S)}}}
-    else:
-        forecast = pd.read_csv(args.forecast)
-        month = str(forecast["mes"].iloc[0])
-        check_month_closed(df, month)
-        path = manifest_path(args.forecast)
-        manifest = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
-        run_id = manifest["run"]["run_id"] if manifest else f"sin-manifiesto-{file_sha256(args.forecast)[:8]}"
-        jobs = {run_id: {month: forecast}}
-        manifests = {run_id: manifest or {"run": {"run_id": run_id, "forecast_month": month}, "output": {"csv_sha256": file_sha256(args.forecast)}}}
-        if manifest is None:
-            print(f"warning: {path} not found; the run is identified by the hash of the csv")
-
-    fired, all_rows = 0, []
-    for run_id, months in jobs.items():
-        for month, forecast in months.items():
-            scores = month_scores(S, forecast, month)
-            alerts = find_alerts(scores, thresholds)
-            fired += int((alerts["tipo"] == "alerta").sum())
-            all_rows.append(tracking_rows(run_id, scores, alerts))
-            if not args.backtest:
-                show(scores, alerts)
-    rows = pd.concat(all_rows, ignore_index=True)
-    if args.backtest:
+        runs = track_backtest(S, args.reference, thresholds, repo_dir=Path(__file__).resolve().parents[1])
+        rows = pd.concat([run.rows for run in runs], ignore_index=True)
         ml = rows[(rows["modelo"] == "ml_mean") & (rows["planta"] == "") & rows["nivel"].isin(["sku", "planta", "total"])]
         print((ml.pivot(index="mes", columns="nivel", values="acierto")[["sku", "planta", "total"]] * 100).round(1).to_string())
-        print("mean:", (ml.groupby("nivel")["acierto"].mean() * 100).round(1).to_dict(), "| alerts fired:", fired)
+        print("mean:", (ml.groupby("nivel")["acierto"].mean() * 100).round(1).to_dict(), "| alerts fired:", sum(run.fired for run in runs))
+    else:
+        run = track_saved_forecast(args.forecast, df, S, thresholds)
+        runs = [run]
+        if not run.manifest_found:
+            print(f"warning: {manifest_path(args.forecast)} not found; the run is identified by the hash of the csv")
+        show(run.scores, run.alerts)
 
-    write_tracking_csv(args.csv, rows)
-    con = connect(args.db)
-    create_schema(con)
-    for manifest in manifests.values():
-        upsert_run(con, manifest)
-    replace_tracking(con, rows)
-    con.close()
-    print(f"\nsaved {len(rows)} rows to {args.csv} and to {args.db}")
-    if fired:
+    written = save_tracking(runs, args.csv, args.db)
+    print(f"\nsaved {written} rows to {args.csv} and to {args.db}")
+    if sum(run.fired for run in runs):
         raise SystemExit(2)
 
 

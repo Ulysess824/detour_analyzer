@@ -1,4 +1,2 @@
-# Dashboard (app/): python -m streamlit run app/dashboard.py
+# Desktop app (src/app/, phases 1 to 6 of docs/plan_app_escritorio.md): the packages are added in phase 1.
 -r base.txt
-streamlit==1.64.0
-plotly==7.1.0

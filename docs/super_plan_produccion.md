@@ -15,6 +15,7 @@ Condicionales:
 
 - **A.** Cablear el horizonte de dos meses, o el nowcasting con la media, en producción. Solo si la predicción se necesita antes de que cierre el mes anterior.
 - **B.** Orden interno: ciclo `db_utils` / `panel_utils`, lógica de 5 scripts a `src/`, imports sin usar.
+- **D.** App de escritorio que reemplaza el dashboard: `docs/plan_app_escritorio.md` (fase 0 hecha en la rama `feature/app-fase0`).
 - **C.** Confirmar con el dueño de los datos los cambios de nivel de SALI, SALM y SPAL (no es código).
 
 ## Auditoría que origina el plan (resumen)
