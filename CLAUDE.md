@@ -6,6 +6,7 @@ Read this first; open source files only for the function you need to change. REA
 **Rules:** chronological splits and rolling origin only (never random). Code and comments in English. Scripts in `scripts/` are thin CLIs (`sys.path.insert` + argparse); logic goes in `src/engine/` (produces the forecast), `src/evaluation/` (backtests, metrics, tuning, planner and internal comparisons; imports engine) or `src/experiments/` (ideas under test; imports both), one responsibility per module. Imports only go engine <- evaluation <- experiments (`tests/test_layers.py`). Run from the repo root.
 **Metrics:** WAPE = sum|y-p| / sum y; accuracy = 1 - WAPE; bias_pct > 0 means under-forecast.
 **Env:** `python` is not on PATH in the Bash tool (Windows Store alias); use PowerShell or locate the interpreter.
+**Dependencies:** pinned direct dependencies split in `requirements/base.txt` (production), `evaluation.txt`, `app.txt`, `dev.txt`; `requirements.txt` installs everything. Python 3.11 or 3.12. CI (`.github/workflows/tests.yml`): Linux and Windows x Python 3.11 and 3.12, runs `pytest` on every push. Verified in fresh venvs: base alone reproduces `results/forecast_2026-10.csv` byte for byte; dev passes the whole suite.
 **Do not:** reintroduce neural nets (removed as too heavy, c2e3330); edit files when the user pastes a code chunk, answer with the corrected chunk in chat.
 
 ## Data
