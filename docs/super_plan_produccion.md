@@ -9,7 +9,7 @@ rama, con pruebas y documentación, y se fusionan a `main` con confirmación.
 | 2 | Trazabilidad de los pronósticos | Manifiesto `forecast_<mes>.manifest.json` junto a cada pronóstico: commit, huellas de datos y parámetros, versiones, hash de la salida (los datos no se copian) | Dado un pronóstico se puede decir con qué datos, parámetros y código se hizo | Hecho (ver `docs/plan_trazabilidad.md`) |
 | 3 | Entorno reproducible | `requirements/` separados con versiones exactas (base, evaluation, app, dev), CI en GitHub (Linux y Windows, Python 3.11 y 3.12) | Un entorno nuevo reproduce el pronóstico de octubre con diferencia 0,0 TO | Hecho en Linux con Python 3.11; falta ver el CI y correrlo en Windows (ver `docs/plan_entorno.md`) |
 | 4 | Cobertura de pruebas del ajuste | Pruebas para `member_utils`, `tuning_utils`, `evaluation_utils`, `search_space_utils`, `eda_utils` e `internal_utils`; piso de cobertura en el CI | Esos módulos pasan de 70% de cobertura, comprobado con errores inyectados | Hecho: 99% a 100%, `src/` en 96%, 8 de 8 errores detectados (ver `docs/plan_cobertura.md`) |
-| 5 | Seguimiento contra el real | Al cerrar cada mes, el pronóstico se compara con el real y el acierto se guarda en la base | Existe una tabla mensual de acierto por planta y total y una alerta si cae por debajo de un umbral | Pendiente |
+| 5 | Seguimiento contra el real | `scripts/track_forecast.py`, tablas `corridas` y `seguimiento` en SQLite y el historial `results/seguimiento.csv` (git) | Existe una tabla mensual de acierto por planta y total y una alerta si cae por debajo de un umbral | Hecho (ver `docs/plan_seguimiento.md`); primer mes real: octubre de 2026 |
 
 Condicionales:
 

@@ -123,6 +123,13 @@ de entrada), los parámetros (hash, ventanas de afinación, semilla), las versio
 copian: el commit más el hash del archivo los identifican. Para poder reconstruir una corrida importante, guarda (haz commit de) el archivo de datos antes de
 correrla; si no, el manifiesto marca `file_modified: true`. Detalle y cómo reconstruir una corrida: `docs/plan_trazabilidad.md`.
 
+## Seguimiento contra el real
+
+Cuando termina el mes que se pronosticó, se agregan sus datos al archivo maestro y se corre `python scripts/track_forecast.py results/forecast_<mes>.csv`.
+Compara el pronóstico guardado con el consumo real por SKU, planta y total para cada modelo, avisa si el acierto de `ml_mean` baja de lo normal (SKU 64%,
+planta 85%, total 90%, o peor que el naive) y guarda el resultado en `results/seguimiento.csv` (va a git) y en la tabla `seguimiento` de la base.
+`--backtest` rellena el historial con los 12 meses de prueba (SKU 70,4%, planta 91,9%, total 97,6%, sin alertas). Detalle: `docs/plan_seguimiento.md`.
+
 ## Base de datos SQLite (consumos reales y predichos)
 
 La base `data/detour.db` guarda en cuatro tablas (`plantas`, `skus`, `consumos`, `consumos_predichos`) el consumo real y las predicciones.

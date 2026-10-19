@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -18,7 +19,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.engine.db_utils import connect, create_schema, predictions_from_cache, predictions_from_forecast, replace_predictions
+from src.engine.db_utils import connect, create_schema, predictions_from_cache, predictions_from_forecast, replace_predictions, upsert_run
 from src.engine.panel_utils import build_panel, load_consumption
 from src.evaluation.cache_utils import check_alignment
 
@@ -55,11 +56,16 @@ def main() -> None:
             check_alignment(frame, S)
             batches.append((path.name, predictions_from_cache(frame, S, columns)))
     for path in sorted(args.results.glob("forecast_*.csv")):
-        batches.append((path.name, predictions_from_forecast(pd.read_csv(path))))
+        manifest_file = path.with_suffix(".manifest.json")
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8")) if manifest_file.exists() else None
+        batches.append((path.name, predictions_from_forecast(pd.read_csv(path)), manifest))
 
-    for name, preds in batches:
-        n = replace_predictions(con, preds)
-        print(f"{name}: {n:_} predictions ({', '.join(sorted(preds['estrategia'].unique()))})")
+    for name, preds, *manifest in [(b[0], b[1], b[2] if len(b) > 2 else None) for b in batches]:
+        run_id = manifest[0]["run"]["run_id"] if manifest and manifest[0] else None
+        if run_id:
+            upsert_run(con, manifest[0])
+        n = replace_predictions(con, preds, run_id=run_id)
+        print(f"{name}: {n:_} predictions ({', '.join(sorted(preds['estrategia'].unique()))}){f', run {run_id}' if run_id else ''}")
     total = con.execute("SELECT estrategia, COUNT(*) FROM consumos_predichos GROUP BY estrategia ORDER BY estrategia").fetchall()
     print("in the database:", dict(total))
     con.close()
