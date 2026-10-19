@@ -8,7 +8,6 @@ predictions are overwritten: a load replaces the whole block (same `estrategia` 
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.engine.data_checks import SKU_PATTERN, check_consumption
 from src.engine.panel_utils import Panel
 
 SCHEMA_VERSION = 1
@@ -66,9 +66,6 @@ FROM consumos
 GROUP BY planta_id, sku_id, mes;
 """
 
-SKU_PATTERN = re.compile(
-    r"^(?P<grade>[^/]+)/(?P<subgrade>[^/]+)/(?P<gsm>\d+)gsm/(?P<ancho>\d+)mm(?:/(?P<core>[^/]+))?(?:/(?P<sufijo>.+))?$", re.IGNORECASE
-)
 PREDICTION_KEY = ["planta", "sku", "mes_objetivo", "mes_origen", "estrategia", "modelo"]
 
 
@@ -118,13 +115,9 @@ def write_consumption(con: sqlite3.Connection, records: pd.DataFrame) -> dict[st
     New plantas and SKUs are added and never deleted, so the predictions that point to them stay valid. A repeated
     (planta, sku, fecha) is an error. Runs in one transaction. Returns the row counts of the three tables.
     """
-    missing = {"planta", "sku", "fecha", "consumo"} - set(records.columns)
-    if missing:
-        raise ValueError(f"records lacks the columns {sorted(missing)}")
-    if records.duplicated(["planta", "sku", "fecha"]).any():
-        raise ValueError("records has repeated (planta, sku, fecha) rows")
-    if (records["consumo"] < 0).any() or records["consumo"].isna().any():
-        raise ValueError("records has negative or missing consumption")
+    report = check_consumption(records)
+    if report.errors:
+        raise ValueError("records failed the input checks:\n" + report.summary("error"))
 
     dates = pd.to_datetime(records["fecha"]).dt.strftime("%Y-%m-%d")
     with con:

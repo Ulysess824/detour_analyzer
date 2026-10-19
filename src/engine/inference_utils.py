@@ -7,6 +7,7 @@ import dataclasses
 import numpy as np
 import pandas as pd
 
+from src.engine.data_checks import incomplete_last_month_message
 from src.engine.feature_utils import make_frame
 from src.engine.member_utils import ML_MODELS, ml_forecast
 from src.engine.panel_utils import Panel
@@ -19,14 +20,9 @@ def check_last_month_complete(df: pd.DataFrame) -> None:
     The month is incomplete when a day after the last record, up to the end of that month, is
     not a Sunday (Sundays have almost no consumption, so a month can end with empty days).
     """
-    last = df["fecha"].max()
-    rest = pd.date_range(last + pd.Timedelta(days=1), last + pd.offsets.MonthEnd(0))
-    missing = rest[rest.dayofweek != 6]
-    if len(missing):
-        raise SystemExit(
-            f"The last month ({last.strftime('%Y-%m')}) is incomplete: the data ends on {last.date()} and "
-            f"{len(missing)} working days are missing. Export the complete month, or pass --as-of with the last complete month."
-        )
+    message = incomplete_last_month_message(df)
+    if message:
+        raise SystemExit(message)
 
 
 def extend_panel(S: Panel, n_ahead: int) -> Panel:
