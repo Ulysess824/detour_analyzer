@@ -5,8 +5,8 @@ rama, con pruebas y documentación, y se fusionan a `main` con confirmación.
 
 | # | Sub-plan | Entregable | Termina cuando | Estado |
 |---|---|---|---|---|
-| 1 | Validación de entrada | `src/engine/data_checks.py`, `scripts/validate_input.py`, tablas en `results/validacion_*.csv` | Los datos malos se detienen con un mensaje claro y el maestro real pasa sin errores | Hecho (ver `docs/plan_validacion_entrada.md`) |
-| 2 | Trazabilidad de cada corrida | Cada pronóstico guarda fecha, huella de datos, huella de parámetros y commit; logs; comprobación de la salida (sin NaN ni negativos, total en un rango razonable) | Dado un pronóstico se puede decir con qué datos y parámetros se hizo | Pendiente |
+| 1 | Validación de entrada | `src/engine/data_checks.py`, `scripts/validate_input.py`, tablas en `results/validacion_*.csv` | Los datos malos se detienen con un mensaje claro y el maestro real pasa sin errores | Hecho y fusionado (ver `docs/plan_validacion_entrada.md`) |
+| 2 | Trazabilidad de los pronósticos | Manifiesto `forecast_<mes>.manifest.json` junto a cada pronóstico: commit, huellas de datos y parámetros, versiones, hash de la salida (los datos no se copian) | Dado un pronóstico se puede decir con qué datos, parámetros y código se hizo | Hecho (ver `docs/plan_trazabilidad.md`) |
 | 3 | Entorno reproducible | `requirements` separados (producción, afinación, app, desarrollo), versiones fijas, `pyproject`, CI que corra las pruebas en cada subida | Un entorno nuevo reproduce el pronóstico de octubre con diferencia 0,0 TO | Pendiente |
 | 4 | Cobertura de pruebas del ajuste | Pruebas para `member_utils` (46%), `tuning_utils` (48%) y `evaluation_utils` (51%) | Esos módulos pasan de 70% de cobertura, comprobado con bugs inyectados | Pendiente |
 | 5 | Seguimiento contra el real | Al cerrar cada mes, el pronóstico se compara con el real y el acierto se guarda en la base | Existe una tabla mensual de acierto por planta y total y una alerta si cae por debajo de un umbral | Pendiente |

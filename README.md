@@ -96,6 +96,14 @@ Las tablas (formato largo): `validacion_domingos.csv` (los domingos cuentan como
 por planta (`validacion_cambio_planta_sku.csv`, `validacion_cambio_planta.csv`). Reglas, resultados y pruebas: `docs/plan_validacion_entrada.md`. Plan general:
 `docs/super_plan_produccion.md`.
 
+## Trazabilidad de los pronósticos
+
+Cada vez que `predict_next_month.py` guarda un pronóstico, escribe junto a él `forecast_<mes>.manifest.json` (unos pocos KB, fuera de la base de datos).
+Dice con qué se hizo: el commit y si había cambios sin guardar, el archivo de datos (hash, filas, fechas, series, huella del panel, avisos de la validación
+de entrada), los parámetros (hash, ventanas de afinación, semilla), las versiones de las librerías y la salida (totales y hash del CSV). Los datos no se
+copian: el commit más el hash del archivo los identifican. Para poder reconstruir una corrida importante, guarda (haz commit de) el archivo de datos antes de
+correrla; si no, el manifiesto marca `file_modified: true`. Detalle y cómo reconstruir una corrida: `docs/plan_trazabilidad.md`.
+
 ## Base de datos SQLite (consumos reales y predichos)
 
 La base `data/detour.db` guarda en cuatro tablas (`plantas`, `skus`, `consumos`, `consumos_predichos`) el consumo real y las predicciones.

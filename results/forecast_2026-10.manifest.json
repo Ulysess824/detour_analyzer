@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "run": {
+    "run_id": "20261019T171018Z-52de9c",
+    "created_at": "2026-10-19T17:10:18+00:00",
+    "forecast_month": "2026-10",
+    "as_of": null,
+    "seconds": 22.7
+  },
+  "code": {
+    "commit": "135ae3d402f7d41f4e66c4ec5092a6a523513589",
+    "branch": "feature/run-traceability",
+    "dirty": false
+  },
+  "data": {
+    "path": "data/consumos_long.csv",
+    "file_sha256": "161f8ff6d81df375483f1415342839ea983e0073cb6f8ff1d3d6449119759200",
+    "file_in_git": true,
+    "file_modified": false,
+    "rows": 347502,
+    "first_date": "2024-01-02",
+    "last_date": "2026-09-30",
+    "n_series": 2247,
+    "panel_fingerprint": "729f6f97f581669e",
+    "validation": {
+      "errors": 0,
+      "warnings": {
+        "daily_peak": 1,
+        "spike": 1,
+        "sku_format": 1
+      }
+    },
+    "rows_in_file": 347502
+  },
+  "params": {
+    "tuning_file": "results/tuning_trees.json",
+    "tuning_file_sha256": "5a0f95e50e75104fcf5ac412a57dd0ae7ad0fd7d2925b26de57d0467b21fc819",
+    "params_hash": "bff27ef60dd3ad28",
+    "tune_window": {
+      "lgbm": "2024-01 a 2025-09",
+      "rf": "2024-01 a 2025-09",
+      "xgb": "2024-01 a 2025-09"
+    },
+    "test_window": {
+      "lgbm": "2025-10 a 2026-09",
+      "rf": "2025-10 a 2026-09",
+      "xgb": "2025-10 a 2026-09"
+    },
+    "seed": 0
+  },
+  "environment": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "pandas": "3.0.6",
+    "numpy": "2.4.6",
+    "lightgbm": "4.7.0",
+    "xgboost": "3.2.0",
+    "scikit-learn": "1.9.1"
+  },
+  "output": {
+    "csv": "results/forecast_2026-10.csv",
+    "csv_sha256": "c4ffe614832d3a472cf2e3b8281b51122f1b03091fd182798bdcdd6c4b738e7f",
+    "rows": 2247,
+    "total_ml_mean": 53219.602,
+    "by_planta": {
+      "MMRO": 2545.979,
+      "PCEL": 3227.612,
+      "SALC": 4688.803,
+      "SALI": 4837.545,
+      "SALM": 5340.787,
+      "SAOI": 282.165,
+      "SBUR": 6179.804,
+      "SCAN": 3662.756,
+      "SCOC": 4868.639,
+      "SCRS": 1267.626,
+      "SCVA": 3302.866,
+      "SPAL": 3977.259,
+      "SQUA": 5420.87,
+      "STTA": 581.164,
+      "SVIG": 3035.727
+    }
+  }
+}
