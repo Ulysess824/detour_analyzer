@@ -12,7 +12,15 @@ GROUP_COLS = ["planta", "sku"]
 
 
 def load_consumption(path) -> pd.DataFrame:
-    r"""Read the long csv (planta, sku, fecha, consumo) written by transform_consumos.py."""
+    r"""Read the long csv (planta, sku, fecha, consumo) written by transform_consumos.py, or the same table from a .db."""
+    if str(path).endswith((".db", ".sqlite")):
+        from src.engine.db_utils import connect, read_consumption  # lazy: db_utils imports this module
+
+        con = connect(path)
+        try:
+            return read_consumption(con)
+        finally:
+            con.close()
     return pd.read_csv(path, parse_dates=["fecha"])
 
 
