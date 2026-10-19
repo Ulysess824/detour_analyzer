@@ -8,6 +8,7 @@ import pandas as pd
 from src.engine.tree_utils import TREE_BASE, fit_predict_trees
 
 ML_MODELS = ["lgbm", "xgb", "rf"]
+SEED = 0  # seed of every tree model in the forecasts (recorded in the run manifest)
 # The only reference outside the ensemble: last month's value, already stored in the frame (p_naive column).
 SIMPLE_MODELS = ["naive"]
 ENSEMBLE_GROUPS = {"ml": ML_MODELS}
@@ -18,7 +19,7 @@ def ml_forecast(
 ) -> np.ndarray:
     r"""One machine-learning member, with the Optuna-tuned parameters when available (the baseline otherwise)."""
     params = tuned.get(kind, {}).get("best_params", TREE_BASE[kind])
-    return fit_predict_trees(kind, params, train, rows, seed=0, features=features)
+    return fit_predict_trees(kind, params, train, rows, seed=SEED, features=features)
 
 
 def collect_member_forecasts(S, frame: pd.DataFrame, test_months: list[int], horizon: int, tuned: dict) -> pd.DataFrame:

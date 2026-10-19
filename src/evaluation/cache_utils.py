@@ -9,34 +9,14 @@ test months (which would leak the test into the chosen hyperparameters).
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from src.engine.fingerprints import panel_fingerprint, params_hash
 from src.engine.panel_utils import Panel
-
-
-def panel_fingerprint(S: Panel) -> str:
-    r"""
-    Short hash of the data of a panel: the series (in order), the months and the monthly totals.
-
-    It is computed from the panel and not from the csv bytes, so a different line ending does not
-    change it.
-    """
-    digest = hashlib.sha256()
-    digest.update(json.dumps([list(k) for k in S.keys]).encode())
-    digest.update(json.dumps(S.labels).encode())
-    digest.update(np.round(np.nan_to_num(S.monthly, nan=-1.0), 6).astype("<f8").tobytes())
-    return digest.hexdigest()[:16]
-
-
-def params_hash(tuned: dict) -> str:
-    r"""Short hash of the tuned hyperparameters that the member forecasts depend on."""
-    best = {kind: result["best_params"] for kind, result in sorted(tuned.items())}
-    return hashlib.sha256(json.dumps(best, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def expected_meta(S: Panel, horizon: int, n_test: int, tuned: dict) -> dict:
