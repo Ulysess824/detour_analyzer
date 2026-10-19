@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.utils.feature_utils import SERIES_FEATURES, make_frame
-from src.utils.inference_utils import check_last_month_complete, extend_panel, forecast_next_month
-from src.utils.panel_utils import build_panel
+from src.engine.feature_utils import SERIES_FEATURES, make_frame
+from src.engine.inference_utils import check_last_month_complete, extend_panel, forecast_next_month
+from src.engine.panel_utils import build_panel
 
 
 def _cut(df, n_months):

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.utils.panel_utils import build_panel
+from src.engine.panel_utils import build_panel
 
 N_MONTHS = 30
 

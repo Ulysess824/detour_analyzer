@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from src.utils.montecarlo_utils import simulate_rest_of_month, working_day_profile
+from src.experiments.montecarlo_utils import simulate_rest_of_month, working_day_profile
 
 DAY = 15
 

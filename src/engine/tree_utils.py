@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.utils.feature_utils import SERIES_FEATURES
+from src.engine.feature_utils import SERIES_FEATURES
 
 MAX_TREES = 1_500
 PATIENCE = 50

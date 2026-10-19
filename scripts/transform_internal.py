@@ -17,8 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.internal_io_utils import mark_missing, planta_is_all_zero, read_internal_workbook, replace_planta
-from src.utils.internal_utils import load_internal_forecast
+from src.evaluation.internal_io_utils import mark_missing, planta_is_all_zero, read_internal_workbook, replace_planta
+from src.evaluation.internal_utils import load_internal_forecast
 
 
 def main() -> None:

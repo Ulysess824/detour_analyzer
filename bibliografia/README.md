@@ -29,4 +29,4 @@ Todas se encontraron por búsqueda (resúmenes); hay que leer el original antes 
 | Marcellino, Stock y Watson (2006), *A comparison of direct and iterated multistep AR methods for forecasting macroeconomic time series*, Journal of Econometrics 135 | Directa contra iterada (usar un pronóstico como dato observado) |
 | Ben Taieb, Bontempi, Atiya y Sorjamaa (2012), *A review and comparison of strategies for multi-step ahead time series forecasting*, Expert Systems with Applications 39(8) | Lo mismo, con más estrategias |
 
-Para añadir una referencia descargable, agrégala a `REFERENCES` en `src/utils/bibliography_utils.py`.
+Para añadir una referencia descargable, agrégala a `REFERENCES` en `src/experiments/bibliography_utils.py`.

@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.utils.panel_utils import Panel
+from src.engine.panel_utils import Panel
 
 
 def panel_fingerprint(S: Panel) -> str:

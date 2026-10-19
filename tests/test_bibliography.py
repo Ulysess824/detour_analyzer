@@ -6,7 +6,7 @@ import threading
 
 import pytest
 
-from src.utils.bibliography_utils import MIN_PDF_BYTES, Reference, download, looks_like_a_paper
+from src.experiments.bibliography_utils import MIN_PDF_BYTES, Reference, download, looks_like_a_paper
 
 PDF = b"%PDF-1.4\n" + b"x" * (MIN_PDF_BYTES + 10)
 

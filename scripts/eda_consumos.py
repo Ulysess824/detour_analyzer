@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.eda_utils import eda_by_planta, eda_by_planta_sku
-from src.utils.panel_utils import load_consumption
+from src.evaluation.eda_utils import eda_by_planta, eda_by_planta_sku
+from src.engine.panel_utils import load_consumption
 
 
 def main() -> None:

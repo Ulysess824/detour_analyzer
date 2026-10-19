@@ -31,12 +31,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.cache_utils import check_alignment, check_meta, panel_fingerprint
-from src.utils.ensemble_utils import add_ensembles
-from src.utils.member_utils import ENSEMBLE_GROUPS
-from src.utils.metrics_utils import score
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.planner_utils import LOW_HISTORY, NO_SERIES, accuracy_table, add_internal, compare_month_audit, first_consumption_dates, planner_key, series_table
+from src.evaluation.cache_utils import check_alignment, check_meta, panel_fingerprint
+from src.evaluation.ensemble_utils import add_ensembles
+from src.engine.member_utils import ENSEMBLE_GROUPS
+from src.evaluation.metrics_utils import score
+from src.engine.panel_utils import build_panel, load_consumption
+from src.evaluation.planner_utils import LOW_HISTORY, NO_SERIES, accuracy_table, add_internal, compare_month_audit, first_consumption_dates, planner_key, series_table
 
 HIGHLIGHT = ["ml_mean", "lgbm", "xgb", "rf", "naive"]
 

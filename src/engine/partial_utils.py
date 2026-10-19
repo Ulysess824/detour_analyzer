@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.utils.panel_utils import Panel
+from src.engine.panel_utils import Panel
 
 PARTIAL_FEATURES = ["mtd", "mtd_rate", "mtd_occ", "mtd_proj"]
 

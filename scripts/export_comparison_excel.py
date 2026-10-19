@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.excel_utils import COMPARISON_SHEET, add_error_columns, comparison_sheet, excluded_sheet, summary_sheet, write_workbook
+from src.evaluation.excel_utils import COMPARISON_SHEET, add_error_columns, comparison_sheet, excluded_sheet, summary_sheet, write_workbook
 
 
 def main() -> None:

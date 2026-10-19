@@ -20,12 +20,12 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.cache_utils import check_alignment, check_meta, panel_fingerprint
-from src.utils.internal_utils import load_internal_forecast
-from src.utils.member_utils import ML_MODELS
-from src.utils.metrics_utils import score
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.planner_utils import accuracy_table, attach_planner, compare_month, series_table
+from src.evaluation.cache_utils import check_alignment, check_meta, panel_fingerprint
+from src.evaluation.internal_utils import load_internal_forecast
+from src.engine.member_utils import ML_MODELS
+from src.evaluation.metrics_utils import score
+from src.engine.panel_utils import build_panel, load_consumption
+from src.evaluation.planner_utils import accuracy_table, attach_planner, compare_month, series_table
 
 MODELS = ["ref_h1", "direct", "partial", "iterated", "naive"]
 

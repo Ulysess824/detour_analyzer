@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.utils.panel_utils import Panel
+from src.engine.panel_utils import Panel
 
 LOOKBACK_DAYS = 365
 SHRINK = 10.0  # weight, in working days, of the long-run share of consumption days against the days seen this month

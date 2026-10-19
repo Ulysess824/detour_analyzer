@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from loaders import load_planner_months
-from src.utils.planner_utils import accuracy_table
+from src.evaluation.planner_utils import accuracy_table
 from theme import AMBER, MAGENTA, MODEL_COLORS, REAL_COLOR, plotly_layout
 
 ALL_MONTHS = "Todos los meses juntos"

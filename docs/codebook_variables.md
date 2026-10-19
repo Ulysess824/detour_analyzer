@@ -1,6 +1,6 @@
 # Codebook de variables del modelo
 
-Cada fila de la tabla de entrenamiento es una serie (planta + SKU) en un mes de origen `o`. El objetivo `y` es el consumo total del mes `t = o + h` (h = 1, el mes siguiente), en toneladas (TO). Las 25 variables usan solo meses `<= o`. Código: `src/utils/feature_utils.py` (`SERIES_FEATURES`).
+Cada fila de la tabla de entrenamiento es una serie (planta + SKU) en un mes de origen `o`. El objetivo `y` es el consumo total del mes `t = o + h` (h = 1, el mes siguiente), en toneladas (TO). Las 25 variables usan solo meses `<= o`. Código: `src/engine/feature_utils.py` (`SERIES_FEATURES`).
 
 Notación: `y_m` consumo mensual del SKU en el mes `m`; `a_m` días con consumo de ese mes; `b_m` días hábiles del mes (sin domingos); `Y^P_m` total mensual de la planta del SKU; `Y^G_m` total mensual de todas las plantas; `W_k = {o-k+1, ..., o}` ventana de los últimos `k` meses.
 

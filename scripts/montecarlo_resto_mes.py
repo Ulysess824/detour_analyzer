@@ -4,7 +4,7 @@ Predict the rest of a month (the days after a cutoff) by Monte Carlo and score i
 Experiment of docs/plan_montecarlo_mes_parcial.md (phase 2: the simulator on its own). For every series alive in the
 previous month, with only the days up to the cutoff known:
 
-    montecarlo   mean of the simulated rest of the month (src/utils/montecarlo_utils.py)
+    montecarlo   mean of the simulated rest of the month (src/experiments/montecarlo_utils.py)
     prorata      consumption so far / non-Sunday days elapsed * non-Sunday days left
     hist_rate    mean daily rate of the previous 6 months * non-Sunday days left   (the `perday6` idea)
 
@@ -25,10 +25,10 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.metrics_utils import score
-from src.utils.montecarlo_utils import simulate_rest_of_month
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.partial_utils import month_to_date
+from src.evaluation.metrics_utils import score
+from src.experiments.montecarlo_utils import simulate_rest_of_month
+from src.engine.panel_utils import build_panel, load_consumption
+from src.engine.partial_utils import month_to_date
 
 
 def evaluate_month(S, month: int, cutoff_day: int, draws: int, seed: int) -> dict:

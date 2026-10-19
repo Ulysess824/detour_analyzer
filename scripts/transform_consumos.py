@@ -1,7 +1,7 @@
 """
 Transform SAP consumption exports into one long csv with the columns planta, sku, fecha, consumo.
 
-Wide and long exports are detected automatically (see src/utils/transform_utils.py).
+Wide and long exports are detected automatically (see src/engine/transform_utils.py).
 
 Usage:
     python scripts/transform_consumos.py data/consumos_2026.xlsx -o data/consumos_long.csv
@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.transform_utils import combine_exports, read_export, write_csv
+from src.engine.transform_utils import combine_exports, read_export, write_csv
 
 
 def main() -> None:

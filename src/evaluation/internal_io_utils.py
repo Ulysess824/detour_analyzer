@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.utils.planner_io_utils import build_sku
+from src.evaluation.planner_io_utils import build_sku
 
 KEY_COLUMNS = ["Customer", "Grade", "Sub-grade", "Grammage", "Width", "Product"]
 OUTPUT_COLUMNS = ["planta", "mes", "sku_planner", "product_sap", "forecast_to"]

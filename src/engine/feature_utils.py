@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.utils.panel_utils import Panel, window_mean, window_rate, window_std
+from src.engine.panel_utils import Panel, window_mean, window_rate, window_std
 
 MIN_ORIGIN = 3
 
