@@ -191,6 +191,14 @@ los meses en que el ritmo de la primera quincena difiere del de la segunda (ener
 se cumplen (Monte Carlo historia + mes la supera por 0,6 puntos en SKU; solo 5 de 9 meses a la par con `ml_mean` en planta y total). El nowcast usa 15 días reales
 del mes objetivo, así que no es una comparación de igual información.
 
+**Decisión: se usa la media como nowcasting.** La media y el Monte Carlo historia + mes quedaron empatados (SKU 79,5% contra 79,8%, planta 92,2% contra 92,7%,
+total 95,9% contra 95,6%, sin diferencia que se distinga del azar con 9 meses), y la media es simple, se explica en una frase y no necesita simulación. La
+mediana subestima 24% del mes completo y el Monte Carlo solo mes no aporta sobre la media.
+
+**Investigación futura:** incorporar el Monte Carlo historia + mes solo en los meses atípicos, donde la primera quincena no anticipa la segunda. En enero y abril
+de 2026 el sesgo del total fue de -11,6% y -11,7% con la media y de -6,6% y -7,9% con el Monte Carlo historia + mes. Falta definir de antemano cuándo un mes es
+atípico con la información del día 15 y probar el híbrido con más meses. Detalle en `docs/plan_nowcast_media_2026.md`.
+
 ## Ensembles y Model Confidence Set
 
 `run_ensembles.py` pronostica el total mensual de cada SKU (origen rodante, h=1) con:

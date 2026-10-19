@@ -74,6 +74,40 @@ Otras lecturas:
 
 El mes completo mejora con el corte sobre todo porque hay más días reales conocidos; en el resto, pasar del día 15 al 20 no mejora.
 
+## Decisión: se elige la media como nowcasting
+
+Resultado de la prueba: la media y el Monte Carlo historia + mes quedaron prácticamente empatados (posición media 2,0 las dos, mes completo
+acumulado en SKU 79,5% contra 79,8%, planta 92,2% contra 92,7%, total 95,9% contra 95,6%). Se elige la **media** por estas razones:
+
+1. **La diferencia no se distingue del azar.** El Monte Carlo historia + mes la supera por 0,3 puntos en SKU y 0,5 en planta, con 9 meses de un solo año y sin
+   prueba estadística. En el total del mes la media gana (95,9% contra 95,6%) y en el total del resto también (92,1% contra 91,5%).
+2. **Es simple y explicable.** Pronóstico del resto = media diaria de los días vistos (sin domingos) × días que faltan. El Monte Carlo necesita simular
+   200 escenarios por serie, aprender un perfil de días laborables de la planta y la probabilidad de consumo de cada SKU.
+3. **Se actualiza sola con el nivel del mes**, sin parámetros que ajustar (el Monte Carlo usa 365 días de historia y un coeficiente de contracción).
+4. **Los demás quedan descartados:** la mediana subestima 24% del mes completo (la mediana diaria de un SKU intermitente suele ser cero) y el Monte Carlo
+   solo mes no aporta nada sobre la media (79,4% contra 79,5% en SKU).
+
+Salvedades que se mantienen: ningún nowcast supera a `ml_mean` a un mes en el total (95,9% contra 96,7%), y el aporte del nowcast está en el nivel SKU
+(más cerca del real que `ml_mean` en 77% de los SKU-mes), con la reserva de que usa 15 días reales del mes objetivo.
+
+## Investigación futura: Monte Carlo historia + mes para los meses atípicos
+
+La media falla cuando el ritmo de la primera quincena no se repite en la segunda. En enero y abril de 2026 (ritmo diario de la primera quincena 21% y 27%
+por debajo de la segunda, causa sin verificar) el sesgo del total fue de -11,6% y -11,7% con la media, y de -6,6% y -7,9% con el Monte Carlo historia + mes,
+que aprende de los 365 días anteriores y no solo de los 15 días vistos. Frente a la media, el Monte Carlo historia + mes tuvo mejor acierto por SKU
+del mes completo en 5 de los 9 meses (enero, abril, mayo, junio y julio).
+
+Incorporación propuesta, **sin implementar**: usar el Monte Carlo historia + mes solo en los meses atípicos y la media en el resto. Para probarla:
+
+1. Definir, antes de mirar resultados, cuándo un mes es atípico con información disponible el día 15 (por ejemplo, el ritmo diario de la primera quincena
+   frente al ritmo de los meses anteriores, por planta o en total) y fijar el umbral.
+2. Repetir esta misma prueba (2026-01 a 2026-09, mismas tablas, mismos criterios) con el híbrido contra la media sola y el Monte Carlo sola.
+3. Ampliar la prueba a más meses (2025-10 a 2025-12 ya tienen datos) para tener más meses atípicos que enero y abril.
+4. Evaluar si los meses atípicos se explican por feriados o por la Semana Santa, que hoy no se modelan (solo se excluyen los domingos).
+
+Pendiente relacionado: la banda 10–90% del Monte Carlo cubre poco (25% de los casos en el total), así que hoy sirve para el pronóstico central y no para
+el intervalo.
+
 ## Límites
 
 - El nowcast usa 15 días reales del mes objetivo y `ml_mean` a un mes no: la comparación del mes completo no es de igual información. El resto del mes no se pudo comparar con `ml_mean` sin suponer un reparto de su pronóstico en el mes (se descartó la prorrata).
