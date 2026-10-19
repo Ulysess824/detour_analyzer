@@ -1,0 +1,4 @@
+# Backtests, tuning, Model Confidence Set and the planner / internal-model comparisons (src/evaluation/, src/experiments/).
+-r base.txt
+scipy==1.17.1
+optuna==5.0.0

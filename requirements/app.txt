@@ -1,0 +1,4 @@
+# Dashboard (app/): python -m streamlit run app/dashboard.py
+-r base.txt
+streamlit==1.64.0
+plotly==7.1.0

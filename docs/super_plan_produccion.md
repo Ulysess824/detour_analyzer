@@ -7,7 +7,7 @@ rama, con pruebas y documentación, y se fusionan a `main` con confirmación.
 |---|---|---|---|---|
 | 1 | Validación de entrada | `src/engine/data_checks.py`, `scripts/validate_input.py`, tablas en `results/validacion_*.csv` | Los datos malos se detienen con un mensaje claro y el maestro real pasa sin errores | Hecho y fusionado (ver `docs/plan_validacion_entrada.md`) |
 | 2 | Trazabilidad de los pronósticos | Manifiesto `forecast_<mes>.manifest.json` junto a cada pronóstico: commit, huellas de datos y parámetros, versiones, hash de la salida (los datos no se copian) | Dado un pronóstico se puede decir con qué datos, parámetros y código se hizo | Hecho (ver `docs/plan_trazabilidad.md`) |
-| 3 | Entorno reproducible | `requirements` separados (producción, afinación, app, desarrollo), versiones fijas, `pyproject`, CI que corra las pruebas en cada subida | Un entorno nuevo reproduce el pronóstico de octubre con diferencia 0,0 TO | Pendiente |
+| 3 | Entorno reproducible | `requirements/` separados con versiones exactas (base, evaluation, app, dev), CI en GitHub (Linux y Windows, Python 3.11 y 3.12) | Un entorno nuevo reproduce el pronóstico de octubre con diferencia 0,0 TO | Hecho en Linux con Python 3.11; falta ver el CI y correrlo en Windows (ver `docs/plan_entorno.md`) |
 | 4 | Cobertura de pruebas del ajuste | Pruebas para `member_utils` (46%), `tuning_utils` (48%) y `evaluation_utils` (51%) | Esos módulos pasan de 70% de cobertura, comprobado con bugs inyectados | Pendiente |
 | 5 | Seguimiento contra el real | Al cerrar cada mes, el pronóstico se compara con el real y el acierto se guarda en la base | Existe una tabla mensual de acierto por planta y total y una alerta si cae por debajo de un umbral | Pendiente |
 

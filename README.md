@@ -37,11 +37,30 @@ python scripts/transform_consumos.py --drop-zeros \
     data/consumos_2024_2025.xlsx data/consumos_2025_10_2026_09.xlsx -o data/consumos_long.csv
 ```
 
-## Instalación
+## Instalación y entorno
+
+Python 3.11 o 3.12. Las dependencias directas están fijadas a la versión exacta con la que se hicieron los resultados, separadas por uso:
+
+| Archivo | Para qué | Incluye |
+|---|---|---|
+| `requirements/base.txt` | Producción: `predict_next_month.py` y lo que hay en `src/engine/` | numpy, pandas, scikit-learn, lightgbm, xgboost, openpyxl |
+| `requirements/evaluation.txt` | Backtests, afinación y comparaciones | base, scipy, optuna |
+| `requirements/app.txt` | Dashboard | base, streamlit, plotly |
+| `requirements/dev.txt` | Desarrollo y CI | evaluation, pytest, matplotlib, ipykernel |
+| `requirements.txt` | Todo (dev y dashboard) | dev, app |
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+.venv\Scripts\activate                 # Windows (en Linux y macOS: source .venv/bin/activate)
+pip install -r requirements/base.txt    # solo para pronosticar; o requirements.txt para todo
 ```
+
+Comprobado en un entorno nuevo con Python 3.11 en Linux: `requirements/base.txt` solo basta para pronosticar y reproduce el pronóstico de octubre byte a byte
+(el hash del CSV es el de `results/forecast_2026-10.csv`), y `requirements/dev.txt` pasa las 131 pruebas. El resultado no depende del número de hilos (1, 2 y 4
+dan el mismo hash). En otro sistema operativo o versión de Python las diferencias, si las hay, serían de decimales: compara el hash del CSV de octubre.
+El manifiesto de cada pronóstico (`forecast_<mes>.manifest.json`) guarda las versiones usadas. Más detalle: `docs/plan_entorno.md`.
+
+Las pruebas corren solas en GitHub en cada subida (`.github/workflows/tests.yml`: Linux y Windows, Python 3.11 y 3.12).
 
 ## Estructura
 
