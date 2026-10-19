@@ -683,8 +683,8 @@ están en `results/internal_model_comparison.csv`. La presentación (`presentaci
 python -m pytest -q
 ```
 
-Usan datos sintéticos y tardan unos 15 segundos (43 pruebas). Cubren: ausencia de fuga en los features, sumas del panel y de la expansión diaria,
+Usan datos sintéticos y tardan unos 40 segundos (164 pruebas, 96% de cobertura de `src/`; el CI exige al menos 90%). Cubren: ausencia de fuga en los features, sumas del panel y de la expansión diaria,
 pesos de los ensembles, pronóstico del mes siguiente y a dos meses (sin mirar el futuro), reconciliación, signo del bias, folds de Optuna, protecciones de caché y de ventana de ajuste,
-reglas de solape al combinar exportes, emparejamiento de SKU del planificador, determinismo de los árboles y el MCS.
+reglas de solape al combinar exportes, emparejamiento de SKU del planificador, determinismo de los árboles, el MCS, la validación de entrada, el manifiesto de cada pronóstico, el ajuste y la evaluación del modelo (sin fuga de meses futuros) y el espacio de búsqueda. Detalle de la cobertura y de los errores inyectados: `docs/plan_cobertura.md`.
 Los resultados guardados llevan metadatos (`results/member_forecasts.meta.json` y `meta` dentro de `results/tuning_trees.json`):
 si cambian los datos o la ventana de test, los scripts se detienen y piden recalcular (`--refit` o `tune_trees.py`).
