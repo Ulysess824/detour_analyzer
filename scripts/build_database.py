@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.engine.db_utils import connect, create_schema, write_consumption
+from src.engine.db_utils import connect, create_schema, load_tracking_csv, write_consumption
 from src.engine.panel_utils import build_panel, load_consumption
 from src.evaluation.cache_utils import panel_fingerprint
 
@@ -28,6 +28,7 @@ def main() -> None:
     parser.add_argument("input", type=Path, help="master csv (planta, sku, fecha, consumo)")
     parser.add_argument("--db", type=Path, default=Path("data/detour.db"))
     parser.add_argument("--rebuild", action="store_true", help="delete the database file first (also drops the predictions)")
+    parser.add_argument("--tracking", type=Path, default=Path("results/seguimiento.csv"), help="tracking history restored into the database when the file exists")
     args = parser.parse_args()
 
     if args.rebuild and args.db.exists():
@@ -36,8 +37,9 @@ def main() -> None:
     con = connect(args.db)
     create_schema(con)
     counts = write_consumption(con, records)
+    restored = load_tracking_csv(con, args.tracking) if args.tracking.exists() else 0
     con.close()
-    print(f"{args.db}: {counts['plantas']} plantas, {counts['skus']:_} skus, {counts['consumos']:_} consumption rows")
+    print(f"{args.db}: {counts['plantas']} plantas, {counts['skus']:_} skus, {counts['consumos']:_} consumption rows" + (f", {restored} tracking rows restored" if restored else ""))
 
     S_csv, S_db = build_panel(records), build_panel(load_consumption(args.db))
     same = panel_fingerprint(S_csv) == panel_fingerprint(S_db) and np.allclose(S_csv.planta_monthly, S_db.planta_monthly)

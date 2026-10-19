@@ -1,9 +1,11 @@
 """
 SQLite store for the real consumption and the predicted consumption.
 
-Four tables: `plantas`, `skus`, `consumos` (real, daily) and `consumos_predichos` (monthly forecasts). The csv stays the
-master of the real data; the database is built from it (scripts/build_database.py). While the project is in beta the
-predictions are overwritten: a load replaces the whole block (same `estrategia` and `mes_origen`) and stamps `creado_en`.
+Tables: `plantas`, `skus`, `consumos` (real, daily), `consumos_predichos` (monthly forecasts), `corridas` (one row per forecast run, from its
+manifest) and `seguimiento` (accuracy of a closed month against the real, per run). The csv stays the master of the real data; the database is
+built from it (scripts/build_database.py). While the project is in beta the predictions are overwritten: a load replaces the whole block (same
+`estrategia` and `mes_origen`) and stamps `creado_en`. The tracking history is also kept in results/seguimiento.csv, which goes to git, so a
+rebuilt database gets it back (`load_tracking_csv`).
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ import pandas as pd
 from src.engine.data_checks import SKU_PATTERN, check_consumption
 from src.engine.panel_utils import Panel
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS plantas (
@@ -56,9 +58,39 @@ CREATE TABLE IF NOT EXISTS consumos_predichos (
     modelo        TEXT    NOT NULL,
     valor         REAL    NOT NULL CHECK (valor >= 0),
     creado_en     TEXT    NOT NULL,
+    run_id        TEXT,
     PRIMARY KEY (planta_id, sku_id, mes_objetivo, mes_origen, estrategia, modelo)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_predichos_objetivo ON consumos_predichos (mes_objetivo);
+
+CREATE TABLE IF NOT EXISTS corridas (
+    run_id            TEXT PRIMARY KEY,
+    creado_en         TEXT NOT NULL,
+    mes_pronosticado  TEXT,
+    as_of             TEXT,
+    commit_git        TEXT,
+    huella_datos      TEXT,
+    params_hash       TEXT,
+    csv_sha256        TEXT,
+    total_ml_mean     REAL
+);
+
+CREATE TABLE IF NOT EXISTS seguimiento (
+    run_id          TEXT NOT NULL,
+    mes             TEXT NOT NULL CHECK (mes GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'),
+    nivel           TEXT NOT NULL,
+    planta          TEXT NOT NULL DEFAULT '',
+    modelo          TEXT NOT NULL,
+    acierto         REAL,
+    wape            REAL,
+    bias_pct        REAL,
+    n               INTEGER,
+    real_TO         REAL,
+    pronostico_TO   REAL,
+    alerta          TEXT NOT NULL DEFAULT '',
+    creado_en       TEXT NOT NULL,
+    PRIMARY KEY (run_id, mes, nivel, planta, modelo)
+) WITHOUT ROWID;
 
 CREATE VIEW IF NOT EXISTS consumo_mensual AS
 SELECT planta_id, sku_id, substr(fecha, 1, 7) AS mes, SUM(consumo) AS consumo, COUNT(*) AS dias_con_consumo
@@ -77,8 +109,11 @@ def connect(path: str | Path = ":memory:") -> sqlite3.Connection:
 
 
 def create_schema(con: sqlite3.Connection) -> None:
-    r"""Create the tables, indexes and the monthly view if they do not exist."""
+    r"""Create the tables, indexes and the monthly view if they do not exist, and migrate an older database to the current version."""
     con.executescript(SCHEMA)
+    columns = [row[1] for row in con.execute("PRAGMA table_info(consumos_predichos)")]
+    if "run_id" not in columns:  # version 1 -> 2: only adds, nothing is deleted
+        con.execute("ALTER TABLE consumos_predichos ADD COLUMN run_id TEXT")
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     con.commit()
 
@@ -152,13 +187,14 @@ def now_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def replace_predictions(con: sqlite3.Connection, preds: pd.DataFrame, created_at: str | None = None) -> int:
+def replace_predictions(con: sqlite3.Connection, preds: pd.DataFrame, created_at: str | None = None, run_id: str | None = None) -> int:
     r"""
     Overwrite the predictions of every block (`estrategia`, `mes_origen`) present in `preds`.
 
     `preds` has planta, sku, mes_objetivo, mes_origen, estrategia, modelo and valor (TO). The old rows of each block are
     deleted and the new ones inserted in one transaction, so a failed load keeps the previous version and a SKU that
-    disappeared from the new run leaves no stale row. Every row gets `creado_en` = `created_at` (now, UTC, by default).
+    disappeared from the new run leaves no stale row. Every row gets `creado_en` = `created_at` (now, UTC, by default) and the `run_id` of the
+    forecast run that made it, when given.
     Returns the number of rows written.
     """
     missing = set(PREDICTION_KEY + ["valor"]) - set(preds.columns)
@@ -177,13 +213,13 @@ def replace_predictions(con: sqlite3.Connection, preds: pd.DataFrame, created_at
     blocks = preds[["estrategia", "mes_origen"]].drop_duplicates().itertuples(index=False, name=None)
     rows = zip(
         preds["planta"].map(planta_id), preds["sku"].map(sku_id), preds["mes_objetivo"], preds["mes_origen"],
-        preds["estrategia"], preds["modelo"], preds["valor"].astype(float), [stamp] * len(preds),
+        preds["estrategia"], preds["modelo"], preds["valor"].astype(float), [stamp] * len(preds), [run_id] * len(preds),
     )
     with con:
         con.executemany("DELETE FROM consumos_predichos WHERE estrategia = ? AND mes_origen = ?", list(blocks))
         con.executemany(
-            "INSERT INTO consumos_predichos (planta_id, sku_id, mes_objetivo, mes_origen, estrategia, modelo, valor, creado_en) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO consumos_predichos (planta_id, sku_id, mes_objetivo, mes_origen, estrategia, modelo, valor, creado_en, run_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
     return len(preds)
@@ -197,7 +233,7 @@ def read_predictions(con: sqlite3.Connection, estrategia: str | None = None, mod
             where.append(f"q.{column} = ?")
             args.append(value)
     sql = (
-        "SELECT p.codigo AS planta, s.descripcion AS sku, q.mes_objetivo, q.mes_origen, q.estrategia, q.modelo, q.valor, q.creado_en "
+        "SELECT p.codigo AS planta, s.descripcion AS sku, q.mes_objetivo, q.mes_origen, q.estrategia, q.modelo, q.valor, q.creado_en, q.run_id "
         "FROM consumos_predichos q JOIN plantas p USING (planta_id) JOIN skus s USING (sku_id)"
     )
     if where:
@@ -232,3 +268,42 @@ def predictions_from_forecast(frame: pd.DataFrame, estrategia: str = "h1") -> pd
     return pd.concat(
         [base.assign(estrategia=estrategia, modelo=m, valor=frame[m].astype(float)) for m in models], ignore_index=True
     )
+
+
+TRACKING_COLUMNS = ["run_id", "mes", "nivel", "planta", "modelo", "acierto", "wape", "bias_pct", "n", "real_TO", "pronostico_TO", "alerta", "creado_en"]
+
+
+def upsert_run(con: sqlite3.Connection, manifest: dict) -> None:
+    r"""Store (or replace) the row of a forecast run from its manifest (src/engine/run_manifest.py); missing fields are left empty."""
+    run, code, data = manifest.get("run", {}), manifest.get("code", {}), manifest.get("data", {})
+    params, output = manifest.get("params", {}), manifest.get("output", {})
+    with con:
+        con.execute(
+            "INSERT OR REPLACE INTO corridas (run_id, creado_en, mes_pronosticado, as_of, commit_git, huella_datos, params_hash, csv_sha256, total_ml_mean) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (run["run_id"], run.get("created_at") or now_utc(), run.get("forecast_month"), run.get("as_of"), code.get("commit"), data.get("panel_fingerprint"),
+             params.get("params_hash"), output.get("csv_sha256"), output.get("total_ml_mean")),
+        )
+
+
+def replace_tracking(con: sqlite3.Connection, rows: pd.DataFrame) -> int:
+    r"""Replace the tracking rows of every (run_id, mes) present in `rows` (the columns of TRACKING_COLUMNS) in one transaction."""
+    missing = set(TRACKING_COLUMNS) - set(rows.columns)
+    if missing:
+        raise ValueError(f"rows lacks the columns {sorted(missing)}")
+    frame = rows[TRACKING_COLUMNS].astype(object).where(rows[TRACKING_COLUMNS].notna(), None)
+    keys = rows[["run_id", "mes"]].drop_duplicates().itertuples(index=False, name=None)
+    with con:
+        con.executemany("DELETE FROM seguimiento WHERE run_id = ? AND mes = ?", list(keys))
+        con.executemany(f"INSERT INTO seguimiento ({', '.join(TRACKING_COLUMNS)}) VALUES ({', '.join('?' * len(TRACKING_COLUMNS))})", frame.itertuples(index=False, name=None))
+    return len(rows)
+
+
+def read_tracking_csv(path: str | Path) -> pd.DataFrame:
+    r"""The tracking history file (results/seguimiento.csv) with empty planta and alerta as empty strings."""
+    return pd.read_csv(path, dtype={"planta": str, "alerta": str}).fillna({"planta": "", "alerta": ""})
+
+
+def load_tracking_csv(con: sqlite3.Connection, path: str | Path) -> int:
+    r"""Put the history of the csv into the database (after a rebuild); rows already there for the same run and month are replaced."""
+    return replace_tracking(con, read_tracking_csv(path))
