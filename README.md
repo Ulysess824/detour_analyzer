@@ -54,6 +54,7 @@ src/engine/                la máquina: lo que produce el pronóstico (no import
     tree_utils.py          LightGBM, XGBoost y Random Forest
     member_utils.py        pronósticos de todos los miembros de los ensembles
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
+    db_utils.py            base SQLite: consumos reales y consumos predichos (se sobrescriben mientras sea beta)
 src/evaluation/            las pruebas del modelo: backtests, métricas, ajuste y comparaciones (usa engine)
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
     evaluation_utils.py    meses de prueba, reconciliación y acierto a nivel SKU, planta y total
@@ -78,6 +79,17 @@ scripts/                   puntos de entrada de línea de comandos
 ```
 
 Las dependencias van en una sola dirección: `engine` no importa nada, `evaluation` importa `engine` y `experiments` importa ambos. Una prueba (`tests/test_layers.py`) lo verifica.
+
+## Base de datos SQLite (consumos reales y predichos)
+
+La base `data/detour.db` guarda en cuatro tablas (`plantas`, `skus`, `consumos`, `consumos_predichos`) el consumo real y las predicciones.
+Se genera desde el CSV maestro y no se sube a git. Mientras el proyecto esté en beta, cada carga **sobrescribe** las predicciones del mismo
+bloque (estrategia y mes de origen) y registra la fecha y hora en `creado_en`. Esquema, comprobaciones y consultas de ejemplo: `docs/plan_sqlite.md`.
+
+```bash
+python scripts/build_database.py data/consumos_long.csv --db data/detour.db --rebuild
+python scripts/load_predictions.py data/consumos_long.csv --db data/detour.db
+```
 
 ## Flujo
 
