@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.utils.cache_utils import check_alignment, check_meta, expected_meta, panel_fingerprint, write_meta
-from src.utils.feature_utils import make_frame
-from src.utils.panel_utils import build_panel
-from src.utils.tuning_utils import FOLD_MONTHS, N_FOLDS, check_tuning_window, fold_starts, make_folds, run_study, tuning_meta
+from src.evaluation.cache_utils import check_alignment, check_meta, expected_meta, panel_fingerprint, write_meta
+from src.engine.feature_utils import make_frame
+from src.engine.panel_utils import build_panel
+from src.evaluation.tuning_utils import FOLD_MONTHS, N_FOLDS, check_tuning_window, fold_starts, make_folds, run_study, tuning_meta
 from tests.conftest import make_consumption
 
 

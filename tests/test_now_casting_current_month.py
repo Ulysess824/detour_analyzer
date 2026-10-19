@@ -4,7 +4,7 @@ import dataclasses
 
 import numpy as np
 
-from src.utils.now_casting_current_month import MODELS, forecast_media, forecast_mediana, level_scores, nowcast_month, planta_table, seen_days
+from src.experiments.now_casting_current_month import MODELS, forecast_media, forecast_mediana, level_scores, nowcast_month, planta_table, seen_days
 
 DAY = 15
 

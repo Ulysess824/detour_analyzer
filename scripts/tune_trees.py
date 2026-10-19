@@ -28,11 +28,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.feature_utils import make_frame
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.search_space_utils import TREE_BASELINE_TRIAL, suggest_tree_params
-from src.utils.tree_utils import TREE_BASE, fit_predict_trees
-from src.utils.tuning_utils import compare_base_and_tuned, print_comparison, run_study, study_summary, to_jsonable, tuning_meta
+from src.engine.feature_utils import make_frame
+from src.engine.panel_utils import build_panel, load_consumption
+from src.evaluation.search_space_utils import TREE_BASELINE_TRIAL, suggest_tree_params
+from src.engine.tree_utils import TREE_BASE, fit_predict_trees
+from src.evaluation.tuning_utils import compare_base_and_tuned, print_comparison, run_study, study_summary, to_jsonable, tuning_meta
 
 
 def tree_predictor(kind: str, params: dict):

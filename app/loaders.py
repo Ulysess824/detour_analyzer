@@ -16,8 +16,8 @@ LEVELS = ["sku", "planta", "total"]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))  # make `src` importable
 
-from src.utils.ensemble_utils import METHODS, add_ensembles  # noqa: E402
-from src.utils.member_utils import ENSEMBLE_GROUPS, ML_MODELS, SIMPLE_MODELS  # noqa: E402
+from src.evaluation.ensemble_utils import METHODS, add_ensembles  # noqa: E402
+from src.engine.member_utils import ENSEMBLE_GROUPS, ML_MODELS, SIMPLE_MODELS  # noqa: E402
 
 ENSEMBLES = [f"{group}_{method}" for group in ENSEMBLE_GROUPS for method in METHODS]
 # naive (last month's value) is the only reference outside the ensemble.

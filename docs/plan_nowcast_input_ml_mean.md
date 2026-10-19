@@ -22,7 +22,7 @@ El mes `t-1` se completa con la media y entra como dato al `ml_mean` a un mes, q
 3. **Modelo:** `ml_mean` a un mes (LightGBM, XGBoost y Random Forest con los hiperparámetros ajustados), entrenado solo con meses reales completos (objetivos hasta `t-2`).
 4. **Salida:** pronóstico de `t` por serie; planta y total son sumas.
 
-Código: `src/utils/nowcast_input_utils.py` (reutiliza `with_pseudo_month`, `frame_at_origin`, `ml_forecasts`) y `scripts/nowcast_input_ml_mean.py`.
+Código: `src/experiments/nowcast_input_utils.py` (reutiliza `with_pseudo_month`, `frame_at_origin`, `ml_forecasts`) y `scripts/nowcast_input_ml_mean.py`.
 Pruebas: `tests/test_nowcast_input.py` (el resto real del mes en curso y todo lo posterior no cambian el pronóstico).
 
 ```bash

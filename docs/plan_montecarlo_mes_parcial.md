@@ -72,7 +72,7 @@ Calibración de la banda 10-90%: a nivel SKU cubre el 84,1% de los casos (nomina
 
 ## Nowcasting month benchmark (cuatro modelos)
 
-`src/utils/now_casting_current_month.py` y `scripts/now_casting_month_benchmark.py`. Modelos: media, mediana, Monte Carlo con historia y mes en curso, Monte Carlo
+`src/experiments/now_casting_current_month.py` y `scripts/now_casting_month_benchmark.py`. Modelos: media, mediana, Monte Carlo con historia y mes en curso, Monte Carlo
 solo con el mes en curso. Todos usan solo lo conocido al corte (día 15); prueba automática en `tests/test_now_casting_current_month.py`.
 
 Acierto (1 − WAPE) del resto del mes, promedio de 12 meses: SKU 60,0% (Monte Carlo con historia), 59,8% (media), 59,3% (Monte Carlo solo mes), 41,1% (mediana);

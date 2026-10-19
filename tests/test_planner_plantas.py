@@ -4,8 +4,8 @@ import openpyxl
 import pandas as pd
 import pytest
 
-from src.utils.planner_io_utils import OUTPUT_COLUMNS, parse_month, read_assignment
-from src.utils.planner_utils import LOW_HISTORY, NO_MODEL, NO_SERIES, SUBGRADE, attach_planner, compare_month_audit, dataset_key, first_consumption_dates
+from src.evaluation.planner_io_utils import OUTPUT_COLUMNS, parse_month, read_assignment
+from src.evaluation.planner_utils import LOW_HISTORY, NO_MODEL, NO_SERIES, SUBGRADE, attach_planner, compare_month_audit, dataset_key, first_consumption_dates
 
 HEADER = ["Customer", "Grade", "Sub-grade", "Grammage", "Width", "Product", "Strategy", "Plant Forecast", "SEPT´26 allocation"]
 

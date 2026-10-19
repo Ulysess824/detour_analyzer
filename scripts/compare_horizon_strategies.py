@@ -30,15 +30,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.cache_utils import check_alignment, check_meta, expected_meta, panel_fingerprint, write_meta
-from src.utils.evaluation_utils import score_models_by_level, test_months_of
-from src.utils.feature_utils import make_frame
-from src.utils.horizon_utils import HORIZON, strategy_forecasts
-from src.utils.metrics_utils import score
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.planner_utils import accuracy_table, compare_month, series_table
-from src.utils.partial_utils import add_partial_features
-from src.utils.tuning_utils import check_tuning_window
+from src.evaluation.cache_utils import check_alignment, check_meta, expected_meta, panel_fingerprint, write_meta
+from src.evaluation.evaluation_utils import score_models_by_level, test_months_of
+from src.engine.feature_utils import make_frame
+from src.evaluation.horizon_utils import HORIZON, strategy_forecasts
+from src.evaluation.metrics_utils import score
+from src.engine.panel_utils import build_panel, load_consumption
+from src.evaluation.planner_utils import accuracy_table, compare_month, series_table
+from src.engine.partial_utils import add_partial_features
+from src.evaluation.tuning_utils import check_tuning_window
 
 SECTIONS = {
     "1. Strategy: direct vs iterated (reference: one month ahead)": ["ref_h1", "direct", "iterated", "naive"],

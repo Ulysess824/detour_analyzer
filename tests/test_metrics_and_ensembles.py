@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.utils.ensemble_utils import add_ensembles, combine, inverse_error_weights
-from src.utils.evaluation_utils import reconcile
-from src.utils.feature_utils import direct_forecasts, make_frame
-from src.utils.mcs_utils import model_confidence_set
-from src.utils.metrics_utils import rank_by_wape, score
+from src.evaluation.ensemble_utils import add_ensembles, combine, inverse_error_weights
+from src.evaluation.evaluation_utils import reconcile
+from src.engine.feature_utils import direct_forecasts, make_frame
+from src.evaluation.mcs_utils import model_confidence_set
+from src.evaluation.metrics_utils import rank_by_wape, score
 
 MEMBERS = ["naive", "mean3", "mean6"]
 

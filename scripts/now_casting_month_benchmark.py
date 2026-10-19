@@ -1,7 +1,7 @@
 """
 Nowcasting month benchmark: media, mediana and two Monte Carlo simulators on the rest of the month in progress.
 
-Models and information rules: src/utils/now_casting_current_month.py. Scores: accuracy (1 - WAPE) at SKU level (all series
+Models and information rules: src/experiments/now_casting_current_month.py. Scores: accuracy (1 - WAPE) at SKU level (all series
 pooled), planta level (all plantas pooled) and total level, and the ranking of the models by each.
 
 Usage:
@@ -18,8 +18,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.now_casting_current_month import MODELS, accuracy, by_planta, level_scores, nowcast_month, planta_table, ranking
-from src.utils.panel_utils import build_panel, load_consumption
+from src.experiments.now_casting_current_month import MODELS, accuracy, by_planta, level_scores, nowcast_month, planta_table, ranking
+from src.engine.panel_utils import build_panel, load_consumption
 
 LEVELS = ["acierto_SKU", "acierto_planta", "acierto_total"]
 

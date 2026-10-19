@@ -24,9 +24,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.inference_utils import check_last_month_complete, forecast_next_month
-from src.utils.metrics_utils import score
-from src.utils.panel_utils import build_panel, load_consumption
+from src.engine.inference_utils import check_last_month_complete, forecast_next_month
+from src.evaluation.metrics_utils import score
+from src.engine.panel_utils import build_panel, load_consumption
 
 
 def main() -> None:

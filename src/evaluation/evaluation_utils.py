@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.utils.feature_utils import direct_forecasts
-from src.utils.metrics_utils import rank_by_wape, score
-from src.utils.panel_utils import Panel
+from src.engine.feature_utils import direct_forecasts
+from src.evaluation.metrics_utils import rank_by_wape, score
+from src.engine.panel_utils import Panel
 
 
 def test_months_of(S: Panel, n_test: int) -> list[int]:

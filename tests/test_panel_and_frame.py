@@ -5,7 +5,7 @@ import copy
 import numpy as np
 import pytest
 
-from src.utils.feature_utils import SERIES_FEATURES, make_frame
+from src.engine.feature_utils import SERIES_FEATURES, make_frame
 
 
 def test_daily_matrix_adds_up_to_monthly_totals(toy_panel):

@@ -11,7 +11,7 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from src.utils.planner_utils import LOW_HISTORY, MISSING_INTERNAL, NO_MODEL, NO_SERIES, SUBGRADE
+from src.evaluation.planner_utils import LOW_HISTORY, MISSING_INTERNAL, NO_MODEL, NO_SERIES, SUBGRADE
 
 MISSING_TEXT = "faltante"
 COMPARISON_SHEET = "Comparación"

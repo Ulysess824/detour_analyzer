@@ -7,7 +7,7 @@ cutoff. Models (all give the consumption of the days that are left, per series, 
     media                      every day left equals the mean of the non-Sunday days already seen (zeros included)
     mediana                    every day left equals the median of those days
     montecarlo_historia_mes    mean of simulated scenarios; the simulator learns from the 365 days before the cutoff and the
-                               days seen of the month (src/utils/montecarlo_utils.py)
+                               days seen of the month (src/experiments/montecarlo_utils.py)
     montecarlo_solo_mes        same simulator, learning from the days seen of the month in progress alone
 
 Planta and total forecasts are sums of the series forecasts (for the Monte Carlo models, the mean of the summed scenarios,
@@ -21,8 +21,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from src.utils.montecarlo_utils import simulate_rest_of_month
-from src.utils.panel_utils import Panel
+from src.experiments.montecarlo_utils import simulate_rest_of_month
+from src.engine.panel_utils import Panel
 
 MODELS = ["media", "mediana", "montecarlo_historia_mes", "montecarlo_solo_mes"]
 MONTE_CARLO = ["montecarlo_historia_mes", "montecarlo_solo_mes"]

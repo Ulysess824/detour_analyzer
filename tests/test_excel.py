@@ -4,8 +4,8 @@ import numpy as np
 import openpyxl
 import pandas as pd
 
-from src.utils.excel_utils import COMPARISON_COLUMNS, EXCLUDED_COLUMNS, HELPER_FORMULAS, SUMMARY_COLUMNS, add_error_columns, comparison_sheet, excluded_sheet, summary_sheet, write_workbook
-from src.utils.planner_utils import LOW_HISTORY, MISSING_INTERNAL, SUBGRADE
+from src.evaluation.excel_utils import COMPARISON_COLUMNS, EXCLUDED_COLUMNS, HELPER_FORMULAS, SUMMARY_COLUMNS, add_error_columns, comparison_sheet, excluded_sheet, summary_sheet, write_workbook
+from src.evaluation.planner_utils import LOW_HISTORY, MISSING_INTERNAL, SUBGRADE
 
 
 def test_comparison_sheet_has_only_the_keys_and_the_four_values_and_marks_the_missing_internal():

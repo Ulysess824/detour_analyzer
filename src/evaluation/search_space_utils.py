@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.utils.tree_utils import TREE_BASE
+from src.engine.tree_utils import TREE_BASE
 
 # The baseline is enqueued as trial 0. Parameters the baseline leaves unset (library defaults)
 # are entered at their closest value inside the search range.

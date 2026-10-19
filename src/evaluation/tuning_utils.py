@@ -7,10 +7,10 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from src.utils.evaluation_utils import reconcile
-from src.utils.metrics_utils import score
-from src.utils.cache_utils import panel_fingerprint
-from src.utils.panel_utils import Panel
+from src.evaluation.evaluation_utils import reconcile
+from src.evaluation.metrics_utils import score
+from src.evaluation.cache_utils import panel_fingerprint
+from src.engine.panel_utils import Panel
 
 FOLD_MONTHS = 3
 N_FOLDS = 3

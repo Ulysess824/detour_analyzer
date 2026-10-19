@@ -2,7 +2,7 @@
 ml_mean fed with the month in progress completed by the mean of its first days (nowcast input), against the strategies already measured.
 
 Target month t is forecast at mid-month t-1: last complete month t-2 (real), first 15 days of t-1 (real) and the rest of t-1 filled with the
-mean of those days (src/utils/nowcast_input_utils.py); the one-month-ahead ml_mean (tuned parameters of results/tuning_trees.json) is applied
+mean of those days (src/experiments/nowcast_input_utils.py); the one-month-ahead ml_mean (tuned parameters of results/tuning_trees.json) is applied
 to that completed month. Compared with the caches of compare_horizon_strategies.py (direct, direct + first days, iterated, naive) and
 run_ensembles.py (one-month reference, with the whole real month t-1), on the same series (alive at t-2).
 
@@ -21,13 +21,13 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.cache_utils import check_alignment, check_meta, expected_meta, panel_fingerprint
-from src.utils.evaluation_utils import score_models_by_level
-from src.utils.feature_utils import make_frame
-from src.utils.horizon_utils import HORIZON
-from src.utils.nowcast_input_utils import nowcast_input_forecast
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.tuning_utils import check_tuning_window
+from src.evaluation.cache_utils import check_alignment, check_meta, expected_meta, panel_fingerprint
+from src.evaluation.evaluation_utils import score_models_by_level
+from src.engine.feature_utils import make_frame
+from src.evaluation.horizon_utils import HORIZON
+from src.experiments.nowcast_input_utils import nowcast_input_forecast
+from src.engine.panel_utils import build_panel, load_consumption
+from src.evaluation.tuning_utils import check_tuning_window
 
 NAMES = {
     "nowcast": "A. Mes completado con la media",

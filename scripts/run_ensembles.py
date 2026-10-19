@@ -6,7 +6,7 @@ Members (forecast of the monthly total of each SKU, rolling origin, horizon --ho
     reference          naive (last month's value), outside the ensemble
 
 Ensembles of the three machine-learning members with four methods (ml_mean, ml_median, ml_trimmed, ml_weighted;
-mean, median, trimmed mean, weighted by inverse past MAE): see src/utils/ensemble_utils.py.
+mean, median, trimmed mean, weighted by inverse past MAE): see src/evaluation/ensemble_utils.py.
 
 The Model Confidence Set of Hansen, Lunde and Nason (2011) is then run on the absolute-error loss
 at SKU-month, planta-month and total-month level to see which models can be discarded.
@@ -29,14 +29,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.cache_utils import check_alignment, check_meta, expected_meta, write_meta
-from src.utils.ensemble_utils import METHODS, add_ensembles
-from src.utils.evaluation_utils import score_models_by_level, test_months_of
-from src.utils.feature_utils import make_frame
-from src.utils.mcs_utils import model_confidence_set
-from src.utils.member_utils import ENSEMBLE_GROUPS, ML_MODELS, SIMPLE_MODELS, collect_member_forecasts
-from src.utils.panel_utils import build_panel, load_consumption
-from src.utils.tuning_utils import check_tuning_window, to_jsonable
+from src.evaluation.cache_utils import check_alignment, check_meta, expected_meta, write_meta
+from src.evaluation.ensemble_utils import METHODS, add_ensembles
+from src.evaluation.evaluation_utils import score_models_by_level, test_months_of
+from src.engine.feature_utils import make_frame
+from src.evaluation.mcs_utils import model_confidence_set
+from src.engine.member_utils import ENSEMBLE_GROUPS, ML_MODELS, SIMPLE_MODELS, collect_member_forecasts
+from src.engine.panel_utils import build_panel, load_consumption
+from src.evaluation.tuning_utils import check_tuning_window, to_jsonable
 
 
 def mcs_losses(S, res: pd.DataFrame, models: list[str], test_months: list[int], level: str):

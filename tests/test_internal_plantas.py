@@ -5,8 +5,8 @@ import openpyxl
 import pandas as pd
 import pytest
 
-from src.utils.internal_io_utils import OUTPUT_COLUMNS, mark_missing, parse_month_column, planta_is_all_zero, read_internal_workbook, replace_planta
-from src.utils.planner_utils import MISSING_INTERNAL, add_internal
+from src.evaluation.internal_io_utils import OUTPUT_COLUMNS, mark_missing, parse_month_column, planta_is_all_zero, read_internal_workbook, replace_planta
+from src.evaluation.planner_utils import MISSING_INTERNAL, add_internal
 
 HEADER = ["Customer", "Grade", "Sub-grade", "Grammage", "Width", "Product", "06.2026", "07.2026"]
 

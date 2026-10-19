@@ -46,32 +46,38 @@ pip install -r requirements.txt
 ## Estructura
 
 ```
-src/utils/                 funciones reutilizables, una responsabilidad por módulo
+src/engine/                la máquina: lo que produce el pronóstico (no importa nada de evaluation ni experiments)
     transform_utils.py     lectura de los exportes SAP (ancho y largo) y escritura del CSV
-    eda_utils.py           estadísticas descriptivas por serie y por planta
     panel_utils.py         panel mensual (Panel, build_panel) y ventanas móviles
     feature_utils.py       features, baselines simples y make_frame
-    metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
+    partial_utils.py       variables del mes en curso (consumo de los primeros días)
     tree_utils.py          LightGBM, XGBoost y Random Forest
+    member_utils.py        pronósticos de todos los miembros de los ensembles
+    inference_utils.py     pronóstico del mes siguiente con todo el histórico
+src/evaluation/            las pruebas del modelo: backtests, métricas, ajuste y comparaciones (usa engine)
+    metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
+    evaluation_utils.py    meses de prueba, reconciliación y acierto a nivel SKU, planta y total
     ensemble_utils.py      combinaciones: media, mediana, media recortada, ponderada
     mcs_utils.py           Model Confidence Set (Hansen, Lunde y Nason, 2011)
-    member_utils.py        pronósticos de todos los miembros de los ensembles
-    evaluation_utils.py    meses de prueba, reconciliación y acierto a nivel SKU, planta y total
     search_space_utils.py  espacios de búsqueda de Optuna y trial base
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
+    horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
+    eda_utils.py           estadísticas descriptivas por serie y por planta
     planner_io_utils.py    lectura de los libros de asignación del planificador (todas las plantas)
     internal_io_utils.py   lectura del libro del modelo interno (todas las plantas), reglas de faltantes
-    excel_utils.py         el cruce de predicciones como libro de Excel: hoja de comparación y hoja de excluidos
+    internal_utils.py      códigos SAP a sku y modelo interno de SCAN
     planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
-    inference_utils.py     pronóstico del mes siguiente con todo el histórico
-    horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
-    partial_utils.py       variables del mes en curso (consumo de los primeros días)
-    montecarlo_utils.py    simulador Monte Carlo de los días que faltan del mes (experimento)
+    excel_utils.py         el cruce de predicciones como libro de Excel: hoja de comparación y hoja de excluidos
+src/experiments/           ideas en prueba, fuera del pronóstico de producción (usa engine y evaluation)
+    montecarlo_utils.py    simulador Monte Carlo de los días que faltan del mes
     now_casting_current_month.py  nowcasting del mes en curso: media, mediana y dos simuladores Monte Carlo
+    nowcast_input_utils.py mes en curso completado con la media como entrada de ml_mean
     bibliography_utils.py  descarga de los papers de bibliografia/ (solo acceso abierto)
 scripts/                   puntos de entrada de línea de comandos
 ```
+
+Las dependencias van en una sola dirección: `engine` no importa nada, `evaluation` importa `engine` y `experiments` importa ambos. Una prueba (`tests/test_layers.py`) lo verifica.
 
 ## Flujo
 
@@ -128,7 +134,7 @@ esa información parcial, y si completar el mes sirve para pronosticar el siguie
 | Monte Carlo con historia y mes | 365 días anteriores al corte y los días vistos | Media de 200 escenarios simulados |
 | Monte Carlo solo mes | Solo los días vistos | Media de 200 escenarios simulados |
 
-Código en `src/utils/now_casting_current_month.py` y `src/utils/montecarlo_utils.py`; se ejecuta con
+Código en `src/experiments/now_casting_current_month.py` y `src/experiments/montecarlo_utils.py`; se ejecuta con
 `python scripts/now_casting_month_benchmark.py data/consumos_long.csv --month 2026-09 --last-months 12`. Plan y detalle en `docs/plan_montecarlo_mes_parcial.md`.
 
 **Resultados** (acierto = 1 − WAPE del consumo que falta, corte al día 15, series vivas el mes anterior):
@@ -201,7 +207,7 @@ total.
 
 LightGBM, XGBoost y Random Forest pronostican **el total mensual de cada SKU** (una fila por serie y
 por origen, no por día ni por semana) con los mismos 25 features. Se definen en
-`src/utils/feature_utils.py` (`SERIES_FEATURES`) y se construyen con `make_frame(S, horizonte)`.
+`src/engine/feature_utils.py` (`SERIES_FEATURES`) y se construyen con `make_frame(S, horizonte)`.
 
 Notación: el **origen** `o` es el último mes con datos conocidos, el **mes objetivo** es `t = o + h`
 (con `h = 1`, el mes siguiente) y `y` es el consumo total del mes objetivo, que es lo que se predice.
@@ -359,7 +365,7 @@ consumo en la ventana.
   resultado a dos meses de hoy (`compare_horizon_strategies.py`) usa origen móvil por horizonte. El de tres meses lo calculaba `forecast_monthly.py`, retirado.
 - Varias plantas en las comparaciones: `compare_planner.py` ya compara las 11 plantas del planificador y guarda la planta en cada fila, y el
   cruce con el planificador de `compare_internal_model.py` usa planta, mes y SKU. Falta que los meses del modelo interno, fijos en
-  `src/utils/internal_utils.py` (2026-06 a 2026-09), salgan del propio archivo, y la pestaña PLANIFICADOR del dashboard sigue leyendo solo los
+  `src/evaluation/internal_utils.py` (2026-06 a 2026-09), salgan del propio archivo, y la pestaña PLANIFICADOR del dashboard sigue leyendo solo los
   `results/planner_comparison_<mes>.csv` de SCAN (no hay selector de planta). Si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
 - Subgrado distinto en el archivo del planificador de septiembre de 2026: 16 filas VMI (SALI 8 y SALM 8, `KS/01/215gsm/<ancho>mm`) aparecen
   con subgrado 01, pero en `data/consumos_long.csv` esos SKU existen como `KS/257/215gsm/<ancho>mm`. No se cruzan y se ignoran en la comparación

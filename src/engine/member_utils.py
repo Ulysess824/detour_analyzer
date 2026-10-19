@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.utils.tree_utils import TREE_BASE, fit_predict_trees
+from src.engine.tree_utils import TREE_BASE, fit_predict_trees
 
 ML_MODELS = ["lgbm", "xgb", "rf"]
 # The only reference outside the ensemble: last month's value, already stored in the frame (p_naive column).

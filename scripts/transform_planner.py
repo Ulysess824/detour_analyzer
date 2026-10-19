@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.utils.planner_io_utils import read_assignment
+from src.evaluation.planner_io_utils import read_assignment
 
 
 def main() -> None:
