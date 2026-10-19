@@ -172,6 +172,25 @@ abril de 2026 con −20%). En promedio sobreestima el 25% de las series y subest
 contra unas 3.200 esperadas, pendiente de confirmar con quien entrega los datos). Es un backtest de 12 meses, un corte (día 15) y sin prueba estadística pareada. Falta medir el
 siguiente paso de la idea original: usar el mes completado para pronosticar el mes siguiente y compararlo con la estrategia "directa + mes parcial" (68,7% por SKU).
 
+
+### Prueba grande de 2026 (enero a septiembre)
+
+`scripts/nowcast_media_2026.py` repite el nowcasting con corte en el día 15 en los 9 meses de 2026, por planta y SKU (18.984 SKU-mes), y compara el mes
+completo (15 días reales + resto estimado) con `ml_mean` a un mes y con el mes anterior. Plan, criterios fijados de antemano y resultados:
+`docs/plan_nowcast_media_2026.md`; tablas en `results/nowcast_2026_*.csv`.
+
+| Mes completo, acumulado | SKU | Planta | Total |
+|---|---|---|---|
+| Media | 79,5% | 92,2% | 95,9% |
+| Monte Carlo historia + mes | 79,8% | 92,7% | 95,6% |
+| `ml_mean` a un mes | 70,4% | 91,7% | 96,7% |
+| Mes anterior | 67,2% | 88,6% | 93,0% |
+
+La media mejora mucho a nivel SKU (más cerca del real en 14.562 de 18.984 SKU-mes) y empata a nivel planta, pero no supera a `ml_mean` en el total y falla en
+los meses en que el ritmo de la primera quincena difiere del de la segunda (enero y abril, sesgo de −11,6% y −11,7%). Dos de los cuatro criterios previos no
+se cumplen (Monte Carlo historia + mes la supera por 0,6 puntos en SKU; solo 5 de 9 meses a la par con `ml_mean` en planta y total). El nowcast usa 15 días reales
+del mes objetivo, así que no es una comparación de igual información.
+
 ## Ensembles y Model Confidence Set
 
 `run_ensembles.py` pronostica el total mensual de cada SKU (origen rodante, h=1) con:
