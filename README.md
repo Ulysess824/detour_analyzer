@@ -80,6 +80,22 @@ scripts/                   puntos de entrada de línea de comandos
 
 Las dependencias van en una sola dirección: `engine` no importa nada, `evaluation` importa `engine` y `experiments` importa ambos. Una prueba (`tests/test_layers.py`) lo verifica.
 
+## Validación de entrada
+
+`load_consumption` valida la tabla de consumo por defecto (`src/engine/data_checks.py`). Los **errores** detienen la carga con un mensaje y las filas
+responsables: columnas o tipos incorrectos, valores vacíos, negativos, repetidos de (planta, sku, fecha), planta o SKU sin normalizar, series que solo
+difieren en mayúsculas o espacios, un mes sin filas o 3 días hábiles seguidos sin ninguna. Los **avisos** no detienen y muestran las filas: más de 100 TO en un
+día para un SKU y planta (con planta, SKU y día), un valor 20 veces mayor que la mediana de su serie, un mes con 40% menos filas que el anterior, una planta que
+aparece o desaparece y un SKU fuera del formato habitual. Nunca corrige nada: la limpieza sigue en `transform_consumos.py`.
+
+```bash
+python scripts/validate_input.py data/consumos_long.csv      # informe completo y cuatro tablas en results/
+```
+
+Las tablas (formato largo): `validacion_domingos.csv` (los domingos cuentan como consumo real), `validacion_picos.csv` y el cambio mes a mes por planta y SKU y
+por planta (`validacion_cambio_planta_sku.csv`, `validacion_cambio_planta.csv`). Reglas, resultados y pruebas: `docs/plan_validacion_entrada.md`. Plan general:
+`docs/super_plan_produccion.md`.
+
 ## Base de datos SQLite (consumos reales y predichos)
 
 La base `data/detour.db` guarda en cuatro tablas (`plantas`, `skus`, `consumos`, `consumos_predichos`) el consumo real y las predicciones.

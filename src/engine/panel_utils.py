@@ -8,20 +8,31 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from src.engine.data_checks import validate_consumption
+
 GROUP_COLS = ["planta", "sku"]
 
 
-def load_consumption(path) -> pd.DataFrame:
-    r"""Read the long csv (planta, sku, fecha, consumo) written by transform_consumos.py, or the same table from a .db."""
+def load_consumption(path, validate: bool = True) -> pd.DataFrame:
+    r"""
+    Read the long csv (planta, sku, fecha, consumo) written by transform_consumos.py, or the same table from a .db.
+
+    The input checks (src/engine/data_checks.py) run by default: errors stop the load with a message, warnings are printed to
+    stderr. `validate=False` skips them (scripts/validate_input.py uses it to report every finding instead of stopping at the first).
+    """
     if str(path).endswith((".db", ".sqlite")):
         from src.engine.db_utils import connect, read_consumption  # lazy: db_utils imports this module
 
         con = connect(path)
         try:
-            return read_consumption(con)
+            df = read_consumption(con)
         finally:
             con.close()
-    return pd.read_csv(path, parse_dates=["fecha"])
+    else:
+        df = pd.read_csv(path, parse_dates=["fecha"])
+    if validate:
+        validate_consumption(df)
+    return df
 
 
 @dataclass
