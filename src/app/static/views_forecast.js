@@ -138,7 +138,7 @@ function forecastHtml(d) {
       ${card("Rango entre modelos", `${fmt(f.minimo_TO, 0)} – ${fmt(f.maximo_TO, 0)}<small>TO</small>`, "Si los modelos se separan mucho, el pronóstico es menos seguro.")}
       ${card("Series incluidas", fmt(f.series, 0), f.series === 1 ? "Un SKU en una planta." : "Se suman en un solo número.")}
     </div>
-    <div class="card"><div class="toolbar"><div><h2>Consumo real y pronóstico · ${esc(who)}</h2><p class="hint">Toneladas (TO), últimos 24 meses. La escala no empieza en cero. La franja naranja es el rango entre los tres modelos.</p></div><div>${months}</div></div><div class="chart" id="fc-chart"></div></div>
+    <div class="card"><div class="toolbar"><div><h2>Consumo real y pronóstico · ${esc(who)}</h2><p class="hint">Toneladas (TO), últimos 24 meses. La escala no empieza en cero. La franja naranja es el rango entre los tres modelos.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${months}<button class="btn" data-png="pronostico">Imagen (PNG)</button></div></div><div class="chart" id="fc-chart"></div></div>
     <div class="card"><h2>${t.tipo === "planta" ? "Pronóstico por planta" : "Pronóstico por SKU"}</h2><p class="hint">${t.tipo === "planta" ? "Toca una planta para ver sus SKU." : "Ordenado de mayor a menor pronóstico."}</p>
       <div class="tablewrap" style="margin-top:12px"><table class="data ${t.tipo === "planta" ? "clickable" : "two-left"}"><thead><tr>${head}<th>Pronóstico (TO)</th><th>Último mes real (TO)</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>${more}</div></div>`;
 }
@@ -192,7 +192,7 @@ async function renderTracking(view) {
       <button class="btn primary" data-measure="${m}">Medir acierto</button></div>`).join("");
   const hasHistory = history.backtest.length || history.produccion.length;
   view.innerHTML = `<div class="stack">${banners ? `<div class="stack" id="measure-box">${banners}</div>` : ""}
-    <div class="card"><h2>Acierto por mes</h2><p class="hint">Del modelo principal, contra el consumo real de cada mes. Los rombos son meses reales medidos en producción; los puntos pequeños, la prueba histórica.</p>
+    <div class="card"><div class="toolbar"><h2>Acierto por mes</h2><button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div><p class="hint">Del modelo principal, contra el consumo real de cada mes. Los rombos son meses reales medidos en producción; los puntos pequeños, la prueba histórica.</p>
       ${hasHistory ? '<div class="chart small" id="tr-chart"></div>' : '<div class="empty">Todavía no hay seguimiento.</div>'}
       <p class="note">Se marca una alerta si el acierto baja de ${fmt(history.umbrales.sku, 0)}% por SKU, ${fmt(history.umbrales.planta, 0)}% por planta o ${fmt(history.umbrales.total, 0)}% en el total, o si el modelo queda peor que repetir el mes anterior.</p></div>
     <div id="tr-detail">${detail ? detailHtml(detail, history) : ""}</div></div>`;

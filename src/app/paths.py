@@ -30,6 +30,14 @@ class AppPaths:
         return self.results / "tuning_trees.json"
 
     @property
+    def staging(self) -> Path:
+        return self.root / "data" / "staging"
+
+    @property
+    def backups(self) -> Path:
+        return self.root / "data" / "respaldo"
+
+    @property
     def production_tuning(self) -> Path:
         return self.results / "tuning_produccion.json"
 

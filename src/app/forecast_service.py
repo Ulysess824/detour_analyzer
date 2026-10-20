@@ -66,8 +66,8 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
     chosen = forecast[mask]
     totals = {model: float(chosen[model].sum()) for model in [*MODELS, "ml_mean", "naive"]}
     history = store.monthly(planta, sku, breakdown=False)
-    last = history["resumen"]["ultimo_mes_completo"]
-    last_real = history["resumen"]["ultimo_mes_TO"]
+    last = reference_month(store, month)  # the month before the forecast, even when later months are loaded already
+    last_real = history["valores"][history["etiquetas"].index(last)] if last in history["etiquetas"] else None
     spread = [totals[m] for m in MODELS]
     S = store.panel
     t = S.labels.index(last) if last in S.labels else None
@@ -110,6 +110,12 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
         "historia": {"etiquetas": history["etiquetas"], "valores": history["valores"], "mes_parcial": history["resumen"]["mes_parcial"]},
         "tabla": table,
     }
+
+
+def reference_month(store: ConsumptionStore, month: str) -> str:
+    r"""The real month a forecast is compared with: the one before it (the last complete month when that one is not in the data)."""
+    before = str(pd.Period(month, freq="M") - 1)
+    return before if before in store.panel.labels else store.last_complete()
 
 
 def next_month(store: ConsumptionStore) -> str:

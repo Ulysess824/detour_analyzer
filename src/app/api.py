@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Callable, Literal
 
-from fastapi import Depends, FastAPI, Header, Query
+from fastapi import Depends, FastAPI, Header, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app import forecast_service, tracking_service, tuning_service
+from src.app import __version__, data_service, export_service, forecast_service, history_service, tracking_service, tuning_service
 from src.app.forecast_service import ForecastMissing
 from src.app.jobs import Busy, JobRunner
 from src.app.paths import STATIC, AppPaths, default_paths
@@ -33,6 +34,15 @@ class UnlockBody(BaseModel):
 
 class RetuneBody(BaseModel):
     tipo: str = "completo"
+
+
+class ReviewBody(BaseModel):
+    id: str
+    politica: str = "detener"
+
+
+class StagedBody(BaseModel):
+    id: str
 
 
 def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.today) -> FastAPI:
@@ -201,6 +211,69 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
     def discard(_: str = Depends(unlocked)):
         tuning_service.discard(paths)
         return {"ok": True}
+
+    # ---- data loading -------------------------------------------------------------------------------------------------------
+
+    @app.get("/api/datos")
+    def data_state():
+        try:
+            current = store.info()
+            current = {k: v for k, v in current.items() if k != "meses"}
+        except DataMissing:
+            current = None
+        return {"actual": current, "respaldos": data_service.backups(paths)}
+
+    @app.post("/api/datos/subir")
+    async def upload(files: list[UploadFile]):
+        return data_service.stage(paths, [(f.filename or "", await f.read()) for f in files])
+
+    @app.post("/api/datos/revisar")
+    def review_data(body: ReviewBody):
+        return {"trabajo": jobs.start("datos", lambda progress: data_service.review(paths, body.id, body.politica, progress))}
+
+    @app.post("/api/datos/aplicar")
+    def apply_data(body: StagedBody):
+        result = data_service.apply(paths, body.id)
+        store.info()  # rebuilds the panel now, so a bad file shows up here and not in the next screen
+        return result
+
+    @app.post("/api/datos/cancelar")
+    def cancel_data(body: StagedBody):
+        data_service.cancel(paths, body.id)
+        return {"ok": True}
+
+    @app.post("/api/datos/deshacer")
+    def undo_data():
+        return data_service.undo(paths)
+
+    # ---- history, downloads and about ---------------------------------------------------------------------------------------
+
+    @app.get("/api/historial")
+    def history():
+        try:
+            return {"pronosticos": history_service.forecast_history(paths, store if paths.consumption_csv.exists() else None)}
+        except DataMissing:
+            return {"pronosticos": history_service.forecast_history(paths, None)}
+
+    def workbook(result: tuple[str, bytes]) -> Response:
+        name, content = result
+        return Response(content, media_type=export_service.XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    @app.get("/api/descargas/pronostico")
+    def download_forecast(mes: str | None = None):
+        return workbook(export_service.forecast_workbook(paths, store, mes))
+
+    @app.get("/api/descargas/consumo")
+    def download_consumption(planta: str | None = None, sku: str | None = None, nivel: Literal["mensual", "diario"] = "mensual", desde: str | None = None, hasta: str | None = None):
+        return workbook(export_service.consumption_workbook(store, planta, sku, nivel, desde, hasta))
+
+    @app.get("/api/descargas/seguimiento")
+    def download_tracking(mes: str | None = None):
+        return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes))
+
+    @app.get("/api/acerca")
+    def about():
+        return {"version": __version__, "carpeta": str(paths.root), "archivos": {"datos": str(paths.consumption_csv), "pronosticos": str(paths.results), "respaldos": str(paths.backups)}}
 
     app.mount("/", StaticFiles(directory=STATIC, html=True), name="ui")  # last: the API routes above win
     return app

@@ -110,13 +110,15 @@ def read_export(path: Path, drop_zeros: bool = False) -> list[Record]:
     the wide export comparable when both kinds are combined.
     """
     workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = workbook[SHEET_NAME] if SHEET_NAME in workbook.sheetnames else workbook[workbook.sheetnames[0]]
-
-    long_header = _find_long_header(ws)
-    if long_header is not None:
-        records = _read_long(ws, *long_header, drop_zeros=drop_zeros)
-    else:
-        records = _read_wide(ws, drop_zeros)
+    try:
+        ws = workbook[SHEET_NAME] if SHEET_NAME in workbook.sheetnames else workbook[workbook.sheetnames[0]]
+        long_header = _find_long_header(ws)
+        if long_header is not None:
+            records = _read_long(ws, *long_header, drop_zeros=drop_zeros)
+        else:
+            records = _read_wide(ws, drop_zeros)
+    finally:
+        workbook.close()  # a read-only workbook keeps the file open: on Windows the file could not be deleted afterwards
     return sorted(records, key=lambda r: (r[0], r[1], r[2]))
 
 

@@ -24,13 +24,13 @@ def _num(value: float) -> float | None:
     return None if value is None or pd.isna(value) else round(float(value), 1)
 
 
-def _table(paths: AppPaths) -> pd.DataFrame:
+def tracking_table(paths: AppPaths) -> pd.DataFrame:
     return read_tracking_csv(paths.tracking_csv) if paths.tracking_csv.exists() else pd.DataFrame()
 
 
 def tracked_months(paths: AppPaths) -> set[str]:
     r"""Months of the saved forecasts that already have a production tracking (the backtest does not count)."""
-    table = _table(paths)
+    table = tracking_table(paths)
     return set(table.loc[table["run_id"] != BACKTEST_RUN, "mes"]) if len(table) else set()
 
 
@@ -42,7 +42,7 @@ def to_measure(paths: AppPaths, store: ConsumptionStore) -> list[str]:
 
 def history(paths: AppPaths, store: ConsumptionStore | None) -> dict:
     r"""Accuracy of `ml_mean` by month and level, split into the historical test (backtest) and the production months, plus the alert thresholds."""
-    table = _table(paths)
+    table = tracking_table(paths)
     out = {"umbrales": {k: round(v * 100, 1) for k, v in THRESHOLDS.items()}, "backtest": [], "produccion": [], "por_medir": to_measure(paths, store) if store else []}
     if table.empty:
         return out
@@ -71,7 +71,7 @@ def top_errors(paths: AppPaths, store: ConsumptionStore, month: str, n: int = TO
 
 def detail(paths: AppPaths, store: ConsumptionStore | None, month: str | None, origin: str | None = None) -> dict:
     r"""One tracked month: every model by level, the plantas of `ml_mean` from the worst, the alerts and the biggest misses. `origin` is produccion or backtest."""
-    table = _table(paths)
+    table = tracking_table(paths)
     if table.empty:
         raise LookupError("Todavía no hay seguimiento. Cuando cierre el mes pronosticado, mídelo aquí.")
     if month is None:

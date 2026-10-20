@@ -34,8 +34,8 @@ Cada fase termina con pruebas, capturas y confirmación del usuario antes de fus
 | 1 (hecha) | Servicios y API (consumo real, búsqueda aproximada, estado); capa `src/app/` en `tests/test_layers.py` |
 | 2 (hecha) | Estructura visual, Inicio y Consumo real |
 | 3 (hecha) | Predicción y Seguimiento |
-| 4 (hecha, en revisión) | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
-| 5 | Datos, Ayuda, Descargar e Historial |
+| 4 (hecha) | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
+| 5 (hecha, en revisión) | Datos, Ayuda, Descargar e Historial |
 | 6 | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
 
 ## Fase 0 (hecha)
@@ -118,6 +118,35 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 - 15 pruebas nuevas (`tests/test_app_ajuste.py`): hash y sal, sesiones y vencimiento, bloqueo y reinicio de intentos, el flujo completo (ajustar, adoptar, respaldo, el pronóstico usa el archivo de producción), descartar, mes incompleto y el avance por prueba. Una de ellas encontró un error de un segundo en el aviso de bloqueo.
 - **Tiempos medidos con datos reales** (ajuste rápido): con la comprobación del script (h=1 y h=3, 3 semillas) tardó 33 minutos, de los cuales la búsqueda eran 3; casi todo el tiempo era la comprobación en los 12 meses de prueba. En la app esa comprobación es solo h=1 y una semilla (las semillas difieren en unos 0,05 puntos), y el ajuste rápido pasó a 10,7 minutos; el completo se estima en 25 (la búsqueda de 17 minutos más la comprobación). Los tiempos de CLAUDE.md anteriores eran solo de la búsqueda.
 - Se agregó `on_trial` a `run_study` para el avance por prueba (el script de línea de comandos sigue igual).
+
+## Fase 5 (hecha)
+
+**Datos.** Se eligen (o sueltan) los exportes de SAP en Excel. La app los sube a `data/staging/`, los **revisa sin escribir nada** y solo guarda si se acepta:
+1. Los lee con el mismo lector y la misma regla `drop_zeros` con que se armó `data/consumos_long.csv` y los suma a la tabla actual.
+2. Un día que ya estaba debe traer el mismo valor (se deja una sola vez). Si trae otro, la carga se detiene y el usuario elige: no cargar, o usar los valores del exporte nuevo.
+3. Corre las mismas validaciones de entrada del sub-plan 1 sobre el resultado y las muestra en español, con ejemplos de filas. Los errores bloquean; los avisos no. El mes parcial es un aviso (se puede cargar, pero no se pronostica hasta que esté completo).
+4. Al aplicar, copia la tabla anterior a `data/respaldo/` (los 10 últimos), escribe la nueva y recarga. "Deshacer la última carga" devuelve el respaldo más reciente. Si los datos cambiaron después de la revisión, se rehúsa.
+- Comprobado con datos reales: con la tabla hasta agosto y el exporte de octubre 2025 a septiembre 2026, agrega 10.522 filas (septiembre), deja 116.977 días repetidos una vez y el resultado es **idéntico byte a byte** a `data/consumos_long.csv` (hash 161f8ff6d81d). La lectura usa `float_precision="round_trip"` para no alterar ningún dígito de los valores que no se tocan.
+- Si se usa la base SQLite (`data/detour.db`), hay que reconstruirla después (`scripts/build_database.py --rebuild`); la app lee el CSV.
+
+**Descargar.** Excel del pronóstico de un mes (resumen, por planta, cada SKU con los tres modelos, su rango y el último mes real), del consumo real con los filtros (total por mes y una fila por serie, o días) y del seguimiento (historial, modelos, plantas y mayores errores). Cada gráfico tiene un botón "Imagen (PNG)" (2144 × 800 px comprobado). Cada pronóstico se compara con el mes anterior a él, aunque ya haya meses posteriores cargados.
+
+**Historial.** Cada pronóstico guardado con su fecha, el último día de los datos, el archivo de parámetros, el total y, medido, su acierto; "Ver" lo abre en Predicción y "Excel" lo descarga.
+
+**Ayuda.** Los tres pasos del mes, glosario, preguntas frecuentes, dónde están los archivos y la versión (`0.1.0-beta`).
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/datos` | Datos actuales y respaldos |
+| `POST /api/datos/subir` (varios .xlsx) | Guarda los archivos en una carpeta temporal |
+| `POST /api/datos/revisar` `{id, politica}` | Revisión en segundo plano (`detener` o `usar_nuevo`) |
+| `POST /api/datos/aplicar`, `/cancelar` `{id}`, `/deshacer` | Aplicar, cancelar o deshacer |
+| `GET /api/historial`, `/api/acerca` | Historial y versión |
+| `GET /api/descargas/pronostico`, `/consumo`, `/seguimiento` | Archivos Excel |
+
+- 41 pruebas nuevas (datos, descargas, historial y la comparación con el mes anterior); 7 errores inyectados en la carga, los 7 detectados (uno solo lo detectó una prueba nueva con valores de 17 dígitos).
+- El CI de Windows encontró un error real que Linux no ve: `read_export` dejaba abierto el archivo Excel y en Windows no se podía borrar la carpeta temporal tras cargar; ahora cierra el libro (y una prueba lo vigila).
+- La descarga usa `fetch` y un enlace temporal; falta comprobar cómo se comporta dentro de la ventana de Windows (fase 6).
 
 ## Contraseña
 

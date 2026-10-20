@@ -241,3 +241,12 @@ def test_a_partial_month_is_not_closed_and_is_not_offered_for_measuring(tmp_path
     paths.results.mkdir()
     pd.DataFrame({"planta": ["A"], "sku": ["x"], "mes": ["2025-05"], "ml_mean": [1.0]}).to_csv(paths.forecast_csv("2025-05"), index=False)
     assert make_client(tmp_path).get("/api/seguimiento").json()["por_medir"] == []
+
+
+def test_the_forecast_is_compared_with_the_month_before_it_even_when_later_months_are_loaded(workdir):
+    close_the_month(workdir)  # July is real now
+    body = make_client(workdir).get("/api/pronostico").json()
+    assert body["mes"] == "2025-07" and body["ultimo_real"]["mes"] == "2025-06"
+    real = make_consumption(n_months=31)
+    june = real[real["fecha"].dt.strftime("%Y-%m") == "2025-06"]["consumo"].sum()
+    assert body["ultimo_real"]["TO"] == pytest.approx(june, abs=0.1)
