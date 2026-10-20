@@ -264,3 +264,24 @@ def test_values_of_untouched_rows_keep_every_digit_when_the_master_is_rewritten(
     data_service.apply(paths, staged)
     after = set(paths.consumption_csv.read_text().splitlines()[1:])
     assert all(line in after for line in before)
+
+
+def test_reading_an_export_closes_the_file_so_it_can_be_deleted_on_windows(tmp_path, toy, monkeypatch):
+    from src.engine import transform_utils
+
+    closed = []
+    real = openpyxl.load_workbook
+
+    def spy(*args, **kwargs):
+        workbook = real(*args, **kwargs)
+        original = workbook.close
+        workbook.close = lambda: (closed.append(True), original())[1]
+        return workbook
+
+    monkeypatch.setattr(transform_utils.openpyxl, "load_workbook", spy)
+    path = tmp_path / "e.xlsx"
+    path.write_bytes(xlsx(toy.head(10)))
+    assert len(transform_utils.read_export(path)) == 10 and closed == [True]
+    path.write_bytes(b"roto")
+    with pytest.raises(Exception):
+        transform_utils.read_export(path)

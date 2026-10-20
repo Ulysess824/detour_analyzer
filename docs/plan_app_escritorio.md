@@ -145,6 +145,7 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 | `GET /api/descargas/pronostico`, `/consumo`, `/seguimiento` | Archivos Excel |
 
 - 41 pruebas nuevas (datos, descargas, historial y la comparación con el mes anterior); 7 errores inyectados en la carga, los 7 detectados (uno solo lo detectó una prueba nueva con valores de 17 dígitos).
+- El CI de Windows encontró un error real que Linux no ve: `read_export` dejaba abierto el archivo Excel y en Windows no se podía borrar la carpeta temporal tras cargar; ahora cierra el libro (y una prueba lo vigila).
 - La descarga usa `fetch` y un enlace temporal; falta comprobar cómo se comporta dentro de la ventana de Windows (fase 6).
 
 ## Contraseña
