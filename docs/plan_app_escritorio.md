@@ -31,9 +31,9 @@ Cada fase termina con pruebas, capturas y confirmación del usuario antes de fus
 | Fase | Contenido |
 |---|---|
 | 0 | Quitar el dashboard Streamlit y mover la lógica de los scripts a servicios en `src/` (hecha) |
-| 1 (hecha, en revisión) | Servicios y API (consumo real, búsqueda aproximada, estado); capa `src/app/` en `tests/test_layers.py` |
-| 2 (hecha, en revisión) | Estructura visual, Inicio y Consumo real |
-| 3 | Predicción y Seguimiento |
+| 1 (hecha) | Servicios y API (consumo real, búsqueda aproximada, estado); capa `src/app/` en `tests/test_layers.py` |
+| 2 (hecha) | Estructura visual, Inicio y Consumo real |
+| 3 (hecha, en revisión) | Predicción y Seguimiento |
 | 4 | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
 | 5 | Datos, Ayuda, Descargar e Historial |
 | 6 | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
@@ -76,6 +76,27 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 - **Gráficos:** paleta de 8 colores validada con el validador del skill de visualización (sin fallos; naranja, verde azulado y azul claro quedan bajo 3:1 de contraste, por eso cada gráfico tiene leyenda, tooltip y vista de tabla). Máximo 7 series y "Otros" en gris. Líneas de 2 px, barras de hasta 24 px con extremo redondeado, mes parcial sombreado.
 - Solo tema claro (el de la imagen de referencia).
 - Verificación: capturas con Chromium sin ventana contra los datos reales (`results/` y `data/`), 2 pruebas nuevas (los archivos que carga la página existen y el JavaScript no tiene errores de sintaxis; `node --check`).
+
+## Fase 3 (hecha)
+
+**Predicción.** Genera el pronóstico del mes siguiente al último mes completo con el mismo servicio que el script (`run_prediction`), en un hilo aparte con barra de avance (unos 25 s con los datos reales). Si ya existe, pide confirmación antes de reemplazarlo; si el último mes de los datos está incompleto, el botón queda bloqueado con el motivo. Muestra el pronóstico de la selección (planta y SKU escribibles), contra el último mes real, el rango entre LightGBM, XGBoost y Random Forest (el desacuerdo entre modelos, no un intervalo estadístico), el gráfico con los últimos 24 meses y la tabla por planta (al tocar una planta se ven sus SKU) o por SKU.
+
+**Seguimiento.** Cuando un mes pronosticado ya cerró en los datos, avisa y el botón "Medir acierto" lo compara con el real (`track_saved_forecast`) y lo guarda en `results/seguimiento.csv` y, si existe `data/detour.db`, en la base. Muestra el acierto por mes del modelo principal (SKU, planta y total; rombos para los meses reales medidos y puntos para la prueba histórica), el detalle de un mes (cinco modelos, plantas de peor a mejor acierto, alertas en palabras, series sin pronóstico) y las 15 series donde más falló en toneladas (error = pronóstico − real).
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/pronosticos` | Pronósticos guardados |
+| `GET /api/pronostico?mes=&planta=&sku=&limite=` | Detalle del pronóstico de una selección |
+| `POST /api/pronostico/generar` `{sobrescribir}` | Empieza la tarea; 409 si ya existe y no se permite reemplazar, o si hay otra tarea en marcha |
+| `GET /api/trabajos/activo`, `GET /api/trabajos/{id}` | Estado y avance de la tarea (la pantalla la retoma si se sale y se vuelve) |
+| `GET /api/seguimiento` | Historial de acierto, umbrales y meses por medir |
+| `GET /api/seguimiento/detalle?mes=&origen=` | Detalle de un mes (producción o prueba histórica) |
+| `POST /api/seguimiento/medir` `{mes}` | Mide un mes cerrado |
+
+- Una prueba de extremo a extremo con datos sintéticos encontró un error real: el pronóstico se guardaba en la carpeta desde donde se corría y no en la de la app; ahora la ruta sale de `AppPaths`.
+- `.coverage` dejó de estar en git (estaba por error desde el sub-plan 4).
+- 13 pruebas nuevas en `tests/test_app_forecast.py` (la tarea en segundo plano, el detalle, la medición, el orden de los meses, el mes parcial); 7 mutaciones inyectadas, las 7 detectadas después de reforzar 3 pruebas. 224 pruebas, cobertura de `src/` 97%.
+- Capturas con Chromium sin ventana contra datos reales: se generó el pronóstico de septiembre desde los datos de agosto, se cerró el mes y se midió (66,2 / 88,4 / 99,2, igual que la prueba histórica).
 
 ## Contraseña
 

@@ -43,8 +43,8 @@ async function api(path, params = {}) {
 const SECTIONS = [
   { id: "inicio", label: "Inicio", icon: "home", title: "Inicio", subtitle: "El estado del modelo de un vistazo." },
   { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "Lo que se consumió, por planta y por SKU." },
-  { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico del mes siguiente.", soon: true },
-  { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "Qué tanto acertó el pronóstico cuando cerró el mes.", soon: true },
+  { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico del mes siguiente." },
+  { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "Qué tanto acertó el pronóstico cuando cerró el mes." },
   { id: "ajuste", label: "Ajuste de hiperparámetros", icon: "sliders", title: "Ajuste de hiperparámetros", subtitle: "Reafinar el modelo cada seis meses.", soon: true },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP.", soon: true },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel.", soon: true },
@@ -84,6 +84,8 @@ async function route() {
   try {
     if (section.id === "inicio") await renderHome(view);
     else if (section.id === "consumo") await renderConsumption(view);
+    else if (section.id === "prediccion") await renderForecast(view);
+    else if (section.id === "seguimiento") await renderTracking(view);
     else renderSoon(view, section);
   } catch (error) {
     view.innerHTML = `<div class="card empty"><h3>No se pudo mostrar esta sección</h3><p>${esc(error.message)}</p></div>`;
@@ -330,6 +332,23 @@ function combo(root, { field, getParams, onPick }) {
   return { set(value) { input.value = value; sync(); } };
 }
 
+function filtersHtml(s) {
+  return `<div class="filters">
+        <div class="field"><label for="f-planta">Planta</label><div class="input-wrap" id="w-planta"><input id="f-planta" autocomplete="off" placeholder="Todas" value="${esc(s.planta)}"><button class="clear" type="button" aria-label="Quitar">×</button><div class="options"></div></div></div>
+        <div class="field"><label for="f-sku">Nombre del SKU</label><div class="input-wrap" id="w-sku"><input id="f-sku" autocomplete="off" placeholder="Todos · escribe parte del nombre, por ejemplo HP2 125 2440" value="${esc(s.sku)}"><button class="clear" type="button" aria-label="Quitar">×</button><div class="options"></div></div></div>
+        <button class="btn" id="reset" type="button">Limpiar filtros</button>
+      </div>`;
+}
+
+function bindFilters(s, onChange) {
+  const wp = $("#w-planta"), ws = $("#w-sku");
+  wp.classList.toggle("has-value", !!s.planta);
+  ws.classList.toggle("has-value", !!s.sku);
+  const comboPlanta = combo(wp, { field: "planta", getParams: () => ({}), onPick: (v) => { s.planta = v; if (s.sku) { s.sku = ""; comboSku.set(""); } onChange(); } });
+  const comboSku = combo(ws, { field: "sku", getParams: () => ({ planta: s.planta }), onPick: (v) => { s.sku = v; onChange(); } });
+  $("#reset").onclick = () => { s.planta = s.sku = ""; comboPlanta.set(""); comboSku.set(""); onChange(); };
+}
+
 async function renderConsumption(view) {
   const s = consumptionState;
   if (!s.ultimoDia) {
@@ -337,21 +356,8 @@ async function renderConsumption(view) {
     if (!status.datos) { view.innerHTML = '<div class="card empty"><h3>Todavía no hay datos</h3><p>Carga los exportes de SAP en la sección Datos.</p></div>'; return; }
     s.ultimoDia = status.datos.ultimo_dia;
   }
-  view.innerHTML = `<div class="stack">
-    <div class="card">
-      <div class="filters">
-        <div class="field"><label for="f-planta">Planta</label><div class="input-wrap" id="w-planta"><input id="f-planta" autocomplete="off" placeholder="Todas" value="${esc(s.planta)}"><button class="clear" type="button" aria-label="Quitar">×</button><div class="options"></div></div></div>
-        <div class="field"><label for="f-sku">Nombre del SKU</label><div class="input-wrap" id="w-sku"><input id="f-sku" autocomplete="off" placeholder="Todos · escribe parte del nombre, por ejemplo HP2 125 2440" value="${esc(s.sku)}"><button class="clear" type="button" aria-label="Quitar">×</button><div class="options"></div></div></div>
-        <button class="btn" id="reset" type="button">Limpiar filtros</button>
-      </div>
-      <div id="range"></div>
-    </div>
-    <div id="result"></div></div>`;
-  const wp = $("#w-planta"), ws = $("#w-sku");
-  wp.classList.toggle("has-value", !!s.planta); ws.classList.toggle("has-value", !!s.sku);
-  const comboPlanta = combo(wp, { field: "planta", getParams: () => ({}), onPick: (v) => { s.planta = v; if (s.sku) { s.sku = ""; comboSku.set(""); } refresh(); } });
-  const comboSku = combo(ws, { field: "sku", getParams: () => ({ planta: s.planta }), onPick: (v) => { s.sku = v; refresh(); } });
-  $("#reset").onclick = () => { s.planta = s.sku = ""; comboPlanta.set(""); comboSku.set(""); refresh(); };
+  view.innerHTML = `<div class="stack"><div class="card">${filtersHtml(s)}<div id="range"></div></div><div id="result"></div></div>`;
+  bindFilters(s, refresh);
   await refresh();
 }
 

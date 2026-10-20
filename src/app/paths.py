@@ -26,6 +26,17 @@ class AppPaths:
         return self.results / "seguimiento.csv"
 
     @property
+    def tuning_json(self) -> Path:
+        return self.results / "tuning_trees.json"
+
+    @property
+    def database(self) -> Path:
+        return self.root / "data" / "detour.db"
+
+    def forecast_csv(self, month: str) -> Path:
+        return self.results / f"forecast_{month}.csv"
+
+    @property
     def adjustments_json(self) -> Path:
         return self.results / "ajustes.json"
 

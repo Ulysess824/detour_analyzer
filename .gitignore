@@ -3,3 +3,6 @@ __pycache__/
 
 # SQLite database (built by scripts/build_database.py, confidential data)
 data/*.db
+
+# coverage data
+.coverage
