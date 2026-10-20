@@ -190,3 +190,26 @@ table.data.two-left th:nth-child(2), table.data.two-left td:nth-child(2) { text-
 .rowbtns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
 @media (max-width: 1100px) { .facts, .choice { grid-template-columns: 1fr; } }
 table.data.left3 th:nth-child(-n+3), table.data.left3 td:nth-child(-n+3) { text-align: left; }
+
+/* ---- Datos, Descargar, Historial, Ayuda --------------------------------------------------------------------------------------- */
+.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 2px dashed var(--line); border-radius: 16px; padding: 28px 20px; margin-top: 14px; color: var(--ink-2); cursor: pointer; text-align: center; }
+.drop:hover, .drop.over { border-color: var(--primary); background: var(--primary-soft); }
+.drop input { display: none; }
+.drop b { color: var(--primary); }
+.findings { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
+.finding { display: grid; grid-template-columns: 90px 1fr; gap: 12px; align-items: start; }
+.finding p { margin: 4px 0 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.tile { display: flex; flex-direction: column; gap: 10px; }
+.tile p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
+.tile .rowbtns { margin-top: auto; }
+details.faq { border-bottom: 1px solid var(--line); padding: 12px 0; }
+details.faq summary { cursor: pointer; font-weight: 600; font-size: 14.5px; }
+details.faq p, details.faq li { color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }
+details.faq ol, details.faq ul { padding-left: 20px; margin: 8px 0 0; }
+.steps { counter-reset: step; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 14px; }
+.steps .step { background: var(--bg); border-radius: 14px; padding: 16px; }
+.steps .step::before { counter-increment: step; content: counter(step); display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; margin-bottom: 8px; }
+.steps .step b { display: block; margin-bottom: 4px; }
+.steps .step p { margin: 0 0 10px; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
+@media (max-width: 1100px) { .tiles, .steps { grid-template-columns: 1fr; } .finding { grid-template-columns: 1fr; } }

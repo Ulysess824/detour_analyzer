@@ -45,7 +45,7 @@ Python 3.11 o 3.12. Las dependencias directas están fijadas a la versión exact
 |---|---|---|
 | `requirements/base.txt` | Producción: `predict_next_month.py` y lo que hay en `src/engine/` | numpy, pandas, scikit-learn, lightgbm, xgboost, openpyxl |
 | `requirements/evaluation.txt` | Backtests, afinación y comparaciones | base, scipy, optuna |
-| `requirements/app.txt` | App de escritorio (`docs/plan_app_escritorio.md`) | base, fastapi, uvicorn |
+| `requirements/app.txt` | App de escritorio (`docs/plan_app_escritorio.md`) | base, fastapi, uvicorn, python-multipart |
 | `requirements/dev.txt` | Desarrollo y CI | evaluation, app, httpx, pytest, matplotlib, ipykernel |
 | `requirements.txt` | Todo (dev y app) | dev, app |
 
@@ -103,6 +103,9 @@ src/app/                   la app de escritorio, en desarrollo (usa las tres cap
     forecast_service.py    pronósticos guardados, su detalle y la generación del pronóstico del mes siguiente
     tracking_service.py    seguimiento: historial de acierto, detalle de un mes, mayores errores y medición de un mes cerrado
     jobs.py                tareas largas en segundo plano con avance (una a la vez)
+    data_service.py        carga de exportes de SAP: revisión, respaldo, aplicar y deshacer
+    export_service.py      archivos Excel descargables (pronóstico, consumo real, seguimiento)
+    history_service.py     historial de pronósticos guardados
     tuning_service.py      reafinado de los modelos desde la app: candidato, adoptar o descartar, fechas del ajuste
     security.py            clave de la sección Ajuste (solo el hash) y sesiones en memoria
     status_service.py      estado de la pantalla de Inicio: datos, último pronóstico, seguimiento y próximo ajuste

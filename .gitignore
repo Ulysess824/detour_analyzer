@@ -6,3 +6,5 @@ data/*.db
 
 # coverage data
 .coverage
+data/staging/
+data/respaldo/

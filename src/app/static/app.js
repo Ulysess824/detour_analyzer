@@ -46,10 +46,10 @@ const SECTIONS = [
   { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico del mes siguiente." },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "Qué tanto acertó el pronóstico cuando cerró el mes." },
   { id: "ajuste", label: "Ajuste de hiperparámetros", icon: "sliders", title: "Ajuste de hiperparámetros", subtitle: "Reafinar el modelo cada seis meses." },
-  { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP.", soon: true },
-  { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel.", soon: true },
-  { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes.", soon: true },
-  { id: "ayuda", label: "Ayuda", icon: "help", title: "Ayuda", subtitle: "Cómo usar la app.", soon: true },
+  { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP." },
+  { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel." },
+  { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes." },
+  { id: "ayuda", label: "Ayuda", icon: "help", title: "Ayuda", subtitle: "Cómo usar la app." },
 ];
 const SEPARATE_BEFORE = new Set(["descargar"]);
 
@@ -87,6 +87,10 @@ async function route() {
     else if (section.id === "prediccion") await renderForecast(view);
     else if (section.id === "seguimiento") await renderTracking(view);
     else if (section.id === "ajuste") await renderTuning(view);
+    else if (section.id === "datos") await renderData(view);
+    else if (section.id === "descargar") await renderDownloads(view);
+    else if (section.id === "historial") await renderHistory(view);
+    else if (section.id === "ayuda") await renderHelp(view);
     else renderSoon(view, section);
   } catch (error) {
     view.innerHTML = `<div class="card empty"><h3>No se pudo mostrar esta sección</h3><p>${esc(error.message)}</p></div>`;
@@ -281,7 +285,7 @@ async function renderHome(view) {
 
   view.innerHTML = `<div class="stack">${notes.join("")}
     <div class="grid cols-4">${dataCard}${forecastCard}${trackingCard}${retuneCard}</div>
-    <div class="card"><div class="toolbar"><div><h2>Consumo total por mes</h2><p class="hint">Todas las plantas, toneladas (TO).</p></div><button class="btn" id="to-consumo">Ver con filtros</button></div><div class="chart small" id="home-chart"></div></div></div>`;
+    <div class="card"><div class="toolbar"><div><h2>Consumo total por mes</h2><p class="hint">Todas las plantas, toneladas (TO).</p></div><div style="display:flex;gap:10px"><button class="btn" data-png="consumo_total">Imagen (PNG)</button><button class="btn" id="to-consumo">Ver con filtros</button></div></div><div class="chart small" id="home-chart"></div></div></div>`;
   $("#to-consumo").onclick = () => (location.hash = "#/consumo");
   if (data) {
     const series = await api("consumo");
@@ -450,6 +454,7 @@ function resultHtml(data) {
         <div class="seg" id="seg-nivel"><button data-v="mensual" class="${s.nivel === "mensual" ? "on" : ""}">Por mes</button><button data-v="diario" class="${s.nivel === "diario" ? "on" : ""}">Por día</button></div>
         <div class="seg" id="seg-modo"><button data-v="total" class="${s.modo === "total" ? "on" : ""}" ${hasBreakdown ? "" : "disabled"}>Total</button><button data-v="desglose" class="${s.modo === "desglose" ? "on" : ""}" ${hasBreakdown ? "" : "disabled"}>${by ? "Desglose " + by : "Desglose"}</button></div>
         <div class="seg" id="seg-vista"><button data-v="grafico" class="${s.vista === "grafico" ? "on" : ""}">Gráfico</button><button data-v="tabla" class="${s.vista === "tabla" ? "on" : ""}">Tabla</button></div>
+        <button class="btn" data-png="consumo_real" ${s.vista === "tabla" ? "disabled" : ""}>Imagen (PNG)</button>
       </div></div>
       <div id="plot"></div>${partial}</div></div>`;
 }
