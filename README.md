@@ -127,9 +127,20 @@ Programa de Windows (`detour.exe`) con consumo real, predicción, seguimiento, a
 ```bash
 python scripts/run_app.py            # desde el código: ventana, o el navegador si no hay ventana
 python scripts/run_app.py --browser  # siempre el navegador
+run_app.bat                          # Windows, doble clic o desde cualquier carpeta; acepta los mismos argumentos (por ejemplo --browser)
 ```
 
+`run_app.bat` usa el entorno de Python de `%USERPROFILE%\detour-venv` (si no existe, el propio archivo explica cómo crearlo con `requirements/evaluation.txt`,
+`requirements/app.txt` y `pywebview`) y, si la app termina con un error, deja la ventana abierta y apunta a `logs\detour.log`.
+
 El `.exe` lo compila el CI de Windows (`.github/workflows/build-windows.yml`, a mano desde la pestaña Actions) y queda como artefacto `detour-windows.zip`.
+
+- **Pronóstico.** La pantalla Predicción pronostica **el mes siguiente al último mes completo** (un mes adelante). Con un mes incompleto en los datos no pronostica:
+  pide cargar el mes completo en Datos. No usa el nowcasting ni la estrategia a dos meses; falta conectarlos (ver "Pendiente").
+- **Datos.** Al cargar un exporte nuevo se revisa antes de guardar. La pantalla trae, al final y cerrada, una tarjeta "Cómo debe ser el archivo" con las reglas
+  del formato y una tabla de ejemplo con datos inventados. El lector solo entiende los días escritos como **texto `dd.mm.aaaa`**: una fecha de Excel o un texto como
+  `2026-02-17` se descarta sin avisar (hay una prueba que lo fija).
+- **Seguimiento.** Ver "Seguimiento contra el real": la app no ofrece medir un pronóstico que no corresponde a los datos cargados.
 
 ## Validación de entrada
 
@@ -161,6 +172,11 @@ Cuando termina el mes que se pronosticó, se agregan sus datos al archivo maestr
 Compara el pronóstico guardado con el consumo real por SKU, planta y total para cada modelo, avisa si el acierto de `ml_mean` baja de lo normal (SKU 64%,
 planta 85%, total 90%, o peor que el naive) y guarda el resultado en `results/seguimiento.csv` (va a git) y en la tabla `seguimiento` de la base.
 `--backtest` rellena el historial con los 12 meses de prueba (SKU 70,4%, planta 91,9%, total 97,6%, sin alertas). Detalle: `docs/plan_seguimiento.md`.
+
+**Protecciones.** Un pronóstico del que menos de la mitad de sus series existe en los datos cargados no se puede medir: el script se detiene con un mensaje, y la app no
+lo ofrece y lo rechaza antes de guardar nada. Es lo que pasa con un pronóstico hecho con otros datos (por ejemplo, el de una prueba). Si el consumo real es 0, el acierto
+queda vacío en lugar de infinito, y un historial con valores infinitos se lee como vacío en vez de romper Inicio y Seguimiento. Un pronóstico generado por una prueba
+no debe subirse a `results/`: una prueba lo comprueba.
 
 ## Base de datos SQLite (consumos reales y predichos)
 
@@ -721,8 +737,8 @@ están en `results/internal_model_comparison.csv`. La presentación (`presentaci
 python -m pytest -q
 ```
 
-Usan datos sintéticos y tardan unos 40 segundos (164 pruebas, 96% de cobertura de `src/`; el CI exige al menos 90%). Cubren: ausencia de fuga en los features, sumas del panel y de la expansión diaria,
+Usan datos sintéticos y tardan unos 2 minutos (292 pruebas, 97% de cobertura de `src/`, medido en Windows el 2026-10-20; el CI exige al menos 90%). Cubren: ausencia de fuga en los features, sumas del panel y de la expansión diaria,
 pesos de los ensembles, pronóstico del mes siguiente y a dos meses (sin mirar el futuro), reconciliación, signo del bias, folds de Optuna, protecciones de caché y de ventana de ajuste,
-reglas de solape al combinar exportes, emparejamiento de SKU del planificador, determinismo de los árboles, el MCS, la validación de entrada, el manifiesto de cada pronóstico, el ajuste y la evaluación del modelo (sin fuga de meses futuros) y el espacio de búsqueda. Detalle de la cobertura y de los errores inyectados: `docs/plan_cobertura.md`.
+reglas de solape al combinar exportes, emparejamiento de SKU del planificador, determinismo de los árboles, el MCS, la validación de entrada, el manifiesto de cada pronóstico, el ajuste y la evaluación del modelo (sin fuga de meses futuros), el espacio de búsqueda, la API de la app y las protecciones del seguimiento (pronóstico de otros datos, valores infinitos). Detalle de la cobertura y de los errores inyectados: `docs/plan_cobertura.md`.
 Los resultados guardados llevan metadatos (`results/member_forecasts.meta.json` y `meta` dentro de `results/tuning_trees.json`):
 si cambian los datos o la ventana de test, los scripts se detienen y piden recalcular (`--refit` o `tune_trees.py`).
