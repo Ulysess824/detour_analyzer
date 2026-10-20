@@ -1,2 +1,4 @@
-# Desktop app (src/app/, phases 1 to 6 of docs/plan_app_escritorio.md): the packages are added in phase 1.
+# Desktop app (src/app/): local API. The window (pywebview) and the .exe build (PyInstaller) are added in phase 6 of docs/plan_app_escritorio.md.
 -r base.txt
+fastapi==0.150.0
+uvicorn==0.54.0

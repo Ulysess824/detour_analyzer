@@ -1,5 +1,7 @@
-# Development and CI: everything except the dashboard, plus the tests and the notebook.
+# Development and CI: evaluation and app, plus the tests and the notebook.
 -r evaluation.txt
+-r app.txt
+httpx==0.28.1
 pytest==9.1.1
 coverage==7.16.2
 matplotlib==3.11.2

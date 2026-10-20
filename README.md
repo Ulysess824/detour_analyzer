@@ -45,8 +45,8 @@ Python 3.11 o 3.12. Las dependencias directas están fijadas a la versión exact
 |---|---|---|
 | `requirements/base.txt` | Producción: `predict_next_month.py` y lo que hay en `src/engine/` | numpy, pandas, scikit-learn, lightgbm, xgboost, openpyxl |
 | `requirements/evaluation.txt` | Backtests, afinación y comparaciones | base, scipy, optuna |
-| `requirements/app.txt` | App de escritorio (fases 1 a 6 de `docs/plan_app_escritorio.md`; por ahora solo base) | base |
-| `requirements/dev.txt` | Desarrollo y CI | evaluation, pytest, matplotlib, ipykernel |
+| `requirements/app.txt` | App de escritorio (`docs/plan_app_escritorio.md`) | base, fastapi, uvicorn |
+| `requirements/dev.txt` | Desarrollo y CI | evaluation, app, httpx, pytest, matplotlib, ipykernel |
 | `requirements.txt` | Todo (dev y app) | dev, app |
 
 ```bash
@@ -97,6 +97,12 @@ src/experiments/           ideas en prueba, fuera del pronóstico de producción
     now_casting_current_month.py  nowcasting del mes en curso: media, mediana y dos simuladores Monte Carlo
     nowcast_input_utils.py mes en curso completado con la media como entrada de ml_mean
     bibliography_utils.py  descarga de los papers de bibliografia/ (solo acceso abierto)
+src/app/                   la app de escritorio, en desarrollo (usa las tres capas de arriba)
+    api.py                 API local (FastAPI, solo 127.0.0.1): estado, plantas, SKU, sugerencias y consumo
+    consumption_service.py consumo real por planta y SKU: serie mensual y diaria, resumen y desglose
+    status_service.py      estado de la pantalla de Inicio: datos, último pronóstico, seguimiento y próximo ajuste
+    search.py              sugerencias por coincidencia aproximada de lo que se escribe
+    paths.py               carpetas de la app
 scripts/                   puntos de entrada de línea de comandos
 ```
 
