@@ -1,10 +1,11 @@
-"""Layering: engine imports no other layer, evaluation imports only engine, experiments may import both."""
+"""Layering: engine imports no other layer, evaluation imports only engine, experiments may import both, app (the desktop app) may import all."""
 
 import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1] / "src"
-ALLOWED = {"engine": {"engine"}, "evaluation": {"engine", "evaluation"}, "experiments": {"engine", "evaluation", "experiments"}}
+ALLOWED = {"engine": {"engine"}, "evaluation": {"engine", "evaluation"}, "experiments": {"engine", "evaluation", "experiments"},
+           "app": {"engine", "evaluation", "experiments", "app"}}
 
 
 def test_each_layer_imports_only_the_layers_below_it():

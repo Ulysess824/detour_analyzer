@@ -1,0 +1,7 @@
+{
+  "ultimo_ajuste": "2026-10-05",
+  "intervalo_meses": 6,
+  "historial": [
+    {"fecha": "2026-10-05", "origen": "archivo results/tuning_trees.json (fecha del commit)", "ventana": "2024-01 a 2025-09"}
+  ]
+}
