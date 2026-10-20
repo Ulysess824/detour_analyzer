@@ -1,3 +1,3 @@
-# Everything (development + dashboard). Smaller sets: requirements/base.txt (production), evaluation.txt, app.txt, dev.txt.
+# Everything (development + desktop app). Smaller sets: requirements/base.txt (production), evaluation.txt, app.txt, dev.txt.
 -r requirements/dev.txt
 -r requirements/app.txt

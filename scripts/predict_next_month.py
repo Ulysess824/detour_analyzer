@@ -17,10 +17,7 @@ Usage:
 """
 
 import argparse
-import json
-import time
 import warnings
-from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -29,10 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.engine.data_checks import validate_consumption
-from src.engine.inference_utils import check_last_month_complete, forecast_next_month
-from src.engine.panel_utils import build_panel, load_consumption
-from src.engine.run_manifest import build_manifest, git_info, manifest_path, write_manifest
+from src.engine.prediction_run import run_prediction
 from src.evaluation.metrics_utils import score
 
 
@@ -46,40 +40,21 @@ def main() -> None:
     warnings.filterwarnings("ignore")
     pd.set_option("display.width", 200)
 
-    started, clock = datetime.now(timezone.utc), time.perf_counter()
-    git = git_info(Path(__file__).resolve().parents[1])  # before the run writes anything, so its own outputs do not count as changes
-    full = load_consumption(args.input, validate=False)
-    validation = validate_consumption(full)  # stops on errors, prints the warnings
-    df = full
-    if args.as_of:
-        df = full[full["fecha"] <= pd.Period(args.as_of, freq="M").end_time]
-    else:
-        check_last_month_complete(full)
-    S = build_panel(df)
-    tuned = json.loads(args.tuning.read_text()) if args.tuning.exists() else {}
-
+    run = run_prediction(args.input, args.tuning, args.out, args.as_of, repo_dir=Path(__file__).resolve().parents[1])
+    S, result, month = run.panel, run.result, run.month
     print(f"history {S.labels[0]} .. {S.labels[-1]} ({len(S.keys)} series)")
-    result = forecast_next_month(S, tuned)
-    month = result["mes"].iloc[0]
     print(f"forecast for {month}: {len(result)} series")
-
-    out = args.out or Path(f"results/forecast_{month}.csv")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    result.round(3).to_csv(out, index=False)
-    manifest = build_manifest(
-        S=S, df=df, input_path=args.input, tuned=tuned, tuning_path=args.tuning, result=result, forecast_path=out, as_of=args.as_of,
-        started_at=started, seconds=time.perf_counter() - clock, git=git, validation=validation, rows_in_file=len(full),
-    )
-    write_manifest(manifest_path(out), manifest)
 
     by_planta = result.groupby("planta")[["ml_mean"]].sum().round(1).sort_values("ml_mean", ascending=False)
     print("\nforecast by planta (ml_mean, TO):")
     print(by_planta.to_string())
     print(f"\ntotal ml_mean: {result['ml_mean'].sum():,.1f}")
-    print(f"saved {out}")
-    print(f"saved {manifest_path(out)}  (run {manifest['run']['run_id']}, commit {manifest['code']['commit'][:8]}, data {manifest['data']['panel_fingerprint']})")
+    print(f"saved {run.forecast_path}")
+    manifest = run.manifest
+    print(f"saved {run.manifest_file}  (run {manifest['run']['run_id']}, commit {manifest['code']['commit'][:8]}, data {manifest['data']['panel_fingerprint']})")
 
     if args.as_of:
+        full = run.full
         actual = full[full["fecha"].dt.strftime("%Y-%m") == month].groupby(["planta", "sku"])["consumo"].sum().rename("real")
         joined = result.merge(actual.reset_index(), on=["planta", "sku"], how="left").fillna({"real": 0.0})
         if len(actual):

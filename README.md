@@ -7,7 +7,7 @@ Forecast del consumo por planta y SKU a partir de exportes de SAP. El objetivo e
 
 | Versión | Rama / commit | Qué incluye |
 |---|---|---|
-| **v1** | rama `v1` (commit `4150a26`) | Pronóstico mensual por SKU, planta y total con el ensamble de LightGBM, XGBoost y Random Forest (`ml_mean`), comparación con el planificador y con el modelo interno, pronóstico a dos meses, dashboard y Excel |
+| **v1** | rama `v1` (commit `4150a26`) | Pronóstico mensual por SKU, planta y total con el ensamble de LightGBM, XGBoost y Random Forest (`ml_mean`), comparación con el planificador y con el modelo interno, pronóstico a dos meses, dashboard (Streamlit, retirado en la fase 0 de la app de escritorio) y Excel |
 | **v2** | `main` (commit `2876c4f`) | Todo lo de la v1 más el nowcasting del mes en curso (media, mediana y Monte Carlo), la carpeta `bibliografia/` y su documentación |
 
 La v2 solo añadió archivos y secciones de documentación; no cambió ningún modelo ni resultado de la v1. Para recuperar la v1: `git checkout v1`
@@ -45,9 +45,9 @@ Python 3.11 o 3.12. Las dependencias directas están fijadas a la versión exact
 |---|---|---|
 | `requirements/base.txt` | Producción: `predict_next_month.py` y lo que hay en `src/engine/` | numpy, pandas, scikit-learn, lightgbm, xgboost, openpyxl |
 | `requirements/evaluation.txt` | Backtests, afinación y comparaciones | base, scipy, optuna |
-| `requirements/app.txt` | Dashboard | base, streamlit, plotly |
+| `requirements/app.txt` | App de escritorio (fases 1 a 6 de `docs/plan_app_escritorio.md`; por ahora solo base) | base |
 | `requirements/dev.txt` | Desarrollo y CI | evaluation, pytest, matplotlib, ipykernel |
-| `requirements.txt` | Todo (dev y dashboard) | dev, app |
+| `requirements.txt` | Todo (dev y app) | dev, app |
 
 ```bash
 python -m venv .venv
@@ -74,6 +74,7 @@ src/engine/                la máquina: lo que produce el pronóstico (no import
     member_utils.py        pronósticos de todos los miembros de los ensembles
     inference_utils.py     pronóstico del mes siguiente con todo el histórico
     db_utils.py            base SQLite: consumos reales y consumos predichos (se sobrescriben mientras sea beta)
+    prediction_run.py      servicio del pronóstico del mes siguiente (lo usan el script y, más adelante, la app)
 src/evaluation/            las pruebas del modelo: backtests, métricas, ajuste y comparaciones (usa engine)
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
     evaluation_utils.py    meses de prueba, reconciliación y acierto a nivel SKU, planta y total
@@ -89,6 +90,8 @@ src/evaluation/            las pruebas del modelo: backtests, métricas, ajuste 
     internal_utils.py      códigos SAP a sku y modelo interno de SCAN
     planner_utils.py       emparejamiento y comparación con el pronóstico del planificador
     excel_utils.py         el cruce de predicciones como libro de Excel: hoja de comparación y hoja de excluidos
+    tuning_run.py          servicio de la afinación de los árboles (Optuna)
+    tracking_run.py        servicio del seguimiento contra el real y su guardado
 src/experiments/           ideas en prueba, fuera del pronóstico de producción (usa engine y evaluation)
     montecarlo_utils.py    simulador Monte Carlo de los días que faltan del mes
     now_casting_current_month.py  nowcasting del mes en curso: media, mediana y dos simuladores Monte Carlo
@@ -454,8 +457,7 @@ consumo en la ventana.
   resultado a dos meses de hoy (`compare_horizon_strategies.py`) usa origen móvil por horizonte. El de tres meses lo calculaba `forecast_monthly.py`, retirado.
 - Varias plantas en las comparaciones: `compare_planner.py` ya compara las 11 plantas del planificador y guarda la planta en cada fila, y el
   cruce con el planificador de `compare_internal_model.py` usa planta, mes y SKU. Falta que los meses del modelo interno, fijos en
-  `src/evaluation/internal_utils.py` (2026-06 a 2026-09), salgan del propio archivo, y la pestaña PLANIFICADOR del dashboard sigue leyendo solo los
-  `results/planner_comparison_<mes>.csv` de SCAN (no hay selector de planta). Si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
+  `src/evaluation/internal_utils.py` (2026-06 a 2026-09), salgan del propio archivo. Si cambia `data/consumos_long.csv`, las cachés piden `--refit`.
 - Subgrado distinto en el archivo del planificador de septiembre de 2026: 16 filas VMI (SALI 8 y SALM 8, `KS/01/215gsm/<ancho>mm`) aparecen
   con subgrado 01, pero en `data/consumos_long.csv` esos SKU existen como `KS/257/215gsm/<ancho>mm`. No se cruzan y se ignoran en la comparación
   con el planificador (1.484 TO, 3,5% del volumen VMI de septiembre). Pendiente: confirmar con el planificador si es el mismo producto y, si lo es,
