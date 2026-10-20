@@ -275,10 +275,6 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
     def download_tracking(mes: str | None = None):
         return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes))
 
-    @app.get("/api/descargas/ejemplo-exporte")
-    def download_example():
-        return workbook(example_service.example_workbook())
-
     @app.get("/api/acerca")
     def about():
         return {"version": __version__, "carpeta": str(paths.root), "archivos": {"datos": str(paths.consumption_csv), "pronosticos": str(paths.results), "respaldos": str(paths.backups), "registro": str(paths.logs / "detour.log")}}

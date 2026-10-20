@@ -42,7 +42,7 @@ async function renderData(view) {
   };
 }
 
-/* how the raw export must look, with an example of invented data; the table and the downloadable file come from the same rows (src/app/example_service.py) */
+/* how the raw export must look, with an example of invented data (the rows are in src/app/example_service.py) */
 function formatHelpHtml() {
   return `<details class="howto" open><summary>Cómo debe ser el archivo (con un ejemplo)</summary>
     <ol>
@@ -55,14 +55,12 @@ function formatHelpHtml() {
     </ol>
     <p class="note">Así se ve el archivo (los datos son inventados: plantas <code>DEMO1</code> y <code>DEMO2</code>).</p>
     <div id="d-format"></div>
-    <div class="rowbtns"><button class="btn" id="d-example">Descargar ejemplo (.xlsx)</button><span id="d-example-msg"></span></div>
-    <p class="note">El ejemplo sirve para ver el formato; no lo cargues. También se acepta la tabla dinámica de SAP en formato ancho (hoja <code>RESULT</code>, un día por columna).</p>
+    <p class="note">También se acepta la tabla dinámica de SAP en formato ancho (hoja <code>RESULT</code>, un día por columna).</p>
   </details>`;
 }
 
 async function showFormatExample() {
   const box = $("#d-format");
-  $("#d-example").onclick = () => downloadExcel("ejemplo-exporte", {}, $("#d-example-msg"));
   try {
     const f = await api("datos/formato");
     box.innerHTML = `<div class="tablewrap"><table class="data sheet"><thead><tr><th class="rownum"></th>${f.columnas.map((c) => `<th>${c.letra}</th>`).join("")}</tr></thead>
