@@ -80,8 +80,11 @@ function watchTuning(jobId) {
 }
 
 function candidateHtml(c) {
-  const gain = c.mejora_sku_pts;
-  const verdict = gain > 0.2 ? `<span class="badge ok">${icon("check")}Mejora ${fmt(gain)} puntos el acierto por SKU</span>` : `<span class="badge warn">${icon("alert")}No mejora de forma clara (${gain > 0 ? "+" : ""}${fmt(gain)} puntos)</span>`;
+  const gain = c.mejora_sku_pts, better = c.modelos.filter((m) => m.mejora_sku_pts > 0).length, n = c.modelos.length;
+  const clear = better === n || (gain > 0.2 && better >= Math.ceil(n / 2));
+  const verdict = clear
+    ? `<span class="badge ok">${icon("check")}Mejora el acierto por SKU en ${better} de ${n} modelos (promedio ${gain > 0 ? "+" : ""}${fmt(gain)} puntos)</span>`
+    : `<span class="badge warn">${icon("alert")}Mejora solo en ${better} de ${n} modelos (promedio ${gain > 0 ? "+" : ""}${fmt(gain)} puntos): no es una mejora clara</span>`;
   const rows = c.modelos.map((m) => `<tr><td>${esc(m.nombre)}</td><td>${m.pruebas}</td><td>${fmt(m.sku_base)}% → <b>${fmt(m.sku_ajustado)}%</b></td><td>${fmt(m.planta_base)}% → ${fmt(m.planta_ajustado)}%</td><td>${fmt(m.total_base)}% → ${fmt(m.total_ajustado)}%</td><td>${m.mejora_sku_pts > 0 ? "+" : ""}${fmt(m.mejora_sku_pts)}</td></tr>`).join("");
   const quick = c.tipo === "rapido" ? `<div class="banner warn" style="margin-top:12px">${icon("alert")}<div>Es un ajuste rápido de prueba. No se recomienda adoptarlo; haz el completo.</div></div>` : "";
   return `<div class="card"><h2>Parámetros nuevos esperando una decisión</h2><p class="hint">Hechos el ${dateLong(c.generado_en)} con datos de ${esc(c.ventana_ajuste)}. Probados en ${esc(c.ventana_prueba)}, meses que no se usaron para elegirlos.</p>

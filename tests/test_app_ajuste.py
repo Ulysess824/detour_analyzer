@@ -183,6 +183,8 @@ def test_a_retune_leaves_a_candidate_and_changes_nothing_until_it_is_adopted(cli
     assert [m["modelo"] for m in candidate["modelos"]] == ["lgbm"] and candidate["tipo"] == "rapido"
     assert {"sku_base", "sku_ajustado", "mejora_sku_pts", "planta_base", "total_ajustado"} <= set(candidate["modelos"][0])
     assert candidate["mejora_sku_pts"] == candidate["modelos"][0]["mejora_sku_pts"]
+    saved = json.loads(paths.tuning_candidate.read_text())["lgbm"]
+    assert "h1" in saved and "h3" not in saved  # the app checks h=1 only
     assert body["estado"]["ultimo"] == "2026-10-05"  # the schedule did not move
     assert client.get("/api/estado").json()["ajuste"]["candidato"] is True
 

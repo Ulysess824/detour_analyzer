@@ -3,7 +3,7 @@ One tuning run: Optuna search of each tree model on the tuning window, then the 
 
 The logic of scripts/tune_trees.py, so that the desktop app and the command line do the same thing. Protocol (chronological; the test months are
 never used to choose anything): the last `n_test` months are the test, everything before is the tuning window with three walk-forward folds, the
-baseline parameters are the first trial, and the search is at h=1 (h=3 is only checked with those parameters).
+baseline parameters are the first trial, and the search is at h=1 (h=3 is only checked with those parameters, unless `horizons` leaves it out: the app checks h=1 only).
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ def run_tuning(
     storage: str | None = None,
     progress: Progress | None = None,
     log: Callable[[str], None] = print,
+    horizons: tuple[int, ...] = (1, 3),
 ) -> dict:
     r"""
     Tune each model in `models` and return the results (the json written by tune_trees.py): the best and base parameters, the validation scores, the
@@ -49,7 +50,7 @@ def run_tuning(
     test_months = list(range(n_months - n_test, n_months))
     tune_end = n_months - n_test - 1
     log(f"tuning window: {S.labels[0]} .. {S.labels[tune_end]} | test: {S.labels[test_months[0]]} .. {S.labels[-1]}")
-    frames = {h: make_frame(S, h) for h in (1, 3)}
+    frames = {h: make_frame(S, h) for h in sorted({1, *horizons})}  # the search uses h=1
     meta = tuning_meta(S, n_test)
 
     results = {}
@@ -72,7 +73,7 @@ def run_tuning(
         results[kind].update(
             compare_base_and_tuned(
                 tree_predictor(kind, TREE_BASE[kind]), tree_predictor(kind, study.best_trial.params), S, frames, test_months,
-                list(rf_seeds if kind == "rf" else seeds),
+                list(rf_seeds if kind == "rf" else seeds), horizons,
             )
         )
     report("Listo", 1.0)

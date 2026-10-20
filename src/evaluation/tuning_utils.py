@@ -218,11 +218,11 @@ def summarise_runs(runs: list[pd.DataFrame], S: Panel, test_months: list[int]) -
 
 
 def compare_base_and_tuned(
-    base_predict: Predictor, tuned_predict: Predictor, S: Panel, frames: dict, test_months: list[int], seeds
+    base_predict: Predictor, tuned_predict: Predictor, S: Panel, frames: dict, test_months: list[int], seeds, horizons: tuple[int, ...] = (1, 3)
 ) -> dict:
-    r"""Test results (h=1 and h=3) of the baseline and the tuned configuration, plus the naive accuracy."""
+    r"""Test results (h=1 and h=3 by default) of the baseline and the tuned configuration, plus the naive accuracy."""
     results = {}
-    for horizon in (1, 3):
+    for horizon in horizons:
         base_runs = rolling_test(base_predict, S, frames[horizon], horizon, test_months, seeds)
         tuned_runs = rolling_test(tuned_predict, S, frames[horizon], horizon, test_months, seeds)
         naive = base_runs[0]

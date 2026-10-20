@@ -96,3 +96,8 @@ def test_a_tuning_run_returns_the_results_and_reports_progress(toy_panel):
     assert r["n_trials"] == 2 and r["val_best"] <= r["val_base"] and r["meta"]["tune_end"] == toy_panel.labels[toy_panel.monthly.shape[1] - 4]
     assert set(r["h1"]) >= {"base", "tuned", "naive_sku_acc"} and np.isfinite(r["h1"]["tuned"]["sku_acc"]).all()
     assert steps == sorted(steps) and steps[-1] == 1.0 and any("validation WAPE" in line for line in lines)
+
+
+def test_a_tuning_run_can_leave_the_h3_check_out(toy_panel):
+    results = run_tuning(toy_panel, ["lgbm"], {"lgbm": 2}, n_test=3, seeds=[0], log=lambda m: None, horizons=(1,))
+    assert "h1" in results["lgbm"] and "h3" not in results["lgbm"]

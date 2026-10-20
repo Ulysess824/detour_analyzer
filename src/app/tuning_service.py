@@ -15,10 +15,13 @@ from src.evaluation.tuning_run import NAMES, run_tuning
 from src.evaluation.tuning_utils import to_jsonable
 
 TEST_MONTHS = 12
+# The check on the test months dominates the time (a rolling refit per month, per seed, per horizon, for the baseline and the tuned parameters): the app
+# checks h=1 only and one seed (seeds differ by about 0.05 points), which makes it about six times shorter than the command line default.
+SEEDS, HORIZONS = [0], (1,)
 PRESETS = {
-    "completo": {"nombre": "Completo", "trials": {"lgbm": 100, "xgb": 100, "rf": 40}, "minutos": 20,
+    "completo": {"nombre": "Completo", "trials": {"lgbm": 100, "xgb": 100, "rf": 40}, "minutos": 25,
                  "texto": "La búsqueda de siempre: 100 pruebas para LightGBM y XGBoost y 40 para Random Forest. Es la que se recomienda."},
-    "rapido": {"nombre": "Rápido", "trials": {"lgbm": 15, "xgb": 15, "rf": 8}, "minutos": 5,
+    "rapido": {"nombre": "Rápido", "trials": {"lgbm": 15, "xgb": 15, "rf": 8}, "minutos": 11,
                "texto": "Una búsqueda corta para probar que todo funciona. Sus parámetros suelen ser peores: no se recomienda adoptarla."},
 }
 
@@ -34,7 +37,7 @@ def retune(paths: AppPaths, store: ConsumptionStore, preset: str, progress: Call
     if store.is_partial():
         raise ValueError(f"El último mes de los datos ({store.panel.labels[-1]}) está incompleto. Carga el mes completo en la sección Datos.")
     trials = PRESETS[preset]["trials"]
-    results = to_jsonable(run_tuning(store.panel, list(trials), trials, n_test=TEST_MONTHS, progress=progress, log=lambda message: None))
+    results = to_jsonable(run_tuning(store.panel, list(trials), trials, n_test=TEST_MONTHS, seeds=SEEDS, rf_seeds=SEEDS, progress=progress, log=lambda message: None, horizons=HORIZONS))
     stamp = date.today().isoformat()
     for model in results.values():
         model["meta"] = {**model["meta"], "preset": preset, "generado_en": stamp}
