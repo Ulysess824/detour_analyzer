@@ -45,7 +45,7 @@ const SECTIONS = [
   { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "Lo que se consumió, por planta y por SKU." },
   { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico del mes siguiente." },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "Qué tanto acertó el pronóstico cuando cerró el mes." },
-  { id: "ajuste", label: "Ajuste de hiperparámetros", icon: "sliders", title: "Ajuste de hiperparámetros", subtitle: "Reafinar el modelo cada seis meses.", soon: true },
+  { id: "ajuste", label: "Ajuste de hiperparámetros", icon: "sliders", title: "Ajuste de hiperparámetros", subtitle: "Reafinar el modelo cada seis meses." },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP.", soon: true },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel.", soon: true },
   { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes.", soon: true },
@@ -86,6 +86,7 @@ async function route() {
     else if (section.id === "consumo") await renderConsumption(view);
     else if (section.id === "prediccion") await renderForecast(view);
     else if (section.id === "seguimiento") await renderTracking(view);
+    else if (section.id === "ajuste") await renderTuning(view);
     else renderSoon(view, section);
   } catch (error) {
     view.innerHTML = `<div class="card empty"><h3>No se pudo mostrar esta sección</h3><p>${esc(error.message)}</p></div>`;
@@ -252,6 +253,7 @@ async function renderHome(view) {
   const notes = [];
   if (!data) notes.push(`<div class="banner warn">${icon("alert")}<div><b>Todavía no hay datos de consumo.</b> Carga los exportes de SAP en la sección Datos para empezar.</div></div>`);
   if (status.seguimiento_pendiente) notes.push(`<div class="banner warn">${icon("alert")}<div><b>${monthLong(status.seguimiento_pendiente)} ya cerró.</b> Falta medir qué tanto acertó el pronóstico de ese mes (sección Seguimiento).</div></div>`);
+  if (retune.candidato) notes.push(`<div class="banner info">${icon("info")}<div><b>Hay parámetros nuevos esperando una decisión.</b> Revísalos en la sección Ajuste de hiperparámetros.</div></div>`);
   if (retune.estado === "por_vencer" || retune.estado === "vencido") notes.push(`<div class="banner warn">${icon("alert")}<div><b>${retune.estado === "vencido" ? "El ajuste de hiperparámetros está vencido." : "El ajuste de hiperparámetros vence pronto."}</b> Próximo ajuste: ${dateLong(retune.proximo)}.</div></div>`);
 
   const dataCard = data

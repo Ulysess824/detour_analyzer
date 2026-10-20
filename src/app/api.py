@@ -5,17 +5,18 @@ from __future__ import annotations
 from datetime import date
 from typing import Callable, Literal
 
-from fastapi import FastAPI, Query
+from fastapi import Depends, FastAPI, Header, Query
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app import forecast_service, tracking_service
+from src.app import forecast_service, tracking_service, tuning_service
 from src.app.forecast_service import ForecastMissing
 from src.app.jobs import Busy, JobRunner
 from src.app.paths import STATIC, AppPaths, default_paths
-from src.app.status_service import app_status
+from src.app.security import Locked, NoPassword, Sessions, Unauthorized, WrongPassword, load_record
+from src.app.status_service import app_status, retune_status
 
 
 class GenerateBody(BaseModel):
@@ -26,10 +27,23 @@ class MeasureBody(BaseModel):
     mes: str
 
 
+class UnlockBody(BaseModel):
+    clave: str
+
+
+class RetuneBody(BaseModel):
+    tipo: str = "completo"
+
+
 def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.today) -> FastAPI:
     paths = paths or default_paths()
     store = ConsumptionStore(paths)
     jobs = JobRunner()
+    sessions = Sessions(lambda: load_record(paths.security_json))
+
+    def unlocked(x_ajuste_token: str | None = Header(default=None)) -> str:
+        sessions.check(x_ajuste_token)
+        return x_ajuste_token
     app = FastAPI(title="detour", docs_url=None, redoc_url=None)
 
     @app.exception_handler(NotFound)
@@ -47,6 +61,22 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
     @app.exception_handler(LookupError)
     def _no_record(_, error: LookupError):
         return JSONResponse(status_code=404, content={"detalle": str(error.args[0]) if error.args else "No encontrado"})
+
+    @app.exception_handler(Unauthorized)
+    def _locked_screen(_, error: Unauthorized):
+        return JSONResponse(status_code=401, content={"detalle": str(error), "bloqueado": True})
+
+    @app.exception_handler(WrongPassword)
+    def _wrong(_, error: WrongPassword):
+        return JSONResponse(status_code=401, content={"detalle": str(error), "intentos": error.remaining})
+
+    @app.exception_handler(Locked)
+    def _too_many(_, error: Locked):
+        return JSONResponse(status_code=429, content={"detalle": str(error), "segundos": error.seconds})
+
+    @app.exception_handler(NoPassword)
+    def _no_password(_, error: NoPassword):
+        return JSONResponse(status_code=503, content={"detalle": str(error)})
 
     @app.exception_handler(Busy)
     def _busy(_, error: Busy):
@@ -137,6 +167,40 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
     @app.post("/api/seguimiento/medir")
     def measure(body: MeasureBody):
         return tracking_service.measure(paths, store, body.mes)
+
+    # ---- hyperparameter retune ----------------------------------------------------------------------------------------------
+
+    @app.get("/api/ajuste")
+    def retune_state():
+        try:
+            partial = store.is_partial()
+        except DataMissing:
+            partial = False
+        return {"estado": retune_status(paths, today()), "historial": tuning_service.history(paths), "candidato": tuning_service.candidate_summary(paths),
+                "tipos": tuning_service.presets(), "mes_parcial": partial, "clave_configurada": sessions.configured(), "tarea": jobs.active()}
+
+    @app.post("/api/ajuste/desbloquear")
+    def unlock(body: UnlockBody):
+        return {"token": sessions.login(body.clave)}
+
+    @app.post("/api/ajuste/bloquear")
+    def lock(x_ajuste_token: str | None = Header(default=None)):
+        sessions.logout(x_ajuste_token)
+        return {"ok": True}
+
+    @app.post("/api/ajuste/reafinar")
+    def retune(body: RetuneBody, _: str = Depends(unlocked)):
+        return {"trabajo": jobs.start("ajuste", lambda progress: tuning_service.retune(paths, store, body.tipo, progress))}
+
+    @app.post("/api/ajuste/adoptar")
+    def adopt(_: str = Depends(unlocked)):
+        tuning_service.adopt(paths, today())
+        return {"estado": retune_status(paths, today()), "historial": tuning_service.history(paths)}
+
+    @app.post("/api/ajuste/descartar")
+    def discard(_: str = Depends(unlocked)):
+        tuning_service.discard(paths)
+        return {"ok": True}
 
     app.mount("/", StaticFiles(directory=STATIC, html=True), name="ui")  # last: the API routes above win
     return app

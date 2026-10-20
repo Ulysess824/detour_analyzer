@@ -30,6 +30,26 @@ class AppPaths:
         return self.results / "tuning_trees.json"
 
     @property
+    def production_tuning(self) -> Path:
+        return self.results / "tuning_produccion.json"
+
+    @property
+    def tuning_candidate(self) -> Path:
+        return self.results / "tuning_candidato.json"
+
+    @property
+    def tuning_archive(self) -> Path:
+        return self.results / "ajustes_anteriores"
+
+    @property
+    def security_json(self) -> Path:
+        return self.root / "config" / "seguridad.json"
+
+    def tuning_for_forecast(self) -> Path:
+        r"""The tuned parameters the app forecasts with: the production file once a retune was adopted, else the research file."""
+        return self.production_tuning if self.production_tuning.exists() else self.tuning_json
+
+    @property
     def database(self) -> Path:
         return self.root / "data" / "detour.db"
 

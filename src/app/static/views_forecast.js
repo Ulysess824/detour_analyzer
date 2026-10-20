@@ -9,8 +9,8 @@ const FIXED = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximum
 const fx = (v) => (v === null || v === undefined ? "–" : FIXED.format(v));
 let pollTimer = null;
 
-async function apiPost(path, body) {
-  const response = await fetch(`/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+async function apiPost(path, body, headers = {}) {
+  const response = await fetch(`/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
   return { ok: response.ok, status: response.status, body: await response.json().catch(() => ({})) };
 }
 

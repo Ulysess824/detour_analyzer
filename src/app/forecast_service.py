@@ -120,6 +120,6 @@ def generate(paths: AppPaths, store: ConsumptionStore, progress: Callable[[str, 
     r"""Forecast the month after the last complete one (the same run as scripts/predict_next_month.py) and return what the screen needs."""
     if store.is_partial():
         raise ValueError(f"El último mes de los datos ({store.panel.labels[-1]}) está incompleto. Carga el mes completo en la sección Datos.")
-    run = run_prediction(paths.consumption_csv, paths.tuning_json, paths.forecast_csv(next_month(store)), repo_dir=paths.root, progress=progress)
+    run = run_prediction(paths.consumption_csv, paths.tuning_for_forecast(), paths.forecast_csv(next_month(store)), repo_dir=paths.root, progress=progress)
     return {"mes": run.month, "series": int(len(run.result)), "total_TO": round(float(run.result["ml_mean"].sum()), 1),
             "avisos_de_datos": len(run.validation.warnings)}

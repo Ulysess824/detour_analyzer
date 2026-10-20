@@ -173,3 +173,20 @@ table.clickable tbody tr:hover td { background: var(--primary-soft); }
 .error-text { color: #b01c1c; }
 @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
 table.data.two-left th:nth-child(2), table.data.two-left td:nth-child(2) { text-align: left; }
+
+/* ---- Ajuste ----------------------------------------------------------------------------------------------------------------- */
+.lock { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-top: 14px; }
+.lock .input-wrap { width: 280px; }
+.lock input[type=password] { padding-right: 14px; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.facts div { background: var(--bg); border-radius: 12px; padding: 12px 14px; }
+.facts b { display: block; font-size: 18px; margin-top: 2px; }
+.facts span { font-size: 12px; color: var(--ink-3); }
+.choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.choice label { display: block; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; cursor: pointer; }
+.choice label:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.choice input { margin-right: 8px; accent-color: var(--primary); }
+.choice small { display: block; color: var(--ink-2); margin-top: 6px; line-height: 1.45; font-size: 13px; }
+.rowbtns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+@media (max-width: 1100px) { .facts, .choice { grid-template-columns: 1fr; } }
+table.data.left3 th:nth-child(-n+3), table.data.left3 td:nth-child(-n+3) { text-align: left; }

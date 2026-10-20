@@ -12,7 +12,7 @@ vale es la predicción del modelo; la del planificador es orientativa.
 | Reafinación | Cada 6 meses; la app muestra la última fecha y la próxima por vencer |
 | Datos | Sección para cargar los exportes SAP desde la app |
 | Extras | Inicio, Datos, Ayuda, Descargar (PNG y Excel) e Historial de pronósticos |
-| Contraseña del ajuste | "Marlen" |
+| Contraseña del ajuste | La definió el usuario; en el repositorio solo está su hash (`config/seguridad.json`), provisoria |
 
 ## Secciones
 
@@ -33,8 +33,8 @@ Cada fase termina con pruebas, capturas y confirmación del usuario antes de fus
 | 0 | Quitar el dashboard Streamlit y mover la lógica de los scripts a servicios en `src/` (hecha) |
 | 1 (hecha) | Servicios y API (consumo real, búsqueda aproximada, estado); capa `src/app/` en `tests/test_layers.py` |
 | 2 (hecha) | Estructura visual, Inicio y Consumo real |
-| 3 (hecha, en revisión) | Predicción y Seguimiento |
-| 4 | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
+| 3 (hecha) | Predicción y Seguimiento |
+| 4 (hecha, en revisión) | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
 | 5 | Datos, Ayuda, Descargar e Historial |
 | 6 | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
 
@@ -97,6 +97,27 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 - `.coverage` dejó de estar en git (estaba por error desde el sub-plan 4).
 - 13 pruebas nuevas en `tests/test_app_forecast.py` (la tarea en segundo plano, el detalle, la medición, el orden de los meses, el mes parcial); 7 mutaciones inyectadas, las 7 detectadas después de reforzar 3 pruebas. 224 pruebas, cobertura de `src/` 97%.
 - Capturas con Chromium sin ventana contra datos reales: se generó el pronóstico de septiembre desde los datos de agosto, se cerró el mes y se midió (66,2 / 88,4 / 99,2, igual que la prueba histórica).
+
+## Fase 4 (hecha)
+
+**Contraseña.** `src/app/security.py`: solo se guarda el hash (scrypt, o PBKDF2 si esa instalación de Python no tiene scrypt) con su sal en `config/seguridad.json`; el texto no está en ningún archivo del repositorio. Al desbloquear se crea una sesión en memoria (30 minutos sin usarla, se pierde al cerrar la app); cinco claves malas seguidas bloquean la pantalla un minuto. Para cambiarla: `python scripts/set_app_password.py`. Es provisoria y evita usos accidentales; no es seguridad real: quien tenga los archivos de la app puede saltársela, y el hash de una clave corta se puede adivinar si alguien ve el archivo.
+
+**Ajuste de hiperparámetros.** La pantalla muestra siempre (sin clave) la fecha del último ajuste, la del próximo (cada 6 meses) y el estado. Con la clave, "Empezar el ajuste" corre el mismo `run_tuning` del script en segundo plano con avance por prueba, sobre los datos hasta el último mes completo y con los últimos 12 meses como prueba (no se usan para elegir). Dos tipos: Completo (100, 100 y 40 pruebas, unos 25 minutos) y Rápido (15, 15 y 8, unos 11 minutos, para probar).
+
+- El resultado queda como **candidato** (`results/tuning_candidato.json`): no cambia nada hasta que se adopte. La pantalla muestra, por modelo, el acierto en SKU, planta y total con los parámetros de antes y los nuevos, y avisa si no mejora de forma clara.
+- **Adoptar** guarda el candidato como `results/tuning_produccion.json`, mueve el anterior a `results/ajustes_anteriores/`, actualiza `results/ajustes.json` (fecha y historial) y desde ahí los pronósticos de la app usan esos parámetros; el manifiesto de cada pronóstico registra el archivo y su hash. **Descartar** lo borra y no mueve la fecha.
+- Los parámetros de investigación (`results/tuning_trees.json`) no se tocan: siguen protegidos por `check_tuning_window` en los scripts de backtest.
+- Si el último mes de los datos está incompleto, o hay otra tarea en marcha, no se puede empezar.
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/ajuste` | Estado, historial, candidato, tipos de ajuste y si hay clave (sin clave) |
+| `POST /api/ajuste/desbloquear` `{clave}` | Devuelve el token de la sesión; 401 con intentos restantes, 429 si está bloqueado |
+| `POST /api/ajuste/bloquear`, `/reafinar` `{tipo}`, `/adoptar`, `/descartar` | Con el encabezado `X-Ajuste-Token` |
+
+- 15 pruebas nuevas (`tests/test_app_ajuste.py`): hash y sal, sesiones y vencimiento, bloqueo y reinicio de intentos, el flujo completo (ajustar, adoptar, respaldo, el pronóstico usa el archivo de producción), descartar, mes incompleto y el avance por prueba. Una de ellas encontró un error de un segundo en el aviso de bloqueo.
+- **Tiempos medidos con datos reales** (ajuste rápido): con la comprobación del script (h=1 y h=3, 3 semillas) tardó 33 minutos, de los cuales la búsqueda eran 3; casi todo el tiempo era la comprobación en los 12 meses de prueba. En la app esa comprobación es solo h=1 y una semilla (las semillas difieren en unos 0,05 puntos), y el ajuste rápido pasó a 10,7 minutos; el completo se estima en 25 (la búsqueda de 17 minutos más la comprobación). Los tiempos de CLAUDE.md anteriores eran solo de la búsqueda.
+- Se agregó `on_trial` a `run_study` para el avance por prueba (el script de línea de comandos sigue igual).
 
 ## Contraseña
 
