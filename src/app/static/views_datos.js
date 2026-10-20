@@ -18,11 +18,13 @@ async function renderData(view) {
     <div class="card"><h2>Datos actuales</h2>${current}${undo}</div>
     <div class="card"><h2>Cargar datos nuevos</h2>
       <p class="hint" style="margin-top:6px;line-height:1.5">Elige el exporte de consumo de SAP (Excel, .xlsx) con los días nuevos. Antes de guardar nada se revisa: los días que ya estaban deben traer los mismos valores y se aplican las mismas validaciones de siempre. Los datos de antes se guardan como respaldo.</p>
+      ${formatHelpHtml()}
       <label class="drop" id="d-drop"><input type="file" id="d-files" accept=".xlsx" multiple><b>Elige los archivos</b> o suéltalos aquí<span id="d-list" class="note"></span></label>
       <div class="rowbtns"><button class="btn primary" id="d-review" disabled>Revisar archivos</button></div>
       <div id="d-progress"></div></div>
     <div id="d-result"></div></div>`;
   bindData();
+  showFormatExample();
   if (reviewState.id) {  // coming back to the screen with a review that was not applied yet
     const box = $("#d-result");
     try { box.innerHTML = '<div class="loading">Cargando…</div>'; const running = (await api("trabajos/activo")).trabajo; if (running && running.tipo === "datos") watchData(running.id); else box.innerHTML = ""; } catch (_) { box.innerHTML = ""; }
@@ -38,6 +40,35 @@ async function renderData(view) {
       route();
     };
   };
+}
+
+/* how the raw export must look, with an example of invented data; the table and the downloadable file come from the same rows (src/app/example_service.py) */
+function formatHelpHtml() {
+  return `<details class="howto" open><summary>Cómo debe ser el archivo (con un ejemplo)</summary>
+    <ol>
+      <li><b>Un archivo de Excel (.xlsx).</b> Puedes subir varios a la vez. Se lee la primera hoja, o la hoja llamada <code>RESULT</code>.</li>
+      <li><b>Una fila por planta, material y día con consumo.</b> Los días sin consumo no hacen falta.</li>
+      <li><b>La fila 1 lleva los títulos</b> <code>Customer</code>, <code>Material</code>, <code>Day</code> y <code>TO</code>, escritos así. Justo después de <code>Material</code> hay una columna sin título con la <b>descripción del SKU</b> (por ejemplo <code>K/01/125gsm/2000mm/1200-1400</code>), no el código numérico.</li>
+      <li class="caution"><b><code>Day</code> debe ser texto con el formato <code>dd.mm.aaaa</code></b>, por ejemplo <code>17.02.2026</code>. Una fecha de Excel o un texto como <code>2026-02-17</code> no se lee: esas filas se descartan sin aviso.</li>
+      <li><b><code>TO</code> es el consumo en toneladas</b>, un número con punto decimal. Los valores negativos cuentan como 0 y las filas sin valor se ignoran.</li>
+      <li><b>Días ya cargados:</b> pueden repetirse, pero con los mismos valores. No deben quedar meses enteros sin filas entre lo que ya está y lo nuevo.</li>
+    </ol>
+    <p class="note">Así se ve el archivo (los datos son inventados: plantas <code>DEMO1</code> y <code>DEMO2</code>).</p>
+    <div id="d-format"></div>
+    <div class="rowbtns"><button class="btn" id="d-example">Descargar ejemplo (.xlsx)</button><span id="d-example-msg"></span></div>
+    <p class="note">El ejemplo sirve para ver el formato; no lo cargues. También se acepta la tabla dinámica de SAP en formato ancho (hoja <code>RESULT</code>, un día por columna).</p>
+  </details>`;
+}
+
+async function showFormatExample() {
+  const box = $("#d-format");
+  $("#d-example").onclick = () => downloadExcel("ejemplo-exporte", {}, $("#d-example-msg"));
+  try {
+    const f = await api("datos/formato");
+    box.innerHTML = `<div class="tablewrap"><table class="data sheet"><thead><tr><th class="rownum"></th>${f.columnas.map((c) => `<th>${c.letra}</th>`).join("")}</tr></thead>
+      <tbody><tr class="titles"><td class="rownum">1</td>${f.columnas.map((c) => `<td>${c.titulo ? esc(c.titulo) : '<span class="untitled">(sin título)</span>'}</td>`).join("")}</tr>
+      ${f.filas.map((row, i) => `<tr><td class="rownum">${i + 2}</td>${row.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  } catch (_) { box.innerHTML = ""; }
 }
 
 function bindData() {

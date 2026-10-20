@@ -214,3 +214,19 @@ details.faq ol, details.faq ul { padding-left: 20px; margin: 8px 0 0; }
 .steps .step b { display: block; margin-bottom: 4px; }
 .steps .step p { margin: 0 0 10px; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
 @media (max-width: 1100px) { .tiles, .steps { grid-template-columns: 1fr; } .finding { grid-template-columns: 1fr; } }
+
+/* ---- how the raw export must look (Datos) ---------------------------------------------------------------------------------- */
+.howto { margin-top: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 2px 18px 16px; background: #fbfbfe; }
+.howto > summary { cursor: pointer; font-weight: 650; font-size: 15px; padding: 12px 0; }
+.howto ol { margin: 0 0 6px; padding-left: 20px; line-height: 1.55; color: var(--ink-2); font-size: 14px; }
+.howto li + li { margin-top: 7px; }
+.howto code { background: var(--primary-soft); color: #3a33b3; border-radius: 6px; padding: 1px 6px; font-size: 12.5px; }
+.howto li.caution { background: var(--orange-soft); color: #7a3300; border-radius: 10px; padding: 8px 12px; margin-left: -12px; margin-right: -4px; }
+.howto li.caution code { background: #ffe2c7; color: #7a3300; }
+.howto > .note { margin-top: 16px; }
+.howto .tablewrap { margin-top: 8px; max-height: none; }
+table.data.sheet th, table.data.sheet td { text-align: left; font-size: 12.5px; padding: 6px 12px; }
+table.data.sheet thead th { text-align: center; color: var(--ink-3); font-weight: 500; }
+table.data.sheet .rownum { text-align: center; color: var(--ink-3); background: #fafbff; width: 34px; }
+table.data.sheet tr.titles td:not(.rownum) { font-weight: 650; background: var(--primary-soft); }
+table.data.sheet .untitled { color: var(--ink-3); font-weight: 400; font-style: italic; }

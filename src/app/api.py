@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app import __version__, data_service, export_service, forecast_service, history_service, tracking_service, tuning_service
+from src.app import __version__, data_service, example_service, export_service, forecast_service, history_service, tracking_service, tuning_service
 from src.app.forecast_service import ForecastMissing
 from src.app.jobs import Busy, JobRunner
 from src.app.paths import STATIC, AppPaths, default_paths
@@ -223,6 +223,10 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
             current = None
         return {"actual": current, "respaldos": data_service.backups(paths)}
 
+    @app.get("/api/datos/formato")
+    def data_format():
+        return example_service.example_table()
+
     @app.post("/api/datos/subir")
     async def upload(files: list[UploadFile]):
         return data_service.stage(paths, [(f.filename or "", await f.read()) for f in files])
@@ -270,6 +274,10 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
     @app.get("/api/descargas/seguimiento")
     def download_tracking(mes: str | None = None):
         return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes))
+
+    @app.get("/api/descargas/ejemplo-exporte")
+    def download_example():
+        return workbook(example_service.example_workbook())
 
     @app.get("/api/acerca")
     def about():
