@@ -109,14 +109,19 @@ def run_window(url: str) -> bool:
     return True
 
 
+def _message_box(message: str) -> None:
+    r"""A native Windows error box (modal: it waits for the user to click)."""
+    import ctypes
+
+    ctypes.windll.user32.MessageBoxW(None, message, TITLE, 0x10)
+
+
 def show_error(message: str) -> None:
     r"""Tell the user the app could not start (a windowed .exe has no console to print to)."""
     logging.getLogger(__name__).error(message)
     if sys.platform == "win32":
         try:
-            import ctypes
-
-            ctypes.windll.user32.MessageBoxW(None, message, TITLE, 0x10)
+            _message_box(message)
         except Exception:
             pass
     else:

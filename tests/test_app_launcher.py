@@ -157,11 +157,30 @@ def test_main_reports_a_start_failure_and_the_version(home, monkeypatch, capsys)
     def broken(paths, port=None):
         raise RuntimeError("puerto ocupado")
 
+    boxes = []
+    monkeypatch.setattr(launcher, "_message_box", lambda message: boxes.append(message))  # a real box would wait for a click (it hung the Windows CI)
     monkeypatch.setattr(launcher, "Server", broken)
     assert launcher.main(["--home", str(home.root)]) == 1
-    assert "puerto ocupado" in capsys.readouterr().err
-    assert launcher.main(["--version"]) == 0 and capsys.readouterr().out.strip() == "0.1.0-beta"
+    if sys.platform == "win32":  # a windowed program has no console: the user gets a box
+        assert boxes == ["detour no pudo arrancar: puerto ocupado"]
+    else:
+        assert boxes == [] and "puerto ocupado" in capsys.readouterr().err
     assert "puerto ocupado" in (home.logs / "detour.log").read_text(encoding="utf-8")
+    assert launcher.main(["--version"]) == 0 and capsys.readouterr().out.strip() == "0.1.0-beta"
+
+
+def test_on_windows_the_error_goes_to_a_message_box_and_a_failing_box_is_ignored(monkeypatch):
+    boxes = []
+    monkeypatch.setattr(launcher, "_message_box", lambda message: boxes.append(message))
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    launcher.show_error("no arrancó")
+    assert boxes == ["no arrancó"]
+
+    def broken(message):
+        raise OSError("no desktop")
+
+    monkeypatch.setattr(launcher, "_message_box", broken)
+    launcher.show_error("otra vez")  # must not raise
 
 
 # ---- the maintenance tools ---------------------------------------------------------------------------------------------------
@@ -222,3 +241,4 @@ def test_the_tools_commands(home, monkeypatch, capsys):
     monkeypatch.setattr(tools.getpass, "getpass", lambda prompt: "otra-clave")
     assert tools.main(["--home", str(home.root), "set-password"]) == 0
     assert verify_password("otra-clave", json.loads(home.security_json.read_text())["clave"])
+
