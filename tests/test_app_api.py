@@ -244,5 +244,6 @@ def test_the_javascript_has_no_syntax_errors():
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed")
-    done = subprocess.run([node, "--check", str(STATIC / "app.js")], capture_output=True, text=True)
-    assert done.returncode == 0, done.stderr
+    for script in sorted(STATIC.glob("*.js")):
+        done = subprocess.run([node, "--check", str(script)], capture_output=True, text=True)
+        assert done.returncode == 0, f"{script.name}: {done.stderr}"

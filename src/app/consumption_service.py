@@ -37,6 +37,7 @@ class ConsumptionStore:
         self.paths = paths
         self._stamp: tuple[float, int] | None = None
         self._panel: Panel | None = None
+        self._df: pd.DataFrame | None = None
         self._rows = 0
         self._first_day = ""
 
@@ -49,9 +50,31 @@ class ConsumptionStore:
         stamp = (stat.st_mtime, stat.st_size)
         if stamp != self._stamp:
             df = load_consumption(path, validate=False)  # showing data is not forecasting: the Datos section validates what is loaded
-            self._panel, self._rows, self._stamp = build_panel(df), len(df), stamp
+            self._df, self._panel, self._rows, self._stamp = df, build_panel(df), len(df), stamp
             self._first_day = str(df["fecha"].min().date())
         return self._panel
+
+    @property
+    def table(self) -> pd.DataFrame:
+        r"""The long consumption table (planta, sku, fecha, consumo) the panel was built from."""
+        self.panel  # loads
+        return self._df
+
+    def is_partial(self) -> bool:
+        return incomplete_last_month_message(pd.DataFrame({"fecha": [pd.Timestamp(self.panel.dates[-1])]})) is not None
+
+    def last_complete(self) -> str:
+        r"""Label of the last month whose days are all in the data."""
+        labels = self.panel.labels
+        return labels[-2] if self.is_partial() else labels[-1]
+
+    def is_closed(self, month: str) -> bool:
+        return month in self.panel.labels and month <= self.last_complete()
+
+    def month_values(self, month: str) -> dict[tuple[str, str], float]:
+        r"""Real consumption of one month for every series that existed ({(planta, sku): TO})."""
+        t = self.panel.labels.index(month)
+        return {key: float(v) for key, v in zip(self.panel.keys, np.nan_to_num(self.panel.monthly[:, t]))}
 
     # ---- options --------------------------------------------------------------------------------------------------------------
 
