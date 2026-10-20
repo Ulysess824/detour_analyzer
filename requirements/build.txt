@@ -1,4 +1,5 @@
-# Windows build of the desktop app (CI job .github/workflows/build-windows.yml): the app, the window and PyInstaller.
+# Windows build of the desktop app (CI job .github/workflows/build-windows.yml): the app (the retune needs optuna and scipy from evaluation.txt), the window and PyInstaller.
+-r evaluation.txt
 -r app.txt
 pyinstaller==6.22.3
 pywebview==6.2.1; sys_platform == "win32"
