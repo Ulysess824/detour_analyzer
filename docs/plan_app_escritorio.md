@@ -36,7 +36,7 @@ Cada fase termina con pruebas, capturas y confirmación del usuario antes de fus
 | 3 (hecha) | Predicción y Seguimiento |
 | 4 (hecha) | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
 | 5 (hecha) | Datos, Ayuda, Descargar e Historial |
-| 6 (en curso) | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
+| 6 (hecha) | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
 
 ## Fase 0 (hecha)
 
@@ -163,7 +163,8 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 **Guía de instalación** (`docs/guia_instalacion.md`, va dentro del zip como `LEEME.md`): descomprimir, aviso de SmartScreen (el programa no está firmado), WebView2, uso mensual, actualizar copiando `data`, `results` y `config`, y qué hacer si falla.
 
 - Comprobado en Linux (no se puede compilar para Windows aquí): el mismo `spec` compiló y el programa empaquetado pasó las 18 comprobaciones del `self-test --forecast`, con el pronóstico real de octubre idéntico al guardado (2.247 series, 53.219,6 TO, 20 s), y `detour --browser` sirvió la API y escribió su registro.
-- Lo que solo puede comprobar el CI de Windows: la compilación, pywebview/WebView2 y el diálogo de guardar.
+- Lo que solo puede comprobar el CI de Windows: la compilación, pywebview/WebView2 y el diálogo de guardar. El CI de Windows compiló el programa y su autoprueba pasó (17 de 18 la primera vez: faltaba Optuna en los requisitos de la compilación; después, 18 de 18), con un pronóstico de octubre de 53.253 TO frente a 53.220 TO en Linux (0,06%, diferencia normal de las bibliotecas de árboles entre sistemas). Falta probar la ventana real, el diálogo de guardar y el aviso de SmartScreen en un Windows con pantalla.
+- Dos errores de Windows que solo vio el CI: la prueba del fallo de arranque abría el cuadro de error modal de Windows y dejó el CI colgado (ahora el cuadro es una función aparte que la prueba reemplaza), y el CI limita el trabajo a 20 minutos y vuelca la traza de los hilos si una prueba pasa 5 minutos detenida.
 - 14 pruebas nuevas (`tests/test_app_launcher.py`); 8 errores inyectados, los 8 detectados. Una de las pruebas encontró un error real: con el puerto ocupado, el lanzador creía que su servidor había arrancado porque contestaba el otro programa; ahora espera la señal de arranque del propio servidor.
 
 ## Contraseña
