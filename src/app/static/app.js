@@ -429,7 +429,6 @@ function kpis(data) {
       card("Total del periodo", `${fmt(r.total_TO, 0)}<small>TO</small>`, `${dateLong(r.desde)} a ${dateLong(r.hasta)}`),
       card("Días con consumo", `${r.dias_con_consumo}<small>de ${days}</small>`, "Los domingos con consumo también cuentan."),
       card("Promedio por día", `${fmt(r.total_TO / Math.max(days, 1))}<small>TO</small>`, "Sobre todos los días del periodo."),
-      card("Series incluidas", fmt(r.n_series, 0), r.n_series === 1 ? "Un SKU en una planta." : "Se suman en un solo gráfico."),
     ].join("");
   }
   const change = r.cambio_vs_mes_anterior_pct;
@@ -438,7 +437,6 @@ function kpis(data) {
     card("Último mes completo", `${fmt(r.ultimo_mes_TO, 0)}<small>TO</small>`, monthLong(r.ultimo_mes_completo)),
     card("Cambio contra el mes anterior", change === null ? "–" : `${arrow}${fmt(Math.abs(change))}%`, "Del último mes completo."),
     card("Promedio mensual", `${fmt(r.promedio_mensual_TO, 0)}<small>TO</small>`, `Desde ${monthLong(r.primer_mes)}${r.mes_parcial ? ", sin el mes parcial" : ""}.`),
-    card("Series incluidas", fmt(r.n_series, 0), r.n_series === 1 ? "Un SKU en una planta." : "Se suman en un solo gráfico."),
   ].join("");
 }
 
@@ -448,7 +446,7 @@ function resultHtml(data) {
   const hasBreakdown = data.nivel === "mensual" && data.desglose;
   const by = hasBreakdown ? (data.desglose.por === "planta" ? "por planta" : "por SKU") : "";
   const partial = data.resumen.mes_parcial ? `<p class="note">${monthLong(data.resumen.mes_parcial)} está incompleto (los datos llegan hasta el ${dateLong(data.resumen.ultimo_dato)}) y no entra en el resumen.</p>` : "";
-  return `<div class="stack"><div class="grid cols-4">${kpis(data)}</div>
+  return `<div class="stack"><div class="grid cols-3">${kpis(data)}</div>
     <div class="card"><div class="toolbar"><div><h2>Consumo ${data.nivel} · ${esc(who)}</h2><p class="hint">Toneladas (TO). Pasa el cursor sobre el gráfico para ver cada valor.</p></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div class="seg" id="seg-nivel"><button data-v="mensual" class="${s.nivel === "mensual" ? "on" : ""}">Por mes</button><button data-v="diario" class="${s.nivel === "diario" ? "on" : ""}">Por día</button></div>
