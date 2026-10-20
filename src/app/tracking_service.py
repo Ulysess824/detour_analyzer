@@ -10,18 +10,18 @@ from src.app.forecast_service import list_forecasts, load_forecast
 from src.app.paths import AppPaths
 from src.engine.db_utils import read_tracking_csv
 from src.evaluation.tracking_run import BACKTEST_RUN, save_tracking, track_saved_forecast
-from src.evaluation.tracking_utils import MODELS, THRESHOLDS
+from src.evaluation.tracking_utils import MODELS, THRESHOLDS, coverage_ok, forecast_coverage
 
 LEVELS = ["sku", "planta", "total"]
 TOP_ERRORS = 15
 
 
 def _pct(value: float) -> float | None:
-    return None if value is None or pd.isna(value) else round(float(value) * 100, 1)
+    return None if value is None or not np.isfinite(value) else round(float(value) * 100, 1)
 
 
 def _num(value: float) -> float | None:
-    return None if value is None or pd.isna(value) else round(float(value), 1)
+    return None if value is None or not np.isfinite(value) else round(float(value), 1)
 
 
 def tracking_table(paths: AppPaths) -> pd.DataFrame:
@@ -34,10 +34,15 @@ def tracked_months(paths: AppPaths) -> set[str]:
     return set(table.loc[table["run_id"] != BACKTEST_RUN, "mes"]) if len(table) else set()
 
 
+def belongs_to_data(paths: AppPaths, store: ConsumptionStore, month: str) -> bool:
+    r"""Whether the series of the saved forecast of `month` exist in the loaded data (a forecast made with other data cannot be measured)."""
+    return coverage_ok(*forecast_coverage(store.panel, load_forecast(paths, month)))
+
+
 def to_measure(paths: AppPaths, store: ConsumptionStore) -> list[str]:
-    r"""Months with a saved forecast whose real month has already closed in the data and that were not measured yet."""
+    r"""Months with a saved forecast of these data whose real month has already closed in the data and that were not measured yet."""
     done = tracked_months(paths)
-    return [f["mes"] for f in list_forecasts(paths) if store.is_closed(f["mes"]) and f["mes"] not in done]
+    return [f["mes"] for f in list_forecasts(paths) if store.is_closed(f["mes"]) and f["mes"] not in done and belongs_to_data(paths, store, f["mes"])]
 
 
 def history(paths: AppPaths, store: ConsumptionStore | None) -> dict:
@@ -120,6 +125,10 @@ def measure(paths: AppPaths, store: ConsumptionStore, month: str) -> dict:
         raise ValueError(f"No hay un pronóstico guardado para {month}.")
     if not store.is_closed(month):
         raise ValueError(f"El mes {month} todavía no está completo en los datos. Carga el mes completo en la sección Datos.")
+    found, total = forecast_coverage(store.panel, load_forecast(paths, month))
+    if not coverage_ok(found, total):
+        raise ValueError(f"El pronóstico de {month} no corresponde a los datos cargados: solo {found} de sus {total} series existen en ellos. "
+                         "Probablemente se generó con otros datos, así que no se puede medir.")
     try:
         run = track_saved_forecast(paths.forecast_csv(month), store.table, store.panel)
     except SystemExit as stop:  # the engine stops with a message

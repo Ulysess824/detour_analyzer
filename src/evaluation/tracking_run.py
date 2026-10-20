@@ -19,7 +19,9 @@ from src.engine.fingerprints import file_sha256, panel_fingerprint
 from src.engine.panel_utils import Panel
 from src.engine.run_manifest import git_info, manifest_path
 from src.evaluation.cache_utils import check_alignment, check_meta
-from src.evaluation.tracking_utils import backtest_forecasts, check_month_closed, find_alerts, month_scores, tracking_rows, write_tracking_csv
+from src.evaluation.tracking_utils import (
+    backtest_forecasts, check_forecast_matches, check_month_closed, find_alerts, month_scores, tracking_rows, write_tracking_csv,
+)
 
 BACKTEST_RUN = "backtest-h1"
 
@@ -51,6 +53,7 @@ def track_saved_forecast(forecast_path: str | Path, df: pd.DataFrame, S: Panel, 
     forecast = pd.read_csv(forecast_path)
     month = str(forecast["mes"].iloc[0])
     check_month_closed(df, month)
+    check_forecast_matches(S, forecast, month)
     path = manifest_path(forecast_path)
     manifest = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
     run_id = manifest["run"]["run_id"] if manifest else f"sin-manifiesto-{file_sha256(forecast_path)[:8]}"

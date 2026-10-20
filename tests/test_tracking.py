@@ -1,5 +1,6 @@
 """Tracking of a closed month: scores at the three levels, alerts at their thresholds, storage in the csv and in SQLite, and the schema migration."""
 
+import json
 import sqlite3
 import subprocess
 import sys
@@ -9,9 +10,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.engine.db_utils import connect, create_schema, load_tracking_csv, read_predictions, replace_predictions, replace_tracking, upsert_run, write_consumption
+from src.engine.db_utils import (
+    connect, create_schema, load_tracking_csv, read_predictions, read_tracking_csv, replace_predictions, replace_tracking, upsert_run, write_consumption,
+)
 from src.engine.panel_utils import build_panel
-from src.evaluation.tracking_utils import THRESHOLDS, check_month_closed, find_alerts, month_scores, tracking_rows, write_tracking_csv
+from src.evaluation.tracking_utils import (
+    THRESHOLDS, check_forecast_matches, check_month_closed, coverage_ok, find_alerts, forecast_coverage, month_scores, tracking_rows, write_tracking_csv,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -190,3 +195,49 @@ def test_the_scripts_track_a_closed_month_end_to_end(toy_df, tmp_path):
     con = sqlite3.connect(db)
     assert con.execute("SELECT COUNT(*) FROM seguimiento").fetchone()[0] == len(table)
     assert con.execute("SELECT COUNT(*) FROM corridas").fetchone()[0] == 1
+
+
+# ---- a forecast that does not belong to the data, and infinite values --------------------------------------------------------
+
+
+def test_a_month_with_no_real_consumption_is_scored_empty_not_infinite():
+    other = forecast().assign(planta="Z", sku=["x1", "x2", "x3"])  # series that are not in the data: their real is 0
+    result = month_scores(build_panel(consumption()), other, "2024-02")
+    sku = result[(result["nivel"] == "sku") & (result["modelo"] == "ml_mean")].iloc[0]
+    assert sku["real_TO"] == 0.0 and sku["pronostico_TO"] > 0
+    assert np.isnan(sku["acierto"]) and np.isnan(sku["wape"]) and np.isnan(sku["bias_pct"])
+    assert not np.isinf(result.select_dtypes("number").to_numpy(dtype=float)).any()
+
+
+def test_infinite_scores_are_refused_for_storage(scores):
+    bad = scores.copy()
+    bad.loc[0, "wape"] = np.inf
+    with pytest.raises(ValueError, match="infinite"):
+        tracking_rows("run", bad, find_alerts(scores))
+
+
+def test_a_forecast_needs_at_least_half_of_its_series_in_the_data():
+    S = build_panel(consumption())
+    full = forecast()
+    assert forecast_coverage(S, full) == (3, 3) and coverage_ok(3, 3)
+    mixed = full.assign(sku=["s1", "x2", "x3"])
+    assert forecast_coverage(S, mixed) == (1, 3) and not coverage_ok(1, 3) and coverage_ok(2, 3) and not coverage_ok(0, 0)
+    check_forecast_matches(S, full, "2024-02")  # does not stop
+    with pytest.raises(SystemExit, match="does not belong to these data"):
+        check_forecast_matches(S, mixed, "2024-02")
+
+
+def test_no_forecast_made_by_a_test_is_committed_in_results():
+    r"""A forecast made inside a test (its manifest points to a pytest temp folder) must not end up in results/: the app would offer to measure it."""
+    for manifest in (REPO / "results").glob("forecast_*.manifest.json"):
+        assert "pytest" not in json.loads(manifest.read_text(encoding="utf-8"))["data"]["path"], f"{manifest.name} comes from a test run"
+
+
+def test_the_history_file_reads_infinite_values_as_empty(tmp_path):
+    path = tmp_path / "seguimiento.csv"
+    path.write_text(
+        "run_id,mes,nivel,planta,modelo,acierto,wape,bias_pct,n,real_TO,pronostico_TO,alerta,creado_en\n"
+        "r,2025-07,sku,,ml_mean,-inf,inf,-inf,12,0.0,1730.0,,2026-10-20 17:53:32\n",
+        encoding="utf-8",
+    )
+    assert read_tracking_csv(path)[["acierto", "wape", "bias_pct"]].isna().all().all()

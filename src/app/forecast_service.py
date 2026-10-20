@@ -40,7 +40,7 @@ def load_forecast(paths: AppPaths, month: str) -> pd.DataFrame:
 
 
 def _number(value: float) -> float | None:
-    return None if value is None or np.isnan(value) else round(float(value), 1)
+    return None if value is None or not np.isfinite(value) else round(float(value), 1)
 
 
 def _change(forecast: float, real: float | None) -> float | None:

@@ -67,6 +67,14 @@ def test_a_forecast_without_manifest_is_identified_by_its_hash(data, toy_df, toy
     assert not tracked.manifest_found and tracked.run_id == f"sin-manifiesto-{file_sha256(run.forecast_path)[:8]}"
 
 
+def test_a_forecast_made_with_other_data_cannot_be_tracked(data, toy_df, toy_panel, tmp_path):
+    run = run_prediction(data, None, tmp_path / "forecast_2025-06.csv", as_of="2025-05")
+    other = pd.read_csv(run.forecast_path).assign(planta="Z")  # none of its series exist in the data
+    other.to_csv(run.forecast_path, index=False)
+    with pytest.raises(SystemExit, match="does not belong to these data"):
+        track_saved_forecast(run.forecast_path, toy_df, toy_panel)
+
+
 def test_a_month_that_has_not_closed_cannot_be_tracked(data, toy_df, toy_panel, tmp_path):
     run = run_prediction(data, None, tmp_path / "forecast_2025-06.csv", as_of="2025-05")
     with pytest.raises(SystemExit):

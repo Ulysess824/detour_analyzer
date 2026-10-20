@@ -55,6 +55,11 @@ def last_forecast(paths: AppPaths) -> dict | None:
     return out
 
 
+def _percent(value: float) -> float | None:
+    r"""An accuracy as a percentage; None when it is not a number (JSON cannot carry NaN or infinity)."""
+    return round(float(value) * 100, 1) if pd.notna(value) and abs(value) != float("inf") else None
+
+
 def last_tracking(paths: AppPaths) -> dict | None:
     r"""Scores of `ml_mean` in the newest tracked month of the production runs (the backtest run counts only when nothing else exists)."""
     if not paths.tracking_csv.exists():
@@ -68,7 +73,7 @@ def last_tracking(paths: AppPaths) -> dict | None:
     month = source["mes"].max()
     rows = source[source["mes"] == month]
     pick = lambda level: rows[(rows["nivel"] == level) & (rows["planta"] == "")]
-    score = lambda level: round(float(pick(level)["acierto"].iloc[0]) * 100, 1) if len(pick(level)) else None
+    score = lambda level: _percent(pick(level)["acierto"].iloc[0]) if len(pick(level)) else None
     alerts = sorted({code for cell in rows["alerta"].fillna("") for code in str(cell).split(";") if code})
     return {
         "mes": month,

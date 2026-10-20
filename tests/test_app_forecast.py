@@ -211,6 +211,37 @@ def test_measuring_a_closed_month_stores_the_scores_and_lists_the_biggest_misses
     assert again.status_code == 200 and len(pd.read_csv(workdir / "results" / "seguimiento.csv")) == len(stored)
 
 
+def make_forecast_of_other_data(workdir):
+    r"""The saved forecast of 2025-07 with series that do not exist in the data (what a forecast made with other data looks like)."""
+    path = AppPaths(workdir).forecast_csv("2025-07")
+    pd.read_csv(path).assign(planta="Z").to_csv(path, index=False)
+
+
+def test_a_forecast_made_with_other_data_is_not_offered_and_cannot_be_measured(workdir):
+    close_the_month(workdir)
+    make_forecast_of_other_data(workdir)
+    client = make_client(workdir)
+    assert client.get("/api/seguimiento").json()["por_medir"] == []  # no banner for it
+    refused = client.post("/api/seguimiento/medir", json={"mes": "2025-07"})
+    assert refused.status_code == 422 and "no corresponde a los datos" in refused.json()["detalle"] and "0 de sus 12 series" in refused.json()["detalle"]
+    assert not AppPaths(workdir).tracking_csv.exists()  # nothing was stored
+
+
+def test_a_history_file_with_infinite_values_does_not_break_the_screens(workdir):
+    close_the_month(workdir)
+    paths = AppPaths(workdir)
+    paths.results.mkdir(exist_ok=True)
+    bad = make_tracking("2025-07", "run-bad", {"sku": float("-inf"), "planta": 0.9, "total": float("nan")})
+    bad["wape"] = float("inf")
+    bad["bias_pct"] = float("-inf")
+    write_tracking_csv(paths.tracking_csv, bad)
+    client = make_client(workdir)
+    assert "-inf" in paths.tracking_csv.read_text()  # the file really carries them
+    history, detail, status = (client.get(f"/api/{route}") for route in ("seguimiento", "seguimiento/detalle", "estado"))
+    assert (history.status_code, detail.status_code, status.status_code) == (200, 200, 200)
+    assert status.json()["seguimiento"]["acierto_sku"] is None and detail.json()["modelos"][0]["sku"] is None
+
+
 def test_the_detail_picks_production_over_the_backtest_and_can_show_either(workdir):
     close_the_month(workdir)
     client = make_client(workdir)

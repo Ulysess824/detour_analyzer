@@ -300,8 +300,9 @@ def replace_tracking(con: sqlite3.Connection, rows: pd.DataFrame) -> int:
 
 
 def read_tracking_csv(path: str | Path) -> pd.DataFrame:
-    r"""The tracking history file (results/seguimiento.csv) with empty planta and alerta as empty strings."""
-    return pd.read_csv(path, dtype={"planta": str, "alerta": str}).fillna({"planta": "", "alerta": ""})
+    r"""The tracking history file (results/seguimiento.csv) with empty planta and alerta as empty strings and no infinite values (read as empty)."""
+    table = pd.read_csv(path, dtype={"planta": str, "alerta": str}).fillna({"planta": "", "alerta": ""})
+    return table.replace([np.inf, -np.inf], np.nan)
 
 
 def load_tracking_csv(con: sqlite3.Connection, path: str | Path) -> int:

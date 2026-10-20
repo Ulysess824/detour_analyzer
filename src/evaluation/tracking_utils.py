@@ -40,12 +40,37 @@ def check_month_closed(df: pd.DataFrame, month: str) -> None:
         raise SystemExit(message.replace("The last month", "The month"))
 
 
+def _finite(value: float) -> float:
+    r"""NaN for a ratio that is not a number: with no real consumption WAPE and bias are undefined, not infinite."""
+    return float(value) if np.isfinite(value) else np.nan
+
+
 def _row(month: str, nivel: str, planta: str, modelo: str, y: np.ndarray, p: np.ndarray) -> dict:
     s = score(y, p)
     return {
-        "mes": month, "nivel": nivel, "planta": planta, "modelo": modelo, "acierto": s["accuracy"], "wape": s["wape"], "bias_pct": s["bias_pct"],
-        "n": s["n"], "real_TO": float(y.sum()), "pronostico_TO": float(p.sum()),
+        "mes": month, "nivel": nivel, "planta": planta, "modelo": modelo, "acierto": _finite(s["accuracy"]), "wape": _finite(s["wape"]),
+        "bias_pct": _finite(s["bias_pct"]), "n": s["n"], "real_TO": float(y.sum()), "pronostico_TO": float(p.sum()),
     }
+
+
+MIN_COVERAGE = 0.5  # a forecast made from these data has all its series in them; with fewer than half it comes from other data
+
+
+def forecast_coverage(S: Panel, forecast: pd.DataFrame) -> tuple[int, int]:
+    r"""(series of the forecast that exist in the panel, series in the forecast)."""
+    known = set(S.keys)
+    return sum((p, s) in known for p, s in zip(forecast["planta"], forecast["sku"])), len(forecast)
+
+
+def coverage_ok(found: int, total: int) -> bool:
+    return total > 0 and found / total >= MIN_COVERAGE
+
+
+def check_forecast_matches(S: Panel, forecast: pd.DataFrame, month: str) -> None:
+    r"""Stop when the forecast does not belong to the data: scoring it would compare series that do not exist with a real of zero."""
+    found, total = forecast_coverage(S, forecast)
+    if not coverage_ok(found, total):
+        raise SystemExit(f"The forecast of {month} does not belong to these data: only {found} of its {total} series exist in them. It was probably made with other data.")
 
 
 def month_scores(S: Panel, forecast: pd.DataFrame, month: str, models: list[str] = MODELS) -> pd.DataFrame:
@@ -104,6 +129,8 @@ def find_alerts(scores: pd.DataFrame, thresholds: dict | None = None) -> pd.Data
 
 def tracking_rows(run_id: str, scores: pd.DataFrame, alerts: pd.DataFrame, created_at: str | None = None) -> pd.DataFrame:
     r"""The scores as rows for storage: the run, the alert code on the `ml_mean` row it refers to, and the time."""
+    if np.isinf(scores.select_dtypes("number").to_numpy(dtype=float)).any():
+        raise ValueError("The scores have infinite values; they would break the history file and its JSON.")
     rows = scores.copy()
     rows.insert(0, "run_id", run_id)
     rows["alerta"] = ""

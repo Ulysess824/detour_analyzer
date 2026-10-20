@@ -198,6 +198,7 @@ async function renderTracking(view) {
   if (hasHistory) mountChart($("#tr-chart"), trackingOption(history));
   if (detail) bindDetail(detail, history);
   view.querySelectorAll("[data-measure]").forEach((button) => (button.onclick = async () => {
+    button.parentElement.querySelectorAll(".error-text").forEach((old) => old.remove());  // one message at a time, not one more per click
     button.disabled = true;
     button.textContent = "Midiendo…";
     const reply = await apiPost("seguimiento/medir", { mes: button.dataset.measure });
