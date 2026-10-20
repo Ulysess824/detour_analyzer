@@ -18,11 +18,11 @@ async function renderData(view) {
     <div class="card"><h2>Datos actuales</h2>${current}${undo}</div>
     <div class="card"><h2>Cargar datos nuevos</h2>
       <p class="hint" style="margin-top:6px;line-height:1.5">Elige el exporte de consumo de SAP (Excel, .xlsx) con los días nuevos. Antes de guardar nada se revisa: los días que ya estaban deben traer los mismos valores y se aplican las mismas validaciones de siempre. Los datos de antes se guardan como respaldo.</p>
-      ${formatHelpHtml()}
       <label class="drop" id="d-drop"><input type="file" id="d-files" accept=".xlsx" multiple><b>Elige los archivos</b> o suéltalos aquí<span id="d-list" class="note"></span></label>
       <div class="rowbtns"><button class="btn primary" id="d-review" disabled>Revisar archivos</button></div>
       <div id="d-progress"></div></div>
-    <div id="d-result"></div></div>`;
+    <div id="d-result"></div>
+    ${formatHelpHtml()}</div>`;
   bindData();
   showFormatExample();
   if (reviewState.id) {  // coming back to the screen with a review that was not applied yet
@@ -44,7 +44,7 @@ async function renderData(view) {
 
 /* how the raw export must look, with an example of invented data (the rows are in src/app/example_service.py) */
 function formatHelpHtml() {
-  return `<details class="howto" open><summary>Cómo debe ser el archivo (con un ejemplo)</summary>
+  return `<div class="card"><details class="howto"><summary>Cómo debe ser el archivo</summary>
     <ol>
       <li><b>Un archivo de Excel (.xlsx).</b> Puedes subir varios a la vez. Se lee la primera hoja, o la hoja llamada <code>RESULT</code>.</li>
       <li><b>Una fila por planta, material y día con consumo.</b> Los días sin consumo no hacen falta.</li>
@@ -56,7 +56,7 @@ function formatHelpHtml() {
     <p class="note">Así se ve el archivo (los datos son inventados: plantas <code>DEMO1</code> y <code>DEMO2</code>).</p>
     <div id="d-format"></div>
     <p class="note">También se acepta la tabla dinámica de SAP en formato ancho (hoja <code>RESULT</code>, un día por columna).</p>
-  </details>`;
+  </details></div>`;
 }
 
 async function showFormatExample() {

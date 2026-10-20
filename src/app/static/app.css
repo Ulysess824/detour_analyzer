@@ -216,8 +216,8 @@ details.faq ol, details.faq ul { padding-left: 20px; margin: 8px 0 0; }
 @media (max-width: 1100px) { .tiles, .steps { grid-template-columns: 1fr; } .finding { grid-template-columns: 1fr; } }
 
 /* ---- how the raw export must look (Datos) ---------------------------------------------------------------------------------- */
-.howto { margin-top: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 2px 18px 16px; background: #fbfbfe; }
-.howto > summary { cursor: pointer; font-weight: 650; font-size: 15px; padding: 12px 0; }
+.howto > summary { cursor: pointer; font-weight: 650; font-size: 16px; }
+.howto[open] > summary { margin-bottom: 12px; }
 .howto ol { margin: 0 0 6px; padding-left: 20px; line-height: 1.55; color: var(--ink-2); font-size: 14px; }
 .howto li + li { margin-top: 7px; }
 .howto code { background: var(--primary-soft); color: #3a33b3; border-radius: 6px; padding: 1px 6px; font-size: 12.5px; }
