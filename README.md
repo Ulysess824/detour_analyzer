@@ -103,6 +103,8 @@ src/app/                   la app de escritorio, en desarrollo (usa las tres cap
     forecast_service.py    pronósticos guardados, su detalle y la generación del pronóstico del mes siguiente
     tracking_service.py    seguimiento: historial de acierto, detalle de un mes, mayores errores y medición de un mes cerrado
     jobs.py                tareas largas en segundo plano con avance (una a la vez)
+    tuning_service.py      reafinado de los modelos desde la app: candidato, adoptar o descartar, fechas del ajuste
+    security.py            clave de la sección Ajuste (solo el hash) y sesiones en memoria
     status_service.py      estado de la pantalla de Inicio: datos, último pronóstico, seguimiento y próximo ajuste
     search.py              sugerencias por coincidencia aproximada de lo que se escribe
     paths.py               carpetas de la app

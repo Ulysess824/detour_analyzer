@@ -103,5 +103,5 @@ def app_status(paths: AppPaths, info: dict | None, today: date) -> dict:
         "pronostico": forecast,
         "seguimiento": last_tracking(paths),
         "seguimiento_pendiente": pending_tracking(paths, complete, forecast),
-        "ajuste": retune_status(paths, today),
+        "ajuste": {**retune_status(paths, today), "candidato": paths.tuning_candidate.exists()},
     }

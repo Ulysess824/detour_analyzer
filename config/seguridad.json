@@ -1,0 +1,7 @@
+{
+  "clave": {
+    "algoritmo": "scrypt",
+    "sal": "d129f48fc1e1c985a51aeca364b1f747",
+    "hash": "8e292b97699d7c6147dfe821f64e7d80a4d7b73bd21f0b917172ec9430e8a0cd"
+  }
+}

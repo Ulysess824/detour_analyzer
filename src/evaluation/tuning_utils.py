@@ -53,6 +53,7 @@ def run_study(
     storage: str | None,
     print_every: int = 1,
     fingerprint: str | None = None,
+    on_trial: Callable[[int, int], None] | None = None,
 ):
     r"""
     TPE search of the hyperparameters; a trial's score is the mean SKU-month WAPE over the folds.
@@ -92,6 +93,8 @@ def run_study(
         study.enqueue_trial(baseline_trial)
 
     def progress(st, trial) -> None:
+        if on_trial is not None:
+            on_trial(trial.number + 1, n_trials)
         if (trial.number + 1) % print_every == 0:
             print(f"    {name}: trial {trial.number + 1}/{n_trials}  value {trial.value:.4f}  best {st.best_value:.4f}", flush=True)
 

@@ -19,6 +19,7 @@ from src.evaluation.tuning_utils import compare_base_and_tuned, run_study, study
 
 Progress = Callable[[str, float], None]
 MODELS = ["lgbm", "xgb", "rf"]
+NAMES = {"lgbm": "LightGBM", "xgb": "XGBoost", "rf": "Random Forest"}
 
 
 def tree_predictor(kind: str, params: dict):
@@ -53,20 +54,21 @@ def run_tuning(
 
     results = {}
     for i, kind in enumerate(models):
-        report(f"Ajustando {kind}", i / len(models))
+        report(f"Ajustando {NAMES[kind]}", i / len(models))
         log(f"\n=== {kind}: {trials[kind]} trials ===")
         start = time.time()
         study, fold_sizes = run_study(
             kind, lambda params, k=kind: tree_predictor(k, params), lambda trial, k=kind: suggest_tree_params(k, trial),
             TREE_BASELINE_TRIAL[kind], frames[1], 1, tune_end, trials[kind], sampler_seed, storage, print_every=10,
             fingerprint=f"{meta['data']}:{n_test}",
+            on_trial=lambda done, total, i=i, k=kind: report(f"Ajustando {NAMES[k]}: prueba {done} de {total}", (i + 0.7 * done / total) / len(models)),
         )  # fmt: skip
         minutes = (time.time() - start) / 60
         results[kind] = study_summary(study, fold_sizes, minutes, TREE_BASE[kind])
         results[kind]["meta"] = meta
         log(f"    validation WAPE: baseline {study.trials[0].value:.4f} -> best {study.best_value:.4f} ({minutes:.1f} min)")
 
-        report(f"Comprobando {kind} en los meses de prueba", (i + 0.7) / len(models))
+        report(f"Comprobando {NAMES[kind]} en los meses de prueba", (i + 0.7) / len(models))
         results[kind].update(
             compare_base_and_tuned(
                 tree_predictor(kind, TREE_BASE[kind]), tree_predictor(kind, study.best_trial.params), S, frames, test_months,
