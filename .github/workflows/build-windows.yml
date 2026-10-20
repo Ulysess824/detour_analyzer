@@ -1,10 +1,12 @@
 name: build-windows
 
 # Builds detour.exe (the desktop app) on Windows and keeps the folder as an artifact of the run.
-# Runs by hand (Actions > build-windows > Run workflow), when a version tag is pushed, and when the packaging files change.
+# Runs by hand (Actions > build-windows > Run workflow, once the file is in main), when a version tag is pushed, and when the packaging files change
+# on main or on an app branch.
 on:
   workflow_dispatch:
   push:
+    branches: [main, "feature/app-*"]
     tags: ["v*"]
     paths:
       - "packaging/**"
