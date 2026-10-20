@@ -62,21 +62,25 @@ def test_monthly_total_and_breakdown_by_planta_add_up(client, toy_df):
     assert sum(body["valores"]) == pytest.approx(toy_df["consumo"].sum(), rel=1e-6)
     assert body["desglose"]["por"] == "planta"
     names = [s["nombre"] for s in body["desglose"]["series"]]
-    assert names == ["A", "B", "C"]
+    assert sorted(names) == ["A", "B", "C"]  # biggest first
     stacked = [sum(s["valores"][i] or 0 for s in body["desglose"]["series"]) for i in range(len(body["valores"]))]
     assert stacked == pytest.approx(body["valores"], abs=0.01)
 
 
-def test_planta_breakdown_by_sku_groups_the_rest_as_otros(client, toy_df, monkeypatch):
+def test_breakdown_keeps_the_biggest_series_and_groups_the_rest_as_otros(client, toy_df, monkeypatch):
     mine = toy_df[toy_df["planta"] == "A"]
     body = client.get("/api/consumo", params={"planta": "A"}).json()
     assert body["resumen"]["n_series"] == 4 and body["resumen"]["total_TO"] == pytest.approx(mine["consumo"].sum(), abs=0.1)
     assert [s["nombre"] for s in body["desglose"]["series"]].count("Otros") == 0
-    monkeypatch.setattr(consumption_service, "TOP_SKUS", 2)
+    monkeypatch.setattr(consumption_service, "TOP_SERIES", 2)
     body = client.get("/api/consumo", params={"planta": "A"}).json()
     series = body["desglose"]["series"]
     assert [s["nombre"] for s in series][-1] == "Otros" and len(series) == 3
     assert sum(sum(s["valores"]) for s in series) == pytest.approx(sum(body["valores"]), abs=0.01)
+    totals = [sum(s["valores"]) for s in series[:-1]]
+    assert totals == sorted(totals, reverse=True)
+    top_plantas = client.get("/api/consumo").json()["desglose"]["series"]
+    assert [s["nombre"] for s in top_plantas][-1] == "Otros" and len(top_plantas) == 3
 
 
 def test_one_series_is_empty_before_its_first_month_and_has_a_summary(client, toy_df):
@@ -213,3 +217,32 @@ def test_status_names_the_next_forecast_month(root):
     client = TestClient(create_app(AppPaths(root), today=lambda: TODAY))
     status = client.get("/api/estado").json()
     assert status["proximo_pronostico"] == "2025-07" and status["datos"]["filas"] > 0
+
+
+# ---- screens -----------------------------------------------------------------------------------------------------------------
+
+
+def test_the_screens_are_served_and_every_file_they_load_exists(client):
+    import re
+
+    from src.app.paths import STATIC
+
+    page = client.get("/")
+    assert page.status_code == 200 and "detour" in page.text
+    for ref in re.findall(r'(?:src|href)="([^"]+)"', page.text):
+        assert (STATIC / ref).is_file(), ref
+        assert client.get("/" + ref).status_code == 200
+    assert client.get("/api/salud").json() == {"ok": True}  # the API routes win over the static mount
+
+
+def test_the_javascript_has_no_syntax_errors():
+    import shutil
+    import subprocess
+
+    from src.app.paths import STATIC
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    done = subprocess.run([node, "--check", str(STATIC / "app.js")], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr

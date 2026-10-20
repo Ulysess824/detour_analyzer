@@ -32,7 +32,7 @@ Cada fase termina con pruebas, capturas y confirmación del usuario antes de fus
 |---|---|
 | 0 | Quitar el dashboard Streamlit y mover la lógica de los scripts a servicios en `src/` (hecha) |
 | 1 (hecha, en revisión) | Servicios y API (consumo real, búsqueda aproximada, estado); capa `src/app/` en `tests/test_layers.py` |
-| 2 | Estructura visual, Inicio y Consumo real |
+| 2 (hecha, en revisión) | Estructura visual, Inicio y Consumo real |
 | 3 | Predicción y Seguimiento |
 | 4 | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
 | 5 | Datos, Ayuda, Descargar e Historial |
@@ -65,6 +65,17 @@ Capa `src/app/` (la prueba de capas ya la admite) y API local de solo lectura:
 - El último mes incompleto se marca como parcial y queda fuera del resumen (misma regla que el pronóstico).
 - `results/ajustes.json` guarda la fecha del último ajuste (2026-10-05, la del commit de `results/tuning_trees.json`) y el intervalo de 6 meses; la fase 4 lo escribe al reafinar.
 - 25 pruebas nuevas (`tests/test_app_api.py`, `tests/test_app_search.py`); 6 mutaciones inyectadas, las 6 detectadas.
+
+## Fase 2 (hecha)
+
+Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`, `app.js`, `logo.png`, `vendor/echarts.min.js` 5.5.1 con su licencia Apache-2.0; sin internet ni compilación).
+
+- **Estructura:** barra lateral blanca con el logo, 9 secciones (las que aún no existen salen atenuadas y muestran "disponible en una próxima versión"), encabezado con la fecha del último dato, tarjetas blancas, índigo como color principal, naranja y verde azulado de apoyo.
+- **Inicio:** tarjetas de Datos, Próximo pronóstico, Último seguimiento (con las alertas en palabras) y Ajuste (próxima fecha y estado), avisos si el seguimiento está pendiente o el ajuste vence, y el gráfico del consumo total.
+- **Consumo real:** planta y SKU escribibles con sugerencias (flechas y Enter), "Limpiar filtros", cuatro indicadores, gráfico mensual (total o desglose por planta / por SKU) o diario con rango de fechas, y vista de tabla. Si lo escrito no existe, ofrece los nombres cercanos como botones.
+- **Gráficos:** paleta de 8 colores validada con el validador del skill de visualización (sin fallos; naranja, verde azulado y azul claro quedan bajo 3:1 de contraste, por eso cada gráfico tiene leyenda, tooltip y vista de tabla). Máximo 7 series y "Otros" en gris. Líneas de 2 px, barras de hasta 24 px con extremo redondeado, mes parcial sombreado.
+- Solo tema claro (el de la imagen de referencia).
+- Verificación: capturas con Chromium sin ventana contra los datos reales (`results/` y `data/`), 2 pruebas nuevas (los archivos que carga la página existen y el JavaScript no tiene errores de sintaxis; `node --check`).
 
 ## Contraseña
 
