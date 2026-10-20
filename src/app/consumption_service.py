@@ -10,7 +10,7 @@ from src.app.search import resolve, suggest
 from src.engine.data_checks import incomplete_last_month_message
 from src.engine.panel_utils import Panel, build_panel, load_consumption
 
-TOP_SKUS = 8
+TOP_SERIES = 7  # the chart palette has 8 colours: seven series and one 'Otros'
 DEFAULT_DAYS = 90
 
 
@@ -98,15 +98,17 @@ class ConsumptionStore:
         if sku is not None:
             return None
         if planta is None:
-            rows = [(name, np.nansum(S.monthly[S.planta_code == c], axis=0)) for c, name in enumerate(S.plantas)]
-            return {"por": "planta", "series": [{"nombre": n, "valores": _values(v)} for n, v in rows]}
-        totals = np.nansum(S.monthly[index], axis=1)
-        order = index[np.argsort(-totals)]
-        top, rest = order[:TOP_SKUS], order[TOP_SKUS:]
-        series = [{"nombre": S.keys[i][1], "valores": _values(np.nan_to_num(S.monthly[i]))} for i in top]
-        if len(rest):
-            series.append({"nombre": "Otros", "valores": _values(np.nansum(S.monthly[rest], axis=0))})
-        return {"por": "sku", "series": series}
+            names = [(name, np.nansum(S.monthly[S.planta_code == c], axis=0)) for c, name in enumerate(S.plantas)]
+            by = "planta"
+        else:
+            names = [(S.keys[i][1], np.nan_to_num(S.monthly[i])) for i in index]
+            by = "sku"
+        names.sort(key=lambda pair: -pair[1].sum())
+        top, rest = names[:TOP_SERIES], names[TOP_SERIES:]
+        series = [{"nombre": n, "valores": _values(v)} for n, v in top]
+        if rest:
+            series.append({"nombre": "Otros", "valores": _values(np.sum([v for _, v in rest], axis=0))})
+        return {"por": by, "series": series}
 
     def monthly(self, planta: str | None = None, sku: str | None = None, breakdown: bool = True) -> dict:
         r"""Monthly consumption (TO) of the selection, its summary and, when no SKU is chosen, the breakdown by planta or by SKU."""

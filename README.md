@@ -103,6 +103,7 @@ src/app/                   la app de escritorio, en desarrollo (usa las tres cap
     status_service.py      estado de la pantalla de Inicio: datos, último pronóstico, seguimiento y próximo ajuste
     search.py              sugerencias por coincidencia aproximada de lo que se escribe
     paths.py               carpetas de la app
+    static/                las pantallas (HTML, CSS, JavaScript, ECharts y el logo), servidas por la API
 scripts/                   puntos de entrada de línea de comandos
 ```
 

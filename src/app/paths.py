@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+STATIC = Path(__file__).resolve().parent / "static"  # the screens (html, css, js, ECharts, logo) served by the API
+
+
 @dataclass(frozen=True)
 class AppPaths:
     root: Path

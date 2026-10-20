@@ -7,9 +7,10 @@ from typing import Callable, Literal
 
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app.paths import AppPaths, default_paths
+from src.app.paths import STATIC, AppPaths, default_paths
 from src.app.status_service import app_status
 
 
@@ -67,4 +68,5 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
             return store.daily(planta, sku, desde, hasta)
         return store.monthly(planta, sku)
 
+    app.mount("/", StaticFiles(directory=STATIC, html=True), name="ui")  # last: the API routes above win
     return app
