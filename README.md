@@ -46,6 +46,7 @@ Python 3.11 o 3.12. Las dependencias directas están fijadas a la versión exact
 | `requirements/base.txt` | Producción: `predict_next_month.py` y lo que hay en `src/engine/` | numpy, pandas, scikit-learn, lightgbm, xgboost, openpyxl |
 | `requirements/evaluation.txt` | Backtests, afinación y comparaciones | base, scipy, optuna |
 | `requirements/app.txt` | App de escritorio (`docs/plan_app_escritorio.md`) | base, fastapi, uvicorn, python-multipart |
+| `requirements/build.txt` | Compilar `detour.exe` en Windows | app, pyinstaller, pywebview |
 | `requirements/dev.txt` | Desarrollo y CI | evaluation, app, httpx, pytest, matplotlib, ipykernel |
 | `requirements.txt` | Todo (dev y app) | dev, app |
 
@@ -97,7 +98,7 @@ src/experiments/           ideas en prueba, fuera del pronóstico de producción
     now_casting_current_month.py  nowcasting del mes en curso: media, mediana y dos simuladores Monte Carlo
     nowcast_input_utils.py mes en curso completado con la media como entrada de ml_mean
     bibliography_utils.py  descarga de los papers de bibliografia/ (solo acceso abierto)
-src/app/                   la app de escritorio, en desarrollo (usa las tres capas de arriba)
+src/app/                   la app de escritorio (usa las tres capas de arriba)
     api.py                 API local (FastAPI, solo 127.0.0.1): estado, plantas, SKU, sugerencias y consumo
     consumption_service.py consumo real por planta y SKU: serie mensual y diaria, resumen y desglose
     forecast_service.py    pronósticos guardados, su detalle y la generación del pronóstico del mes siguiente
@@ -111,11 +112,24 @@ src/app/                   la app de escritorio, en desarrollo (usa las tres cap
     status_service.py      estado de la pantalla de Inicio: datos, último pronóstico, seguimiento y próximo ajuste
     search.py              sugerencias por coincidencia aproximada de lo que se escribe
     paths.py               carpetas de la app
+    launcher.py            arranque: API local, ventana (o navegador) y registro de errores
+    tools.py               herramientas de soporte del programa empaquetado (comprobación y cambio de clave)
     static/                las pantallas (HTML, CSS, JavaScript, ECharts y el logo), servidas por la API
 scripts/                   puntos de entrada de línea de comandos
 ```
 
 Las dependencias van en una sola dirección: `engine` no importa nada, `evaluation` importa `engine` y `experiments` importa ambos. Una prueba (`tests/test_layers.py`) lo verifica.
+
+## App de escritorio
+
+Programa de Windows (`detour.exe`) con consumo real, predicción, seguimiento, ajuste de hiperparámetros con clave, carga de datos de SAP, descargas e historial. Plan, decisiones y límites en `docs/plan_app_escritorio.md`; instalación en `docs/guia_instalacion.md`.
+
+```bash
+python scripts/run_app.py            # desde el código: ventana, o el navegador si no hay ventana
+python scripts/run_app.py --browser  # siempre el navegador
+```
+
+El `.exe` lo compila el CI de Windows (`.github/workflows/build-windows.yml`, a mano desde la pestaña Actions) y queda como artefacto `detour-windows.zip`.
 
 ## Validación de entrada
 

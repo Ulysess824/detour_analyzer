@@ -35,8 +35,8 @@ Cada fase termina con pruebas, capturas y confirmación del usuario antes de fus
 | 2 (hecha) | Estructura visual, Inicio y Consumo real |
 | 3 (hecha) | Predicción y Seguimiento |
 | 4 (hecha) | Ajuste con contraseña, `results/ajustes.json` y `results/tuning_produccion.json` (separado del de investigación, protegido por `check_tuning_window`) |
-| 5 (hecha, en revisión) | Datos, Ayuda, Descargar e Historial |
-| 6 | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
+| 5 (hecha) | Datos, Ayuda, Descargar e Historial |
+| 6 (en curso) | Lanzador pywebview, spec de PyInstaller, compilación en CI de Windows y guía de instalación |
 
 ## Fase 0 (hecha)
 
@@ -147,6 +147,24 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 - 41 pruebas nuevas (datos, descargas, historial y la comparación con el mes anterior); 7 errores inyectados en la carga, los 7 detectados (uno solo lo detectó una prueba nueva con valores de 17 dígitos).
 - El CI de Windows encontró un error real que Linux no ve: `read_export` dejaba abierto el archivo Excel y en Windows no se podía borrar la carpeta temporal tras cargar; ahora cierra el libro (y una prueba lo vigila).
 - La descarga usa `fetch` y un enlace temporal; falta comprobar cómo se comporta dentro de la ventana de Windows (fase 6).
+
+## Fase 6
+
+**Lanzador** (`src/app/launcher.py`, `scripts/run_app.py`): arranca la API en un hilo (uvicorn, solo en 127.0.0.1, puerto libre al azar), espera a que uvicorn diga que escucha y abre la ventana (pywebview, WebView2 en Windows, 1360 × 860, mínimo 1000 × 640). Sin ventana disponible (sin pywebview o sin sistema de ventanas) abre el navegador; `--browser`, `--no-open`, `--port` y `--home` ayudan al desarrollo y al soporte. Al cerrar la ventana detiene el servidor. Un programa sin consola no tiene stdout ni stderr: todo va a `logs/detour.log` (1 MB, 3 archivos) y los errores de arranque salen en un cuadro de Windows. Dentro de la ventana, "Descargar" abre el diálogo nativo de guardar (`WindowApi.save_file`); en un navegador sigue siendo una descarga normal.
+
+**Carpeta de trabajo** (`default_paths`): `DETOUR_HOME` si existe; si el programa está empaquetado, la carpeta del `.exe`; si no, el repositorio.
+
+**Herramientas de soporte** (`src/app/tools.py`, `detour-tools.exe`, con consola): `version`, `self-test [--forecast]` (importa todas las bibliotecas, arranca la API sobre una copia temporal de la carpeta y usa las pantallas, los datos, un pronóstico real y una descarga de Excel; no toca la carpeta real) y `set-password`.
+
+**Empaquetado** (`packaging/detour.spec`, PyInstaller 6.22.3, carpeta con `detour.exe` y `detour-tools.exe`; `requirements/build.txt`): recoge LightGBM, XGBoost, Optuna, scikit-learn y SciPy sin sus pruebas, las pantallas, los metadatos de versión (para el manifiesto de cada pronóstico) y, en Windows, pywebview con pythonnet. Excluye matplotlib y Jupyter, y las bibliotecas CUDA de los paquetes de Linux de XGBoost (2 GB).
+
+**Compilación en Windows** (`.github/workflows/build-windows.yml`): a mano (Actions > build-windows > Run workflow), al subir una etiqueta `v*` o al cambiar los archivos de empaquetado. Compila, agrega datos, configuración, resultados y la guía, **corre `detour-tools.exe self-test --forecast` sobre lo compilado** y deja `detour-windows.zip` como artefacto (30 días).
+
+**Guía de instalación** (`docs/guia_instalacion.md`, va dentro del zip como `LEEME.md`): descomprimir, aviso de SmartScreen (el programa no está firmado), WebView2, uso mensual, actualizar copiando `data`, `results` y `config`, y qué hacer si falla.
+
+- Comprobado en Linux (no se puede compilar para Windows aquí): el mismo `spec` compiló y el programa empaquetado pasó las 18 comprobaciones del `self-test --forecast`, con el pronóstico real de octubre idéntico al guardado (2.247 series, 53.219,6 TO, 20 s), y `detour --browser` sirvió la API y escribió su registro.
+- Lo que solo puede comprobar el CI de Windows: la compilación, pywebview/WebView2 y el diálogo de guardar.
+- 14 pruebas nuevas (`tests/test_app_launcher.py`); 8 errores inyectados, los 8 detectados. Una de las pruebas encontró un error real: con el puerto ocupado, el lanzador creía que su servidor había arrancado porque contestaba el otro programa; ahora espera la señal de arranque del propio servidor.
 
 ## Contraseña
 
