@@ -1,0 +1,44 @@
+name: build-windows
+
+# Builds detour.exe (the desktop app) on Windows and keeps the folder as an artifact of the run.
+# Runs by hand (Actions > build-windows > Run workflow), when a version tag is pushed, and when the packaging files change.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    paths:
+      - "packaging/**"
+      - "requirements/**"
+      - ".github/workflows/build-windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the pinned requirements of the build
+        run: python -m pip install -r requirements/build.txt
+      - name: Build detour.exe
+        run: python -m PyInstaller packaging/detour.spec --noconfirm
+      - name: Put the data, the configuration and the guide next to the programs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/detour/data, dist/detour/config, dist/detour/results | Out-Null
+          Copy-Item data/consumos_long.csv dist/detour/data/
+          Copy-Item config/seguridad.json dist/detour/config/
+          Copy-Item results/ajustes.json, results/tuning_trees.json, results/seguimiento.csv dist/detour/results/
+          Copy-Item results/forecast_*.csv, results/forecast_*.manifest.json dist/detour/results/
+          Copy-Item docs/guia_instalacion.md dist/detour/LEEME.md
+      - name: Self-test of the packaged app (libraries, screens, a real forecast and an Excel download)
+        run: dist/detour/detour-tools.exe self-test --forecast
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/detour -DestinationPath detour-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: detour-windows
+          path: detour-windows.zip
+          retention-days: 30

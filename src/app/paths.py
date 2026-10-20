@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,6 +30,10 @@ class AppPaths:
     @property
     def tuning_json(self) -> Path:
         return self.results / "tuning_trees.json"
+
+    @property
+    def logs(self) -> Path:
+        return self.root / "logs"
 
     @property
     def staging(self) -> Path:
@@ -70,4 +76,9 @@ class AppPaths:
 
 
 def default_paths() -> AppPaths:
+    r"""The folder with data, results and config: `DETOUR_HOME` if set, the folder of the .exe when the app is packaged, else the repository."""
+    if os.environ.get("DETOUR_HOME"):
+        return AppPaths(Path(os.environ["DETOUR_HOME"]).resolve())
+    if getattr(sys, "frozen", False):
+        return AppPaths(Path(sys.executable).resolve().parent)
     return AppPaths(Path(__file__).resolve().parents[2])

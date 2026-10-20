@@ -1,0 +1,4 @@
+# Windows build of the desktop app (CI job .github/workflows/build-windows.yml): the app, the window and PyInstaller.
+-r app.txt
+pyinstaller==6.22.3
+pywebview==6.2.1; sys_platform == "win32"

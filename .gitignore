@@ -8,3 +8,6 @@ data/*.db
 .coverage
 data/staging/
 data/respaldo/
+logs/
+dist/
+build/

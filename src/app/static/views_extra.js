@@ -3,7 +3,15 @@
 
 const downloadState = { planta: "", sku: "", nivel: "mensual", mesPron: "", mesSeg: "" };
 
-function saveBlob(blob, name) {
+/* inside the desktop window a native "save as" dialog is used (python side: WindowApi.save_file); in a browser a normal download */
+function nativeSave() { return window.pywebview && window.pywebview.api && window.pywebview.api.save_file ? window.pywebview.api.save_file : null; }
+function toBase64(blob) {
+  return new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.readAsDataURL(blob); });
+}
+
+async function saveBlob(blob, name) {
+  const native = nativeSave();
+  if (native) { await native(name, await toBase64(blob)); return; }
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = name;
@@ -33,6 +41,8 @@ document.addEventListener("click", (event) => {
   if (!button) return;
   if (!charts.length) { button.title = "Cambia a la vista de gráfico para guardar la imagen."; return; }
   const url = charts[0].getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#ffffff" });
+  const native = nativeSave();
+  if (native) { native(`${button.dataset.png}.png`, url.split(",")[1]); return; }
   const link = document.createElement("a");
   link.href = url;
   link.download = `${button.dataset.png}.png`;
@@ -116,6 +126,6 @@ async function renderHelp(view) {
     <div class="card"><h2>Qué significa cada palabra</h2><div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><tbody>${GLOSSARY.map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${esc(k)}</b></td><td style="white-space:normal">${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>
     <div class="card"><h2>Preguntas frecuentes</h2>${FAQ.map(([q, a]) => `<details class="faq"><summary>${esc(q)}</summary>${a}</details>`).join("")}</div>
     <div class="card"><h2>Sobre esta versión</h2><p class="hint" style="margin-top:6px;line-height:1.6">Versión ${esc(about.version)}. Es una versión de prueba: los pronósticos de un mismo mes se reemplazan al generarlos de nuevo.<br>
-      Carpeta de la app: ${esc(about.carpeta)}<br>Datos: ${esc(about.archivos.datos)}<br>Pronósticos y seguimiento: ${esc(about.archivos.pronosticos)}<br>Respaldos de datos: ${esc(about.archivos.respaldos)}</p></div></div>`;
+      Carpeta de la app: ${esc(about.carpeta)}<br>Datos: ${esc(about.archivos.datos)}<br>Pronósticos y seguimiento: ${esc(about.archivos.pronosticos)}<br>Respaldos de datos: ${esc(about.archivos.respaldos)}<br>Registro de errores: ${esc(about.archivos.registro)}</p></div></div>`;
   view.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => (location.hash = `#/${b.dataset.go}`)));
 }
