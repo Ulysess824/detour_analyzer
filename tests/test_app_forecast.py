@@ -70,15 +70,25 @@ def test_asking_again_needs_permission_to_overwrite(workdir):
     assert again.status_code == 409 and again.json()["existe"] is True and again.json()["mes"] == "2025-07"
 
 
-def test_a_partial_last_month_fails_the_task_with_a_clear_message(tmp_path):
+def test_a_month_in_progress_is_forecast_with_its_first_days_and_saved_under_the_strategy_name(tmp_path):
     df = make_consumption()
     write_data(tmp_path, df[df["fecha"] <= pd.Timestamp("2025-05-12")])
     client = make_client(tmp_path)
     start = client.post("/api/pronostico/generar", json={})
-    assert start.json()["mes"] == "2025-05"
+    assert (start.json()["mes"], start.json()["estrategia"], start.json()["corte"]) == ("2025-06", "parcial", 12)
     state = wait(client, start.json()["trabajo"])
-    assert state["estado"] == "error" and "incompleto" in state["error"]
-    assert not (tmp_path / "results").exists() or not list((tmp_path / "results").glob("forecast_*.csv"))
+    assert state["estado"] == "listo" and state["resultado"]["mes"] == "2025-06" and state["resultado"]["estrategia"] == "parcial"
+    results = tmp_path / "results"
+    assert (results / "forecast_2025-06_parcial.csv").exists() and (results / "forecast_2025-06_parcial.manifest.json").exists()
+    assert not (results / "forecast_2025-06.csv").exists()
+    listed = client.get("/api/pronosticos").json()["pronosticos"]
+    assert [(f["mes"], f["estrategia"], f["corte"]) for f in listed] == [("2025-06", "parcial", 12)]
+    detail = client.get("/api/pronostico").json()
+    assert detail["mes"] == "2025-06" and detail["estrategia"] == "parcial" and detail["corte"] == 12
+    assert detail["ultimo_real"]["mes"] == "2025-04"  # the month before the forecast is still open: the last complete month is the reference
+    again = client.post("/api/pronostico/generar", json={})
+    assert again.status_code == 409 and again.json()["estrategia"] == "parcial"
+    assert client.get("/api/estado").json()["pronostico"]["estrategia"] == "parcial"
 
 
 def test_job_runner_runs_one_task_at_a_time_and_reports_progress_and_errors():

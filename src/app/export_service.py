@@ -50,13 +50,15 @@ def _num(value) -> float | None:
     return None if value is None or (isinstance(value, float) and np.isnan(value)) else float(value)
 
 
-def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | None) -> tuple[str, bytes]:
+def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | None, strategy: str | None = None) -> tuple[str, bytes]:
     r"""The saved forecast of a month: a summary, the plantas and every SKU with the three models, their range and the last real month."""
     saved = forecast_service.list_forecasts(paths)
     if not saved:
         raise forecast_service.ForecastMissing("Todavía no hay pronósticos. Genera el de este mes.")
     month = month or saved[0]["mes"]
-    forecast = forecast_service.load_forecast(paths, month)
+    of_month = [f for f in saved if f["mes"] == month]
+    strategy = strategy or (of_month[0]["estrategia"] if of_month else "h1")
+    forecast = forecast_service.load_forecast(paths, month, strategy)
     last = forecast_service.reference_month(store, month)
     real = store.month_values(last)
     forecast["real_ultimo_TO"] = [real.get(key, 0.0) for key in zip(forecast["planta"], forecast["sku"])]
@@ -72,8 +74,8 @@ def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | Non
     by_planta["cambio"] = np.where(by_planta["real"] > 0, (by_planta["ml"] / by_planta["real"].where(by_planta["real"] > 0) - 1) * 100, np.nan)
     planta_sheet = by_planta.sort_values("ml", ascending=False).rename(columns={"planta": "Planta", "ml": "Pronóstico (TO)", "lgbm": "LightGBM (TO)", "xgb": "XGBoost (TO)", "rf": "Random Forest (TO)",
                                                                                 "real": f"Real {last} (TO)", "series": "Series", "cambio": "Cambio contra el último real (%)"})
-    manifest_file = paths.forecast_csv(month).with_suffix(".manifest.json")
-    info = {"Mes pronosticado": month, "Total pronosticado (TO)": round(float(forecast["ml_mean"].sum()), 1), "Series": int(len(forecast)), "Último mes real usado": last}
+    manifest_file = paths.forecast_csv(month, strategy).with_suffix(".manifest.json")
+    info = {"Mes pronosticado": month, "Estrategia": strategy, "Total pronosticado (TO)": round(float(forecast["ml_mean"].sum()), 1), "Series": int(len(forecast)), "Último mes real usado": last}
     if manifest_file.exists():
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         info["Generado el"] = manifest["run"]["created_at"][:19].replace("T", " ")
@@ -91,7 +93,7 @@ def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | Non
         {"Por planta": {c: NUMBER for c in planta_sheet.columns if "(TO)" in c} | {"Cambio contra el último real (%)": PERCENT},
          "Por SKU": {c: NUMBER for c in detail.columns if "(TO)" in c} | {"Cambio contra el último real (%)": PERCENT}},
     )
-    return f"pronostico_{month}.xlsx", blob
+    return f"pronostico_{month}.xlsx" if strategy == "h1" else f"pronostico_{month}_{strategy}.xlsx", blob
 
 
 def consumption_workbook(store: ConsumptionStore, planta: str | None, sku: str | None, level: str, since: str | None, until: str | None) -> tuple[str, bytes]:

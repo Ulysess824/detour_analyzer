@@ -7,12 +7,12 @@ from typing import Callable, Literal
 
 from fastapi import Depends, FastAPI, Header, Query, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app import __version__, data_service, example_service, export_service, forecast_service, history_service, tracking_service, tuning_service
+from src.app import __version__, data_service, example_service, export_service, forecast_service, history_service, settings_service, tracking_service, tuning_service
 from src.app.forecast_service import ForecastMissing
 from src.app.jobs import Busy, JobRunner
 from src.app.paths import STATIC, AppPaths, default_paths
@@ -22,6 +22,11 @@ from src.app.status_service import app_status, retune_status
 
 class GenerateBody(BaseModel):
     sobrescribir: bool = False
+
+
+class SettingsBody(BaseModel):
+    estrategia: str
+    corte_manual: StrictInt | None = None
 
 
 class MeasureBody(BaseModel):
@@ -140,15 +145,27 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
         return {"pronosticos": forecast_service.list_forecasts(paths)}
 
     @app.get("/api/pronostico")
-    def forecast(mes: str | None = None, planta: str | None = None, sku: str | None = None, limite: int = Query(forecast_service.TABLE_LIMIT, ge=1, le=500)):
-        return forecast_service.forecast_detail(paths, store, mes, planta, sku, limite)
+    def forecast(mes: str | None = None, planta: str | None = None, sku: str | None = None, limite: int = Query(forecast_service.TABLE_LIMIT, ge=1, le=500),
+                 estrategia: str | None = None):
+        return forecast_service.forecast_detail(paths, store, mes, planta, sku, limite, estrategia)
 
     @app.post("/api/pronostico/generar")
     def generate(body: GenerateBody):
-        month = forecast_service.next_month(store)
-        if paths.forecast_csv(month).exists() and not body.sobrescribir:
-            return JSONResponse(status_code=409, content={"detalle": f"Ya existe el pronóstico de {month}.", "existe": True, "mes": month})
-        return {"trabajo": jobs.start("pronostico", lambda progress: forecast_service.generate(paths, store, progress)), "mes": month}
+        plan = forecast_service.plan_now(paths, store)
+        month = plan.target
+        if paths.forecast_csv(month, plan.strategy).exists() and not body.sobrescribir:
+            return JSONResponse(status_code=409, content={"detalle": f"Ya existe el pronóstico de {month}.", "existe": True, "mes": month, "estrategia": plan.strategy})
+        return {"trabajo": jobs.start("pronostico", lambda progress: forecast_service.generate(paths, store, progress)), "mes": month, "estrategia": plan.strategy,
+                "corte": plan.cutoff_day, "avisos": plan.notes}
+
+    @app.get("/api/ajustes")
+    def settings():
+        return settings_service.describe(paths, store)
+
+    @app.put("/api/ajustes")
+    def save_settings(body: SettingsBody):
+        settings_service.save(paths, body.estrategia, body.corte_manual)
+        return settings_service.describe(paths, store)
 
     @app.get("/api/trabajos/activo")
     def active_job():
@@ -264,8 +281,8 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
         return Response(content, media_type=export_service.XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.get("/api/descargas/pronostico")
-    def download_forecast(mes: str | None = None):
-        return workbook(export_service.forecast_workbook(paths, store, mes))
+    def download_forecast(mes: str | None = None, estrategia: str | None = None):
+        return workbook(export_service.forecast_workbook(paths, store, mes, estrategia))
 
     @app.get("/api/descargas/consumo")
     def download_consumption(planta: str | None = None, sku: str | None = None, nivel: Literal["mensual", "diario"] = "mensual", desde: str | None = None, hasta: str | None = None):

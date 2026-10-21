@@ -36,12 +36,11 @@ def retune_status(paths: AppPaths, today: date) -> dict:
 
 def last_forecast(paths: AppPaths) -> dict | None:
     r"""The newest `results/forecast_<month>.csv` with the figures of its manifest (when it has one)."""
-    files = sorted(paths.results.glob("forecast_????-??.csv"))
+    files = paths.forecast_files()
     if not files:
         return None
-    csv = files[-1]
-    month = csv.stem.removeprefix("forecast_")
-    out = {"mes": month, "archivo": csv.name, "creado_en": None, "total_ml_mean_TO": None, "series": None}
+    month, strategy, csv = files[0]
+    out = {"mes": month, "estrategia": strategy, "archivo": csv.name, "creado_en": None, "total_ml_mean_TO": None, "series": None}
     manifest = csv.with_suffix(".manifest.json")
     if manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8"))

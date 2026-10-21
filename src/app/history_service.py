@@ -18,11 +18,10 @@ def forecast_history(paths: AppPaths, store: ConsumptionStore | None) -> list[di
     production = tracking[(tracking["run_id"] != BACKTEST_RUN) & (tracking["modelo"] == "ml_mean") & (tracking["planta"] == "")] if len(tracking) else tracking
     pending = set(to_measure(paths, store)) if store else set()
     out = []
-    for csv in sorted(paths.results.glob("forecast_????-??.csv"), reverse=True):
-        month = csv.stem.removeprefix("forecast_")
+    for month, strategy, csv in paths.forecast_files():
         table = pd.read_csv(csv, usecols=["ml_mean"])
-        row = {"mes": month, "total_TO": round(float(table["ml_mean"].sum()), 1), "series": int(len(table)), "creado_en": None, "datos_hasta": None, "parametros": None,
-               "ventana_ajuste": None, "medido": None, "por_medir": month in pending}
+        row = {"mes": month, "estrategia": strategy, "total_TO": round(float(table["ml_mean"].sum()), 1), "series": int(len(table)), "creado_en": None, "datos_hasta": None, "parametros": None,
+               "ventana_ajuste": None, "medido": None, "por_medir": month in pending and strategy == "h1"}
         manifest = csv.with_suffix(".manifest.json")
         if manifest.exists():
             data = json.loads(manifest.read_text(encoding="utf-8"))

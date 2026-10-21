@@ -1,4 +1,4 @@
-"""Forecasts for the Predicción screen: the saved `forecast_<month>.csv` files, their detail against the real history, and the run itself."""
+"""Forecasts for the Predicción screen: the saved `forecast_<month>[_<strategy>].csv` files, their detail against the real history, and the run itself."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
+from src.app import settings_service
 from src.app.consumption_service import ConsumptionStore
 from src.app.paths import AppPaths
 from src.engine.prediction_run import run_prediction
@@ -24,16 +25,16 @@ class ForecastMissing(LookupError):
 def list_forecasts(paths: AppPaths) -> list[dict]:
     r"""Saved forecasts, newest month first, with when each was made and its total."""
     out = []
-    for csv in sorted(paths.results.glob("forecast_????-??.csv"), reverse=True):
-        month = csv.stem.removeprefix("forecast_")
+    for month, strategy, csv in paths.forecast_files():
         manifest = csv.with_suffix(".manifest.json")
-        created = json.loads(manifest.read_text(encoding="utf-8"))["run"]["created_at"] if manifest.exists() else None
-        out.append({"mes": month, "creado_en": created, "total_TO": round(float(pd.read_csv(csv, usecols=["ml_mean"])["ml_mean"].sum()), 1)})
+        record = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+        out.append({"mes": month, "estrategia": strategy, "corte": record.get("strategy", {}).get("cutoff_day"),
+                    "creado_en": record.get("run", {}).get("created_at"), "total_TO": round(float(pd.read_csv(csv, usecols=["ml_mean"])["ml_mean"].sum()), 1)})
     return out
 
 
-def load_forecast(paths: AppPaths, month: str) -> pd.DataFrame:
-    csv = paths.forecast_csv(month)
+def load_forecast(paths: AppPaths, month: str, strategy: str = "h1") -> pd.DataFrame:
+    csv = paths.forecast_csv(month, strategy)
     if not csv.exists():
         raise ForecastMissing(f"No hay un pronóstico guardado para {month}.")
     return pd.read_csv(csv)
@@ -47,16 +48,18 @@ def _change(forecast: float, real: float | None) -> float | None:
     return None if not real else round((forecast / real - 1) * 100, 1)
 
 
-def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None, planta: str | None, sku: str | None, limit: int = TABLE_LIMIT) -> dict:
+def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None, planta: str | None, sku: str | None, limit: int = TABLE_LIMIT, strategy: str | None = None) -> dict:
     r"""
-    The forecast of `month` (the newest by default) for a planta and SKU selection: totals by model, the spread of the three trees, the real history to
+    The forecast of `month` (the newest by default; the one-month forecast when the month has several) for a planta and SKU selection: totals by model, the spread of the three trees, the real history to
     draw next to it and a table (plantas when nothing is chosen, SKUs otherwise) with the real of the last complete month.
     """
     saved = list_forecasts(paths)
     if not saved:
         raise ForecastMissing("Todavía no hay pronósticos. Genera el de este mes.")
     month = month or saved[0]["mes"]
-    forecast = load_forecast(paths, month)
+    of_month = [f for f in saved if f["mes"] == month]
+    strategy = strategy or (of_month[0]["estrategia"] if of_month else "h1")
+    forecast = load_forecast(paths, month, strategy)
     planta, sku, _ = store.select(planta, sku)
     mask = np.ones(len(forecast), dtype=bool)
     if planta:
@@ -96,8 +99,11 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
 
     return {
         "mes": month,
-        "disponibles": [f["mes"] for f in saved],
-        "creado_en": next(f["creado_en"] for f in saved if f["mes"] == month),
+        "estrategia": strategy,
+        "disponibles": list(dict.fromkeys(f["mes"] for f in saved)),
+        "disponibles_detalle": [{"mes": f["mes"], "estrategia": f["estrategia"]} for f in saved],
+        "creado_en": next(f["creado_en"] for f in saved if f["mes"] == month and f["estrategia"] == strategy),
+        "corte": next(f["corte"] for f in saved if f["mes"] == month and f["estrategia"] == strategy),
         "filtro": {"planta": planta, "sku": sku},
         "pronostico": {
             "ml_mean_TO": _number(totals["ml_mean"]),
@@ -115,17 +121,24 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
 def reference_month(store: ConsumptionStore, month: str) -> str:
     r"""The real month a forecast is compared with: the one before it (the last complete month when that one is not in the data)."""
     before = str(pd.Period(month, freq="M") - 1)
-    return before if before in store.panel.labels else store.last_complete()
+    return before if store.is_closed(before) else store.last_complete()
 
 
 def next_month(store: ConsumptionStore) -> str:
     return str(pd.Period(store.last_complete(), freq="M") + 1)
 
 
+def plan_now(paths: AppPaths, store: ConsumptionStore):
+    r"""The strategy, cutoff and target month the saved settings give for the data loaded (ValueError, in Spanish, when they do not fit)."""
+    return settings_service.current_plan(store, settings_service.load(paths))
+
+
 def generate(paths: AppPaths, store: ConsumptionStore, progress: Callable[[str, float], None]) -> dict:
-    r"""Forecast the month after the last complete one (the same run as scripts/predict_next_month.py) and return what the screen needs."""
-    if store.is_partial():
-        raise ValueError(f"El último mes de los datos ({store.panel.labels[-1]}) está incompleto. Carga el mes completo en la sección Datos.")
-    run = run_prediction(paths.consumption_csv, paths.tuning_for_forecast(), paths.forecast_csv(next_month(store)), repo_dir=paths.root, progress=progress)
-    return {"mes": run.month, "series": int(len(run.result)), "total_TO": round(float(run.result["ml_mean"].sum()), 1),
-            "avisos_de_datos": len(run.validation.warnings)}
+    r"""Forecast with the saved settings (the same run as scripts/predict_next_month.py) and return what the screen needs."""
+    settings = settings_service.load(paths)
+    plan = settings_service.current_plan(store, settings)
+    target = paths.forecast_csv(plan.target, plan.strategy)
+    run = run_prediction(paths.consumption_csv, paths.tuning_for_forecast(), target, repo_dir=paths.root, progress=progress,
+                         strategy=settings["estrategia"], cutoff_day=settings["corte_manual"])
+    return {"mes": run.month, "estrategia": run.plan.strategy, "corte": run.plan.cutoff_day, "avisos": run.plan.notes, "series": int(len(run.result)),
+            "total_TO": round(float(run.result["ml_mean"].sum()), 1), "avisos_de_datos": len(run.validation.warnings)}
