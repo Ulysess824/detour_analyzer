@@ -43,7 +43,8 @@ Los identificadores son los que ya usa `consumos_predichos.estrategia` en SQLite
 Ajustes de la sección:
 
 - Estrategia (lista de arriba; por defecto `automatica`).
-- Día de corte del mes en curso: **automático** por defecto (el último día con consumo en los datos, sección 4); se puede fijar a mano.
+- Día de corte del mes en curso: **automático** por defecto (el último día con consumo en los datos, sección 4); se puede fijar a mano. El corte manual no puede pasar del último registro (usaría días que no existen) y muestra un aviso si queda fuera del rango validado.
+- Qué hacer cuando el corte queda **por encima** del rango validado (por ejemplo día 28): usar la estrategia elegida (`parcial` por defecto) o pasar a la directa con el último mes completo. Por debajo del rango, la app usa la directa y lo avisa.
 - Método para estimar el resto del mes (solo informativo en la pantalla Predicción): media por defecto.
 
 ## 4. Modo automático y detección del corte
@@ -61,7 +62,7 @@ El código de las variables ya admite cualquier corte: `add_partial_features(fra
 | Estado de los datos | Qué hace | Mes pronosticado |
 |---|---|---|
 | Último mes completo | `h1` | El siguiente |
-| Mes en curso con `corte` dentro del rango validado | `parcial` (o la estrategia elegida en Ajustes) con ese `corte` | El siguiente al mes en curso |
+| Mes en curso con `corte` dentro del rango validado, o por encima si Ajustes lo permite (por defecto sí) | `parcial` (o la estrategia elegida en Ajustes) con ese `corte` | El siguiente al mes en curso |
 | Mes en curso con `corte` por debajo del rango validado | `directa` con el último mes completo, avisando que falta información | El siguiente al mes en curso |
 
 **Riesgos de la detección** (la pantalla muestra siempre "datos hasta <fecha>, corte día N" para confirmarlo):
@@ -114,13 +115,9 @@ Criterio de cierre: CI verde en Linux y Windows, el pronóstico a h=1 sin cambio
 
 ## 8. Decisiones
 
-Tomadas:
-
 1. "Ajustes" no lleva clave; la estrategia queda registrada en cada corrida.
 2. El modo automático prefiere `parcial` (directa + días del mes en curso).
-3. No se ofrece un corte manual sin validar; el corte se detecta del último registro de los datos y solo se usa dentro del rango validado (fase 1). Antes de la fase 1 solo está respaldado el corte 15.
+3. El corte se detecta del último registro de los datos y también se puede fijar a mano en Ajustes (nunca después del último registro). Fuera del rango validado la pantalla avisa.
+4. Si el corte detectado supera el rango validado por arriba, se usa `parcial` igual; Ajustes permite cambiarlo a la directa con el último mes completo.
 
-Pendientes:
-
-- Si se permite fijar el corte a mano en Ajustes (útil si el exporte termina en feriado) o solo ver el detectado.
-- Qué hacer si el corte detectado supera el rango validado por arriba (por ejemplo día 28): usar `parcial` igual o esperar al mes completo.
+Pendiente: el rango validado sale de la fase 1 (curva por día de corte). Hasta tenerla, el único corte respaldado es el 15.
