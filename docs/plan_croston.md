@@ -1,6 +1,6 @@
 # Plan: método de Croston y modelos estocásticos asociados (pronóstico semanal)
 
-Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: plan, sin código.
+Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: fases 0 a 6 hechas (resultados al final).
 
 Decisiones del usuario: la metodología es la del artículo de la sección siguiente; el ejemplo es SVIG `TSL/01/1/100gsm/2300mm`; el test es todo 2026; el pronóstico es **semanal**.
 
@@ -132,3 +132,59 @@ Pruebas previstas: sin fugas (cambiar el objetivo o datos posteriores al origen 
 - La estimación de `α` y `σ` con 26 a 64 semanas es inestable; se informa `α` por origen y se compara con el `ses` simple.
 - El artículo no valida exactitud: lo que se mida aquí no tiene respaldo en él, solo la forma de los modelos.
 - No elegir `α` ni el modelo con las semanas de test.
+
+## Resultados (SVIG `TSL/01/100gsm/2300mm/1200-1400`, test 2026)
+
+Datos: `results/croston_weekly_*.csv`; tabla semana a semana de h=1 con real, todos los pronósticos y los límites: `results/croston_weekly_ejemplo.csv`. Estados al final de la serie: `alpha` estimado 0,2 a 0,3, `P` entre 1,01 y 1,08, intervalo medio `p` 1,1, `sigma` de los tamaños 4,8 a 5,2 TO (la media semanal es 7 TO).
+
+**Acierto semanal, h=1** (38 semanas, real 270,4 TO; sesgo > 0 = pronóstico bajo):
+
+| Modelo | Acierto | Sesgo |
+|---|---|---|
+| `mean8` | 49,6% | +10,0% |
+| `ses` | 49,1% | +11,4% |
+| `croston` con alpha 0,1 | 48,3% | +14,0% |
+| Croston modificado | 47,6% | +14,3% |
+| `sb0` | 46,6% | +20,7% |
+| log-Croston modificado | 45,7% | +2,0% |
+| `croston` | 45,7% | +9,3% |
+| `mean4` | 41,0% | +7,6% |
+| `sb1` | 37,3% | +25,7% |
+| log-Croston (modelo, simulado) | 34,0% | +50,4% |
+| Croston (modelo, simulado) | 31,9% | +56,2% |
+| `naive` | 26,0% | +2,7% |
+
+A h=4 el orden es parecido (`mean8` 50,8%, log-Croston modificado 50,7%, `croston` 50,3%, `naive` 28,2%).
+
+**Mes completo** (9 meses de 2026; el modelo semanal se evalúa con el pronóstico de la última semana completa antes del mes por los días hábiles; `ml_mean` conoce hasta 6 días más): `ses` 72,2%, `ml_mean` 72,2%, `mean8` 72,0%, `croston` con alpha 0,1 71,4%, log-Croston modificado 71,2%, Croston modificado 68,2%, `croston` 67,5%, `sb0` 63,0%, `naive` 41,6%.
+
+**Intervalos al 95%, h=1:**
+
+| Modelo | Cobertura | Ancho medio (TO) | Semanas con límite inferior en 0 |
+|---|---|---|---|
+| Croston (simulado) | 92,1% | 14,5 | 38 de 38 |
+| log-Croston (simulado) | 94,7% | 19,6 | 38 de 38 |
+| Croston modificado (fórmula) | 94,7% | 19,0 | 38 de 38 |
+| log-Croston modificado (fórmula) | 100% | 25,3 | 38 de 38 |
+
+### Criterios fijados antes de ver resultados
+
+1. **Algún modelo de Croston supera a `naive` y `mean4`:** se cumple. Lo hacen `croston`, `sb0`, Croston modificado y log-Croston modificado (la vara es `mean4`, 41,0%).
+2. **Su cobertura está entre 85% y 100%:** se cumple para el Croston modificado y el log-Croston modificado.
+3. **Si no se cumplen, queda como referencia:** como se cumplen 1 y 2, la regla escrita no lo deja solo como referencia.
+
+### Lectura honesta
+
+- **La vara era baja.** Los criterios se compararon contra `naive` y `mean4`, que son las referencias más débiles. `mean8` y `ses` superan a todos los modelos de Croston con alpha estimado y a su vez no superan al `ml_mean` mensual. Los criterios no se cambian después de ver esto; por eso se informa aquí.
+- **Con tres semanas en cero de 38, Croston es casi un suavizado simple.** El intervalo medio es 1,1 y `Z/P` queda cerca del nivel de los tamaños, igual que `ses`.
+- **El Teorema 3 subpronostica por construcción.** Como `P >= 1`, la probabilidad `rho = Phi((1-P)/sigma_Q)` no pasa de 1/2 y el pronóstico a un paso de los modelos de Croston y log-Croston es la mitad del nivel (+50% de sesgo). El artículo lo plantea como aproximación de `m_1`; no se corrigió.
+- **`sb1` subpronostica (+25,7%)** con la fórmula impresa en el artículo; sigue pendiente verificarla contra Syntetos y Boylan (2001).
+- **Los intervalos cubren pero no informan.** Todos incluyen el cero y miden de 2 a 3,5 veces el consumo semanal medio; que la cobertura quede entre 92% y 100% es fácil con intervalos tan anchos. El modelo modificado sí acierta la frecuencia de ceros: dice que hay cerca de 9% de semanas en cero (`1 - 1/p`) y hubo 3 de 38 (8%).
+- **La serie crece en 2026** (6,0 TO en febrero, 46,5 / 35,8 / 41,9 TO en julio, agosto y septiembre; semanas de 0 a 19,3 TO). Todos los suavizados se retrasan y el sesgo es positivo (pronóstico bajo). Este experimento no usa estacionalidad ni tendencia.
+- **Selección sobre el test:** de siete modelos candidatos se mira cuál supera la vara en las mismas 38 semanas; hay sesgo de selección y una sola serie.
+
+### Qué sigue (no se hace sin pedido)
+
+- Repetir con las series intermitentes de verdad (grupo ADI ≥ 1,32 del plan) para ver si Croston aporta donde sí hay muchos ceros.
+- Verificar `F_sb1` y las condiciones de `alpha` fuera de la grilla (0, 1].
+- Decidir si interesan los intervalos (única parte que el proyecto no tenía) con otro método menos ancho.

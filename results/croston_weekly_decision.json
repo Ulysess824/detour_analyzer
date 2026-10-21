@@ -1,0 +1,16 @@
+{
+ "bar_accuracy": 0.4097,
+ "beat_naive_and_mean4": [
+  "croston",
+  "sb0",
+  "modified",
+  "modified_log"
+ ],
+ "with_coverage_in_range": [
+  "modified",
+  "modified_log"
+ ],
+ "criterion_1": true,
+ "criterion_2": true,
+ "meets_preset_criteria": true
+}

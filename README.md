@@ -731,6 +731,27 @@ El modelo interno pronostica de más (+7,3% sobre el real, el planificador +3,2%
 El modelo quedó más cerca del real en 69 de 156 SKU-mes, el planificador en 50 y el modelo interno en 37. Los resultados por fila
 están en `results/internal_model_comparison.csv`. La presentación (`presentacion/artifact/`) usa estas cifras.
 
+## Experimento: método de Croston por semanas (una serie)
+
+Rama `experiment/croston`; plan y decisiones en `docs/plan_croston.md`. No toca la app ni el pronóstico mensual: solo agrega módulos en `src/experiments/`, el script
+`scripts/croston_weekly.py` y resultados en `results/croston_weekly_*.csv`. Metodología: Shenstone y Hyndman (2005), `bibliografia/hyndman_croston.pdf`.
+
+**Serie:** SVIG, `TSL/01/100gsm/2300mm/1200-1400` (en el planificador, `TSL/01/1/100gsm/2300mm`). 64 semanas completas (lunes a domingo) desde 2025-07; test: las 38 semanas de 2026,
+rolling origin, cada modelo reajustado en cada origen con datos hasta ese origen. Ejecución:
+
+```bash
+python scripts/croston_weekly.py data/consumos_long.csv --planta SVIG --sku TSL/01/1/100gsm/2300mm
+```
+
+**Resultado (h=1, 38 semanas, real 270,4 TO):** acierto semanal `mean8` 49,6%, `ses` 49,1%, Croston modificado 47,6%, `sb0` 46,6%, log-Croston modificado 45,7%, Croston 45,7%, `mean4` 41,0%, `naive` 26,0%.
+Los modelos de Croston y log-Croston a un paso (Teorema 3) pronostican 50-56% de menos: en ese modelo la probabilidad de demanda es a lo sumo 1/2 porque el intervalo medio es al menos 1.
+Con el mes completo (9 meses, `ml_mean` mensual de comparación): `ses` 72,2%, `ml_mean` 72,2%, `mean8` 72,0%, log-Croston modificado 71,2%, Croston 67,5%.
+Los intervalos al 95% cubren entre 92% y 100% de las semanas, pero todos incluyen el cero y miden de 2 a 3,5 veces el consumo semanal medio.
+
+**Lectura:** los criterios fijados de antemano se cumplen (algún modelo de Croston supera a `naive` y `mean4`, con cobertura entre 85% y 100%), pero esa vara era baja: `mean8` y `ses`,
+más simples, superan a todos los modelos de Croston, y ninguno supera al `ml_mean` mensual. Con tan pocos ceros (3 semanas de 38) Croston se parece a un suavizado simple.
+Es una sola serie y 38 semanas: una referencia, no una prueba.
+
 ## Pruebas
 
 ```bash
