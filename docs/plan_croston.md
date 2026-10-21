@@ -1,6 +1,6 @@
 # Plan: método de Croston y modelos estocásticos asociados (pronóstico semanal)
 
-Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: versión semanal hecha (fases 0 a 6) y versión diaria hecha (secciones "Versión diaria" y "Resultados diarios" al final).
+Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: versión semanal hecha (fases 0 a 6) versión diaria hecha (secciones "Versión diaria" y "Resultados diarios") y prueba con 16 series de SVIG hecha (sección "Varias series de SVIG", al final).
 
 Decisiones del usuario: la metodología es la del artículo de la sección siguiente; el ejemplo es SVIG `TSL/01/1/100gsm/2300mm`; el test es todo 2026; el pronóstico es **semanal**.
 
@@ -258,3 +258,85 @@ Datos: `results/croston_daily_*.csv`; script `scripts/croston_daily.py`. Serie: 
 - Probar otras series intermitentes con la misma evaluación diaria, y un mes de más (`2026-10`) cuando exista, antes de pensar en adopción.
 - Verificar `F_sb1` y la restricción de alpha a (0, 1].
 - Decidir cómo se usaría un pronóstico diario en el proyecto (hoy todo es mensual): no se conecta a la app ni a `predict_next_month.py` sin una decisión aparte.
+
+## Varias series de SVIG (decisión del usuario)
+
+El usuario dio 16 SKUs de SVIG (con su cliente) para repetir la prueba diaria: `docs/croston_svig_skus.txt`. Script `scripts/croston_daily_batch.py`, módulo `src/experiments/croston_batch.py`, resultados `results/croston_batch_*.csv`. Archivos nuevos; el backend y la app no se tocan.
+
+- **Emparejamiento** con el consumo por grade, gsm y ancho (sin sub-grade ni ancho del core). 15 calzan solos. `HP2/01/1/155gsm/1990mm` calza con dos series: la principal (91 días con consumo, 143,5 TO en 2026) y otra que termina en `/Subst.` (9 días en 2025, sin consumo en 2026); se usa la principal (`ignore_substitutes`). `KS/01/257/165gsm/2200mm` calza con `KS/257/165gsm/2200mm/1200-1450`, coherente con el pendiente de KS.
+- **Series:** de 7% a 41% de los días hábiles con consumo; 8 empiezan entre 2024-10 y 2025-07 y llegan a 2026 con entre 19 y 68 días con consumo. Son la muestra que dio el usuario, no una muestra al azar de todo el catálogo.
+- **Protocolo:** el mismo de la versión diaria (rolling origin diario en 2026, semana y mes agregados, `ml_mean` con la misma información), por serie, juntando los resultados.
+- **Agregación:** acierto agrupado `1 - sum|y-p| / sum y` sobre todas las series y periodos (lo dominan las series grandes); acierto por serie; número de series donde un modelo supera a otro, con prueba de signos exacta; bootstrap que remuestrea series completas (2.000 remuestreos, intervalo de 90%) para la diferencia agrupada contra `ml_mean` y `ses` (informativo, con 16 series es ancho).
+
+### Criterios fijados antes de correr
+
+El mismo modelo de Croston (alpha estimado) debe: (1) superar a `naive`, `mean6`, `mean24` y `ses` en acierto semanal agrupado; (2) igualar o superar al `ml_mean` en acierto mensual agrupado **y** ganarle en al menos la mitad de las series; (3) tener cobertura diaria agrupada del 95% entre 85% y 100%.
+
+### Resultados (16 series, test 2026)
+
+**Acierto semanal agrupado** (608 series-semanas; sesgo > 0 = pronóstico bajo):
+
+| Modelo | Acierto | Sesgo |
+|---|---|---|
+| `sb0` | 40,3% | +13,3% |
+| `croston` | 39,9% | +9,7% |
+| log-Croston (modelo) | 39,6% | +15,6% |
+| `croston` con alpha 0,1 | 39,6% | +6,9% |
+| Croston modificado | 39,1% | +21,4% |
+| log-Croston modificado | 39,0% | +17,3% |
+| `ses` | 37,2% | +10,4% |
+| `mean24` | 36,0% | +6,0% |
+| `mean6` | 21,1% | +2,6% |
+| `naive` | -4,2% | +93,2% |
+
+**Acierto mensual agrupado** (144 series-meses, `ml_mean` con la misma información):
+
+| Modelo | Acierto | Sesgo |
+|---|---|---|
+| `croston` | 65,5% | +11,3% |
+| `sb0` | 65,3% | +14,8% |
+| **`ml_mean`** | **64,6%** | +11,8% |
+| `croston` con alpha 0,1 | 64,1% | +8,2% |
+| log-Croston modificado | 62,6% | +17,1% |
+| Croston modificado | 62,0% | +21,2% |
+| `ses` | 58,2% | +9,7% |
+| `mean24` | 56,1% | +7,0% |
+| log-Croston (modelo) | 55,6% | +25,2% |
+| Croston (modelo) | 50,8% | +37,5% |
+
+**Contra `ml_mean` y `ses`, mes** (diferencia de acierto agrupado y su intervalo de 90% por bootstrap de series; series ganadas de 16; p de la prueba de signos):
+
+| Modelo | Contra | Diferencia | Intervalo 90% | Series ganadas | p |
+|---|---|---|---|---|---|
+| `croston` | `ml_mean` | +0,9 | -0,6 a +2,4 | 11 | 0,21 |
+| `croston` | `ses` | +7,3 | +4,5 a +10,8 | 15 | 0,001 |
+| `sb0` | `ml_mean` | +0,7 | -0,6 a +2,1 | 10 | 0,45 |
+| `sb0` | `ses` | +7,1 | +3,9 a +11,1 | 14 | 0,004 |
+| Croston modificado | `ml_mean` | -2,6 | -6,2 a +0,7 | 9 | 0,80 |
+| log-Croston modificado | `ml_mean` | -2,0 | -5,7 a +1,5 | 10 | 0,45 |
+| Croston (modelo) | `ml_mean` | -13,9 | -16,3 a -10,5 | 3 | 0,02 |
+
+**Diario agrupado** (3.744 series-días; secundario): WAPE entre 100% y 164% en todos, RMSE de `croston` 1,420, `sb0` 1,420, log-Croston modificado 1,425, Croston modificado 1,426, `ses` 1,438, `mean24` 1,437, `naive` 2,050. **Intervalos diarios al 95%:** cobertura 95,8% (Croston simulado), 95,8% (log-Croston simulado), 96,4% (modificado) y 97,1% (log modificado), con ancho medio de 3,7 a 4,3 TO y límite inferior en 0 en todos los días.
+
+### Criterios
+
+1. **Semanal:** la vara es `ses` (37,2%). La superan `sb0`, `croston`, Croston modificado, log-Croston modificado y log-Croston (modelo).
+2. **Mensual contra `ml_mean`:** lo cumplen `croston` (65,5%, gana en 11 de 16 series) y `sb0` (65,3%, 10 de 16). Los modificados quedan por debajo del `ml_mean`.
+3. **Cobertura diaria:** la cumplen los cuatro modelos que tienen intervalo.
+
+**No hay un modelo que cumpla los tres: no se adopta.** Los dos que cumplen el 2 (`croston` y `sb0`) no tienen intervalo; los que lo tienen pierden contra `ml_mean`. Es un defecto de cómo escribí los criterios: el 3 solo puede cumplirlo un modelo con intervalo, y los dos que ganan en acierto no tienen. No se reescribe después de ver el resultado; en una versión futura conviene separar el criterio de exactitud (1 y 2) del de los intervalos.
+
+### Lectura honesta
+
+- **Croston supera con claridad a los suavizados simples** (`ses` y `mean24`, 15 de 16 series, intervalo de 90% de +4,5 a +10,8 puntos). Eso no ocurría de forma tan clara en la serie única.
+- **Frente al `ml_mean` es un empate:** +0,9 puntos con un intervalo de -0,6 a +2,4 y 11 de 16 series (p = 0,21). Con 16 series y 9 meses no se distingue de cero.
+- **Exploración posterior (cortes elegidos después de ver los resultados, sin valor de prueba):** en las 6 series con menos de 20% de días con consumo (550,9 TO, 54 series-meses) el Croston modificado tiene 56,0%, el log modificado 55,5%, `croston` 53,2% y el `ml_mean` 51,7%. En las 10 con 20% o más (1.890,8 TO) `croston` tiene 69,1%, `sb0` 68,5% y el `ml_mean` 68,4%. La ventaja de Croston sobre el `ml_mean` es algo mayor en las más intermitentes, pero son 6 series y el corte no estaba fijado de antemano.
+- **Casos concretos:** en `K/01/160gsm/2200mm` el `ml_mean` gana a Croston (75,9% contra 72,5%) y en `K/01/110gsm/2000mm` Croston gana por mucho (33,5% contra 1,6%, con 33 días de consumo en toda la historia).
+- **Los modelos del Teorema 3 subpronostican** (+37,5% de sesgo agrupado el Croston simulado) y pierden contra `ml_mean` en 13 de 16 series; `sb1` con la fórmula impresa da casi 0 en todas las series (acierto 0,2%). Ninguno de los dos es candidato.
+- **Sesgo de selección y alcance:** se miran siete modelos sobre los mismos 9 meses; las series son las que dio el usuario y están en una sola planta; ocho tienen poca historia antes de 2026. No se puede extrapolar a otras plantas.
+
+### Qué sigue (no se hace sin pedido)
+
+- Otras plantas y las 769 series intermitentes del maestro, con los criterios 1 y 2 (exactitud) separados del de intervalos.
+- Octubre de 2026 como prueba fuera de muestra cuando exista.
+- Verificar `F_sb1` contra Syntetos y Boylan (2001).

@@ -13,10 +13,11 @@ import re
 import pandas as pd
 
 
-def match_planner_sku(skus, planner_name: str) -> str:
+def match_planner_sku(skus, planner_name: str, ignore_substitutes: bool = False) -> str:
     r"""
     The consumption SKU of a planner name (grade/sub-grade/gsm/width): same grade, gsm and width, ignoring the core width and
-    any extra part. Exactly one SKU must match, otherwise it stops and lists the candidates.
+    any extra part. Exactly one SKU must match, otherwise it stops and lists the candidates. With `ignore_substitutes`, SKUs ending
+    in "/Subst." are dropped when another SKU matches too (the substitute of a material is not the material).
     """
     grade = planner_name.split("/")[0].lower()
     gsm = re.search(r"(\d+)gsm", planner_name.lower())
@@ -25,6 +26,8 @@ def match_planner_sku(skus, planner_name: str) -> str:
         raise ValueError(f"{planner_name!r} has no 'NNNgsm' and 'NNNNmm' parts")
     found = [s for s in skus if s.split("/")[0].lower() == grade
              and re.search(rf"/{gsm.group(1)}gsm(/|$)", s.lower()) and re.search(rf"/{width.group(1)}mm(/|$)", s.lower())]
+    if ignore_substitutes and len(found) > 1:
+        found = [f for f in found if not f.lower().endswith("/subst.")] or found
     if len(found) != 1:
         raise ValueError(f"{planner_name!r} matches {len(found)} SKUs: {found}")
     return found[0]

@@ -1,0 +1,22 @@
+# SVIG SKUs of the Croston batch test (planner names: grade/sub-grade/gsm/width), given by the user with their customer.
+# CDP
+K/01/1/110gsm/2000mm
+K/01/1/110gsm/2300mm
+K/01/1/125gsm/2200mm
+K/01/1/160gsm/2200mm
+K/01/1/160gsm/2450mm
+K/01/1/225gsm/2200mm
+K/01/1/225gsm/2450mm
+KW2/01/1/160gsm/2200mm
+KW2/01/1/160gsm/2450mm
+# DSS Dueñas blancos
+TWTC2/01/51/115gsm/2000mm
+TWTC2/01/51/115gsm/2300mm
+# Mengibar
+HP2/01/1/155gsm/1990mm
+TSL/01/1/125gsm/2300mm
+TSL/01/1/150gsm/2450mm
+# Saica
+KS/01/257/165gsm/2200mm
+# Verzuolo
+TSL/01/1/100gsm/2300mm

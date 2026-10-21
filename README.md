@@ -771,6 +771,14 @@ Con 65% de los días en cero, el WAPE diario no sirve para decidir (todos los mo
 Los criterios más exigentes fijados antes (superar a las cuatro referencias en la semana, igualar al `ml_mean` en el mes, cobertura diaria de 85% a 100%) los cumplen solo el Croston modificado y el log-Croston modificado.
 Es una serie, 9 meses y una elección entre siete modelos sobre el mismo test: una referencia, no una prueba. Detalle y limitaciones en `docs/plan_croston.md`.
 
+### Prueba con 16 series de SVIG
+
+`scripts/croston_daily_batch.py` repite el protocolo diario en los 16 SKUs de SVIG que dio el usuario (`docs/croston_svig_skus.txt`; de 7% a 41% de los días con consumo). Acierto mensual agrupado (144 series-meses):
+`croston` 65,5%, `sb0` 65,3%, `ml_mean` 64,6%, log-Croston modificado 62,6%, Croston modificado 62,0%, `ses` 58,2%, `mean24` 56,1%.
+Croston supera con claridad a `ses` (+7,3 puntos, intervalo de 90% de +4,5 a +10,8, 15 de 16 series) y empata con el `ml_mean` (+0,9 puntos, de -0,6 a +2,4, 11 de 16 series, prueba de signos p = 0,21).
+Los criterios fijados de antemano no los cumple ningún modelo a la vez (`croston` y `sb0` ganan en acierto pero no tienen intervalo; los que tienen intervalo pierden contra el `ml_mean`): el criterio de cobertura estaba mal planteado y no se reescribió después de ver el resultado.
+Son 16 series elegidas por el usuario en una planta y 9 meses: una referencia, no una prueba. Detalle en `docs/plan_croston.md`.
+
 ## Pruebas
 
 ```bash

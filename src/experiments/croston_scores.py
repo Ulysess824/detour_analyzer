@@ -26,8 +26,10 @@ def _scores(rows: dict[str, tuple[np.ndarray, np.ndarray]], rmse: bool = False) 
 def weekly_scores(weekly: pd.DataFrame, h: int, rmse: bool = False) -> pd.DataFrame:
     r"""Accuracy table at horizon `h` over the target periods that every model forecasts (same periods for all, so they are comparable)."""
     table = weekly[weekly["h"] == h]
-    common = set.intersection(*(set(g["target"]) for _, g in table.groupby("model")))
-    table = table[table["target"].isin(common)]
+    key = list(zip(table["series"], table["target"])) if "series" in table else list(table["target"])  # several series: (series, target)
+    table = table.assign(_key=key)
+    common = set.intersection(*(set(g["_key"]) for _, g in table.groupby("model")))
+    table = table[table["_key"].isin(common)]
     return _scores({m: (g["real"].to_numpy(), g["forecast"].to_numpy()) for m, g in table.groupby("model")}, rmse)
 
 
@@ -55,7 +57,8 @@ def interval_scores(weekly: pd.DataFrame, h: int) -> pd.DataFrame:
 
 def monthly_scores(monthly: pd.DataFrame) -> pd.DataFrame:
     r"""Accuracy over the months of `monthly_comparison`: every column except month, origin and real is a forecast."""
-    models = [c for c in monthly.columns if c not in ("month", "week", "origin", "real")]
+    models = [c for c in monthly.columns if c not in ("series", "month", "week", "origin", "real")]
+    monthly = monthly.dropna(subset=models)  # rows where a model could not be fitted are left out for every model
     return _scores({m: (monthly["real"].to_numpy(), monthly[m].to_numpy()) for m in models})
 
 

@@ -1,0 +1,24 @@
+{
+ "series": 16,
+ "week_bar_accuracy": 0.3723,
+ "month_ml_mean_accuracy": 0.6463,
+ "criterion_1": [
+  "croston",
+  "sb0",
+  "modified",
+  "modified_log",
+  "log_croston_model"
+ ],
+ "criterion_2": [
+  "croston",
+  "sb0"
+ ],
+ "criterion_3": [
+  "modified",
+  "modified_log",
+  "croston_model",
+  "log_croston_model"
+ ],
+ "meets_all": [],
+ "adopted": false
+}
