@@ -21,8 +21,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from src.experiments.montecarlo_utils import simulate_rest_of_month
+from src.engine.month_in_progress import forecast_media, seen_days  # noqa: F401  (re-exported for the backtests)
 from src.engine.panel_utils import Panel
+from src.experiments.montecarlo_utils import simulate_rest_of_month
 
 MODELS = ["media", "mediana", "montecarlo_historia_mes", "montecarlo_solo_mes"]
 MONTE_CARLO = ["montecarlo_historia_mes", "montecarlo_solo_mes"]
@@ -38,21 +39,6 @@ class MonthNowcast:
     real_rest: np.ndarray  # real consumption of the days left (known only afterwards, for scoring)
     forecasts: dict[str, np.ndarray]  # model -> forecast of the rest, per series
     scenarios: dict[str, np.ndarray]  # Monte Carlo model -> (draws, n_series)
-
-
-def seen_days(S: Panel, month: int, cutoff_day: int, series: np.ndarray) -> tuple[np.ndarray, int]:
-    r"""Daily consumption of the non-Sunday days already seen of `month` (series x days, zeros included) and the non-Sunday days left."""
-    start = int(S.month_first_date[month])
-    cutoff, end = start + cutoff_day, start + int(S.calendar_days[month])
-    weekday = np.asarray(S.dates[start:cutoff].dayofweek)
-    days = S.daily[series, start:cutoff][:, weekday != 6].astype(float)
-    left = int((np.asarray(S.dates[cutoff:end].dayofweek) != 6).sum())
-    return days, left
-
-
-def forecast_media(days: np.ndarray, left: int) -> np.ndarray:
-    r"""Mean of the days seen times the days left."""
-    return days.mean(axis=1) * left
 
 
 def forecast_mediana(days: np.ndarray, left: int) -> np.ndarray:

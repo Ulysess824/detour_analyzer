@@ -103,7 +103,7 @@ Capas (`tests/test_layers.py`): `engine <- evaluation <- experiments <- app`. La
 
 0. **Esta rama y este plan.**
 1. **Validación previa, curva por día de corte: hecha** (sección 9). Falta la misma curva para `nowcast_media`, que se puede correr después porque la estrategia por defecto es `parcial`.
-2. **Engine:** mover las piezas de la sección 5, crear `strategies.py`, tests de equivalencia y de no fuga.
+2. **Engine: hecha.** Piezas movidas a \`engine\` (\`month_in_progress\`, \`month_state\`, \`strategies\`), 23 pruebas nuevas, y las tres estrategias comparadas con la caché del backtest sobre los datos reales (diferencia máxima 0,00000 TO). Las pruebas encontraron un error que habría afectado la producción: \`build_panel\` termina el calendario en el último registro, así que el mes en curso aparecía con menos días de los que tiene; \`complete_calendar\` lo corrige.
 3. **Script:** `--strategy`, `--cutoff-day`, manifiesto.
 4. **App backend:** servicio de ajustes y endpoints, `forecast_service` con la estrategia.
 5. **App pantallas:** Ajustes y los cambios en Predicción.

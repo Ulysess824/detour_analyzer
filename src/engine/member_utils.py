@@ -22,6 +22,13 @@ def ml_forecast(
     return fit_predict_trees(kind, params, train, rows, seed=SEED, features=features)
 
 
+def ml_forecasts(train: pd.DataFrame, rows: pd.DataFrame, tuned: dict, features: list[str] | None = None) -> dict:
+    r"""Forecast of each machine-learning model plus their mean (`ml_mean`) for `rows`."""
+    out = {kind: ml_forecast(kind, train, rows, tuned, features) for kind in ML_MODELS}
+    out["ml_mean"] = np.mean([out[kind] for kind in ML_MODELS], axis=0)
+    return out
+
+
 def collect_member_forecasts(S, frame: pd.DataFrame, test_months: list[int], horizon: int, tuned: dict) -> pd.DataFrame:
     r"""One row per (series, test month) with the target `y` and a column p_<member> for each member."""
     parts = []

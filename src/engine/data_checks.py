@@ -175,11 +175,17 @@ def _day_gap(df: pd.DataFrame, cfg) -> Finding | None:
     return _finding("error", "day_gap", f"{len(runs)} stretches of {cfg.max_day_gap} or more working days in a row without any row", pd.DataFrame(runs))
 
 
+def working_days_missing(df: pd.DataFrame) -> pd.DatetimeIndex:
+    r"""Non-Sunday days between the last record and the end of its month (none when the last month is finished)."""
+    last = df["fecha"].max()
+    rest = pd.date_range(last + pd.Timedelta(days=1), last + pd.offsets.MonthEnd(0))
+    return rest[rest.dayofweek != 6]
+
+
 def incomplete_last_month_message(df: pd.DataFrame) -> str | None:
     r"""Message when the last month of the table is not finished (a day after the last record, up to the end of the month, is not a Sunday)."""
     last = df["fecha"].max()
-    rest = pd.date_range(last + pd.Timedelta(days=1), last + pd.offsets.MonthEnd(0))
-    missing = rest[rest.dayofweek != 6]
+    missing = working_days_missing(df)
     if not len(missing):
         return None
     return (
