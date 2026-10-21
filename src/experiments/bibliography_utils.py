@@ -29,6 +29,12 @@ REFERENCES = [
             "https://www.ecb.europa.eu/pub/pdf/scpwps/ecbwp633.pdf",  # ECB working paper 633 (earlier version)
         ),
     ),
+    Reference(
+        key="shenstone2005",
+        citation="Shenstone y Hyndman (2005), Stochastic models underlying Croston's method for intermittent demand forecasting, Journal of Forecasting 24(6), 389-402.",
+        filename="hyndman_croston.pdf",
+        urls=("https://robjhyndman.com/papers/croston.pdf",),  # author's page
+    ),
 ]
 
 
