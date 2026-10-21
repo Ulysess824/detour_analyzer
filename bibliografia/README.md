@@ -13,7 +13,7 @@ El script solo usa copias de acceso abierto. Si el servidor está bloqueado por 
 | Clave | Referencia | Para qué se usa | Descarga |
 |---|---|---|---|
 | `giannone2008` | Giannone, Reichlin y Small (2008), *Nowcasting: the real-time informational content of macroeconomic data*, Journal of Monetary Economics 55(4), 665-676 | Usar datos incompletos del período en curso con un modelo de factores y el filtro de Kalman. No usa simulación de Monte Carlo | Script (versión de trabajo; la versión de la revista es de pago) |
-| `shenstone2005` | Shenstone y Hyndman (2005), *Stochastic models underlying Croston's method for intermittent demand forecasting*, Journal of Forecasting 24(6), 389-402 | Experimento con el método de Croston (`docs/plan_croston.md`, rama `experiment/croston`): modelos estocásticos detrás del método. Se guarda como `hyndman_croston.pdf` | Script (página del autor). Sin verificar: el entorno bloqueó la descarga (403) y la identificación del artículo sale de la bibliografía, no del archivo |
+| `shenstone2005` | Shenstone y Hyndman (2005), *Stochastic models underlying Croston's method for intermittent demand forecasting*, Journal of Forecasting 24(6), 389-402 | Metodología del experimento con el método de Croston (`docs/plan_croston.md`, rama `experiment/croston`): cuatro modelos estocásticos, pronósticos puntuales e intervalos de predicción. Se guarda como `hyndman_croston.pdf` | Script (página del autor; el entorno bloqueó esa descarga con 403, por lo que el PDF se copió del que subió el usuario). Contenido verificado leyendo el PDF |
 
 ## Referencias citadas en el plan y todavía sin descarga automática
 
