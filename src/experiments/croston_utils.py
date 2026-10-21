@@ -55,6 +55,9 @@ class CrostonFit:
     p_bar: float  # mean interval (the geometric parameter p of the modified models)
     n_demands: int
     log: bool
+    idle: int  # weeks since the last positive value (0 when the origin week had consumption)
+    p_log: float | None = None  # log model only: level of the log intervals and the std of its one-step errors (equation 6)
+    sigma_q_log: float | None = None
 
 
 def fit(y: np.ndarray, alpha: float | None = None, log: bool = False) -> CrostonFit | None:
@@ -71,7 +74,12 @@ def fit(y: np.ndarray, alpha: float | None = None, log: bool = False) -> Croston
     p, eq = ses(q, alpha)  # P_2 = Q_2: the first demand has no interval before it
     sigma = max(math.sqrt(float(np.mean(e ** 2))), SIGMA_FLOOR)
     sigma_q = max(math.sqrt(float(np.mean(eq ** 2))) if len(eq) else 0.0, SIGMA_FLOOR)
-    return CrostonFit(alpha, z, p, sigma, sigma_q, float(np.mean(q)), len(sizes), log)
+    idle = len(y) - 1 - int(np.flatnonzero(np.asarray(y) > 0)[-1])
+    p_log = sigma_q_log = None
+    if log:  # the log-Croston model also smooths the log intervals
+        p_log, elog = ses(np.log(q), alpha)
+        sigma_q_log = max(math.sqrt(float(np.mean(elog ** 2))) if len(elog) else 0.0, SIGMA_FLOOR)
+    return CrostonFit(alpha, z, p, sigma, sigma_q, float(np.mean(q)), len(sizes), log, idle, p_log, sigma_q_log)
 
 
 def f_croston(f: CrostonFit) -> float:
@@ -106,5 +114,5 @@ def m1_croston(f: CrostonFit) -> float:
 
 
 def m1_log_croston(f: CrostonFit) -> float:
-    r"""log-Croston model (6), one step ahead (Theorem 3): m_1 = Phi(-P_l / sigma_Q) exp{Z_l + sigma^2 / 2}."""
-    return _NORMAL.cdf(-f.p / f.sigma_q) * math.exp(f.z + f.sigma ** 2 / 2.0)
+    r"""log-Croston model (6), one step ahead (Theorem 3): m_1 = Phi(-P_l / sigma_Q) exp{Z_l + sigma^2 / 2}, P_l and sigma_Q of the log intervals."""
+    return _NORMAL.cdf(-f.p_log / f.sigma_q_log) * math.exp(f.z + f.sigma ** 2 / 2.0)
