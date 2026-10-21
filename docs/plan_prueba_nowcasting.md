@@ -260,4 +260,7 @@ Objetivo: poder medir contra el real cada pronóstico guardado según la estrate
 2. **Pruebas históricas por estrategia:** se cargan `directa`, `parcial` (corte 15) e `iterada`; `nowcast_media` queda sin prueba histórica hasta que se corra y se guarde.
 3. **Gráfico de Seguimiento:** por defecto la estrategia del último pronóstico medido en producción; si no hay, `h1`.
 4. **Lo ya medido:** las filas de producción anteriores se consideran `h1`.
+5. **Estimación del mes en curso:** no se mide (decidido). El seguimiento mide solo los pronósticos guardados, cuando cierra el mes pronosticado.
+
+Decisión sobre la fase 8: queda como opcional (decidido); no se construye salvo que se pida.
 
