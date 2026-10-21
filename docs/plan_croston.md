@@ -4,6 +4,33 @@ Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo n
 
 Decisiones del usuario: la metodología es la del artículo de la sección siguiente; el ejemplo es SVIG `TSL/01/1/100gsm/2300mm`; el test es todo 2026; el pronóstico es **semanal**.
 
+## Alcance: qué no se toca
+
+Es un experimento. La app de escritorio y todo lo que ya funciona quedan intactos:
+
+| No se toca | Por qué |
+|---|---|
+| `src/app/` (servicios, API, pantallas, empaquetado), `packaging/`, `config/` | El experimento no se conecta a la app; no hay endpoint, pantalla ni botón de Croston |
+| `src/engine/`, `src/evaluation/` | Se importan para leer datos (`load_consumption`) y, si hace falta, métricas; no se editan |
+| Scripts, resultados y tests existentes, `data/`, `requirements/` | Solo se agregan archivos nuevos. Sin dependencias nuevas |
+| `scripts/predict_next_month.py` y el pronóstico de producción | Croston no entra al ensemble ni a la predicción mensual |
+
+Solo se agregan archivos nuevos en `src/experiments/`, `scripts/`, `tests/`, `results/croston_weekly_*.csv` y `docs/`; las únicas ediciones a archivos existentes son documentación (`bibliografia/README.md`, `src/experiments/bibliography_utils.py` para registrar la referencia, y `CLAUDE.md` / README al terminar). Comprobación al cerrar cada fase: `git diff --stat origin/main` no debe listar nada bajo `src/app/`, `src/engine/` ni `src/evaluation/`, y `tests/test_layers.py` debe seguir pasando (la capa `experiments` no importa `app`).
+
+## Fases
+
+| Fase | Contenido | Salida | Criterio para pasar |
+|---|---|---|---|
+| 0 | Plan, referencia y rama (hecho) | este documento, `bibliografia/hyndman_croston.pdf` | revisión del usuario |
+| 1 | `weekly_utils.py`: agregación semanal desde `data/consumos_long.csv`, descarte de semanas parciales, serie del ejemplo | tabla semanal de SVIG `TSL/01/100gsm/2300mm/1200-1400` | 65 semanas completas, 6 en cero, suma igual al diario (429,2 TO) |
+| 2 | `croston_utils.py`: `Z`, `P`, `F_cr`, `F_sb0`, `F_sb1`, Croston modificado y log modificado, estimación de `α` y `σ` | pronósticos de una semana | pruebas calculadas a mano y sin fugas |
+| 3 | Intervalos 95%: fórmula cerrada y simulación con semilla fija | límites por semana | los límites contienen al pronóstico; sin negativos tras truncar |
+| 4 | Rolling origin semanal 2026, referencias (`naive`, `mean4`, `mean8`, `ses`) y `ml_mean` mensual repartido | `results/croston_weekly_*.csv` | sin datos posteriores al origen; reparto mensual suma el mes |
+| 5 | Métricas, cobertura, criterios de decisión, tabla a mano del ejemplo | informe en este documento | los tres criterios se evalúan tal como se fijaron arriba |
+| 6 | Documentación: `CLAUDE.md`, README, resultados | commit en la rama | cobertura de `src/` ≥ 90%, `git diff` sin `src/app/` |
+
+Cada fase termina con un commit en `experiment/croston`. No se hace pull request ni se mezcla con `main` sin pedido explícito del usuario.
+
 ## Metodología: Shenstone y Hyndman (2005)
 
 *Stochastic models underlying Croston's method for intermittent demand forecasting*, Journal of Forecasting 24, 389-402. Archivo: `bibliografia/hyndman_croston.pdf` (14 páginas, subido por el usuario; clave `shenstone2005`). Las ecuaciones siguientes están leídas del PDF.
