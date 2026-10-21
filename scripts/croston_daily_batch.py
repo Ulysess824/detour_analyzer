@@ -5,6 +5,8 @@ are not touched; the monthly ml_mean is read from results/member_forecasts.csv (
 
 Usage:
     python scripts/croston_daily_batch.py data/consumos_long.csv --planta SVIG --skus-file docs/croston_svig_skus.txt
+    python scripts/croston_daily_batch.py data/consumos_long.csv --planta SVIG --skus-file docs/croston_svig_skus.txt \
+        --weekdays 5 --profile-shrink 20 --prefix croston_batch5          # Monday to Friday with a weekday profile
 """
 
 import argparse
@@ -35,6 +37,10 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--predictions", type=Path, default=Path("results/member_forecasts.csv"))
     parser.add_argument("--out-dir", type=Path, default=Path("results"))
+    parser.add_argument("--weekdays", type=int, choices=(5, 6), default=6, help="working days per week: 6 = Monday to Saturday, 5 = Monday to Friday")
+    parser.add_argument("--profile-shrink", type=float, default=None, help="add a <model>_dow copy of every model with the weekday profile of this shrinkage")
+    parser.add_argument("--prefix", default="croston_batch", help="prefix of the output files")
+    parser.add_argument("--save-daily", action="store_true", help="also write the daily forecasts, one row per series and day, one column per model")
     args = parser.parse_args()
 
     names = list(args.skus or [])
@@ -51,10 +57,10 @@ def main() -> None:
     for name in names:
         sku = name if name in available else match_planner_sku(available, name, ignore_substitutes=True)
         ml = ml_mean_by_month(args.predictions, args.planta, sku, df, first_month)
-        result = cbt.run_series(df, args.planta, sku, ml, args.test_start, args.draws, args.seed)
+        result = cbt.run_series(df, args.planta, sku, ml, args.test_start, args.draws, args.seed, args.weekdays, args.profile_shrink)
         for k in tables:
             tables[k].append(result[k])
-        s = daily_series(df, args.planta, sku)
+        s = daily_series(df, args.planta, sku, args.weekdays)
         test = s[s.index >= args.test_start]
         profile.append({"planner_name": name, "sku": sku, "working_days": len(s), "days_with_consumption": int((s > 0).sum()),
                         "share_with_consumption": round(float((s > 0).mean()), 3), "to_in_test": round(float(test.sum()), 1),
@@ -65,19 +71,24 @@ def main() -> None:
     daily, weeks, months = (pd.concat(tables[k], ignore_index=True) for k in ("daily", "weeks", "months"))
     out = args.out_dir
     out.mkdir(exist_ok=True)
-    pd.DataFrame(profile).to_csv(out / "croston_batch_series.csv", index=False)
-    weeks.to_csv(out / "croston_batch_weeks.csv", index=False)
-    months.to_csv(out / "croston_batch_months.csv", index=False)
+    pd.DataFrame(profile).to_csv(out / f"{args.prefix}_series.csv", index=False)
+    weeks.to_csv(out / f"{args.prefix}_weeks.csv", index=False)
+    months.to_csv(out / f"{args.prefix}_months.csv", index=False)
+
+    if args.save_daily:
+        wide = daily.pivot_table(index=["series", "target"], columns="model", values="forecast").reset_index()
+        wide.insert(2, "real", daily.drop_duplicates(["series", "target"]).set_index(["series", "target"])["real"].reindex(pd.MultiIndex.from_frame(wide[["series", "target"]])).to_numpy())
+        wide.to_csv(out / f"{args.prefix}_daily_forecasts.csv", index=False)
 
     daily_scores, intervals = cs.weekly_scores(daily, 1, rmse=True), cs.interval_scores(daily, 1)
     week_scores, month_scores = cs.monthly_scores(weeks), cs.monthly_scores(months)
     week_series, month_series = cbt.per_series_accuracy(weeks), cbt.per_series_accuracy(months)
-    daily_scores.to_csv(out / "croston_batch_daily_scores.csv")
-    intervals.to_csv(out / "croston_batch_intervals.csv")
-    week_scores.to_csv(out / "croston_batch_week_scores.csv")
-    month_scores.to_csv(out / "croston_batch_month_scores.csv")
-    week_series.to_csv(out / "croston_batch_week_per_series.csv")
-    month_series.to_csv(out / "croston_batch_month_per_series.csv")
+    daily_scores.to_csv(out / f"{args.prefix}_daily_scores.csv")
+    intervals.to_csv(out / f"{args.prefix}_intervals.csv")
+    week_scores.to_csv(out / f"{args.prefix}_week_scores.csv")
+    month_scores.to_csv(out / f"{args.prefix}_month_scores.csv")
+    week_series.to_csv(out / f"{args.prefix}_week_per_series.csv")
+    month_series.to_csv(out / f"{args.prefix}_month_per_series.csv")
 
     print(f"\nPooled weekly accuracy ({int(week_scores['n'].iloc[0])} series-weeks):\n{week_scores.to_string()}")
     print(f"\nPooled monthly accuracy ({int(month_scores['n'].iloc[0])} series-months, ml_mean has the same information):\n{month_scores.to_string()}")
@@ -93,11 +104,11 @@ def main() -> None:
             comparisons.append({"model": model, "versus": versus, "series_won": wins, "series": len(month_series),
                                 "sign_test_p": round(cbt.sign_test_p(wins, len(month_series)), 3), **{k: round(v, 4) for k, v in boot.items() if k != "series"}})
     comparisons = pd.DataFrame(comparisons)
-    comparisons.to_csv(out / "croston_batch_comparisons.csv", index=False)
+    comparisons.to_csv(out / f"{args.prefix}_comparisons.csv", index=False)
     print(f"\nMonthly: Croston models against ml_mean and ses (accuracy difference pooled, 90% bootstrap over series):\n{comparisons.to_string()}")
 
-    decision = cbt.batch_decision(week_scores, month_scores, month_series, intervals)
-    (out / "croston_batch_decision.json").write_text(json.dumps(decision, indent=1), encoding="utf-8")
+    decision = cbt.batch_decision(week_scores, month_scores, month_series, intervals, cbt.references_for(args.weekdays))
+    (out / f"{args.prefix}_decision.json").write_text(json.dumps(decision, indent=1), encoding="utf-8")
     print(f"\nCriteria: {json.dumps(decision)}")
 
 

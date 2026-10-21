@@ -1,6 +1,6 @@
 # Plan: método de Croston y modelos estocásticos asociados (pronóstico semanal)
 
-Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: versión semanal hecha (fases 0 a 6) versión diaria hecha (secciones "Versión diaria" y "Resultados diarios") y prueba con 16 series de SVIG hecha (sección "Varias series de SVIG", al final).
+Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: versión semanal hecha (fases 0 a 6) versión diaria hecha (secciones "Versión diaria" y "Resultados diarios") prueba con 16 series de SVIG hecha (sección "Varias series de SVIG") y calendario de lunes a viernes, perfil por día y probabilidad de consumo (sección final).
 
 Decisiones del usuario: la metodología es la del artículo de la sección siguiente; el ejemplo es SVIG `TSL/01/1/100gsm/2300mm`; el test es todo 2026; el pronóstico es **semanal**.
 
@@ -340,3 +340,47 @@ El mismo modelo de Croston (alpha estimado) debe: (1) superar a `naive`, `mean6`
 - Otras plantas y las 769 series intermitentes del maestro, con los criterios 1 y 2 (exactitud) separados del de intervalos.
 - Octubre de 2026 como prueba fuera de muestra cuando exista.
 - Verificar `F_sb1` contra Syntetos y Boylan (2001).
+
+## Calendario de lunes a viernes, perfil por día y probabilidad de consumo
+
+Al ver el gráfico diario, el usuario observó que el modelo siempre pronostica consumo aunque muchos días no lo tienen. Un análisis descriptivo de los 16 SKUs (toda la historia, no una prueba) mostró: la probabilidad de consumo es de 30% a 33% de lunes a jueves, 23% el viernes y 0,3% el sábado; no sube con los días sin consumo (cerca de 26% hasta 5 días sin consumo y 17% a 20% después de 6); cuando hay consumo la mediana es 1,65 TO y la media 2,16 TO. Se implementaron dos cambios, sin tocar la app, el motor ni los resultados anteriores (las corridas con los argumentos por defecto reproducen exactamente `results/croston_batch_*.csv`).
+
+### Métodos
+
+- **Calendario** (`daily_utils.daily_series(weekdays=5)`, `scripts/croston_daily_batch.py --weekdays 5`): lunes a viernes; el consumo de sábado y domingo se suma al lunes siguiente. Semana = 5 días y mes = sus días de lunes a viernes. Las medias móviles pasan a 5 y 20 días (`mean5`, `mean20`).
+- **Perfil por día** (`weekday_profile.py`, `--profile-shrink 20`): factor `w_k = 1 + (r_k - 1) n_k / (n_k + 20)`, con `r_k` el consumo medio de ese día de la semana sobre el consumo medio de todos los días y `n_k` los días de ese tipo en el historial hasta el origen; se reescala a media 1. El pronóstico del día es `w_k` por el pronóstico plano. La contracción 20 se fijó sin mirar el test. El total de una semana no cambia; el del mes cambia según cuántos viernes tenga. Cada modelo tiene una copia `<modelo>_dow`.
+- **Probabilidad y tamaño** (`croston_probability.py`, `scripts/croston_probability.py`): el pronóstico plano de Croston es `Z/P = (1/P) x Z`, probabilidad diaria `1/P` por tamaño `Z`. Se comparan la probabilidad de Croston (`croston`), la frecuencia histórica (`freq`) y sus versiones con perfil por día de la semana (`_dow`, perfil calculado sobre el indicador "hubo consumo") con el Brier, la habilidad frente a la frecuencia y el log loss; los tamaños (`Z`, media, mediana y media de los últimos tres) se evalúan solo en los días con consumo.
+
+### Criterios fijados antes de correr
+
+1. El perfil por día baja el RMSE diario agrupado de Croston.
+2. La probabilidad por día de Croston supera a la frecuencia histórica (habilidad de Brier mayor que 0).
+3. El calendario de lunes a viernes no baja el acierto semanal ni mensual de Croston más de 1 punto frente a lunes a sábado.
+4. El tamaño `Z` tiene menor WAPE que la mediana histórica en los días con consumo.
+
+### Resultados (16 SKUs de SVIG, test 2026: 3.120 series-día, 31,9% con consumo)
+
+| Criterio | Resultado | Cumple |
+|---|---|---|
+| 1. Perfil baja el RMSE diario | RMSE de Croston 1,520 sin perfil y 1,521 con perfil; el error absoluto medio baja de 0,971 a 0,969; con los otros modelos el RMSE también sube un poco | No |
+| 2. Probabilidad supera a la frecuencia | habilidad +1,0% con perfil y +1,7% sin perfil; con perfil es positiva en 7 de 16 SKUs (máximo +13,9% en `TSL/01/150gsm/2450mm`, mínimo -5,8% en `K/01/125gsm/2200mm`) | Sí, por poco |
+| 3. Calendario no daña | semanal 39,9 a 39,9; mensual 65,5 a 65,6 | Sí |
+| 4. `Z` mejor que la mediana | WAPE 51,6% contra 52,2%; la media simple tiene 50,7%, y la media de los últimos tres 59,8% | Sí, por poco |
+
+- **Acierto diario agrupado de Croston:** -34,2% con lunes a sábado y -24,1% con lunes a viernes (-23,8% con perfil). La mejora viene de dejar de pronosticar consumo el sábado; no es una comparación sobre los mismos días. Todos los modelos siguen con WAPE diario mayor que 100%.
+- **Mensual agrupado con lunes a viernes:** `croston` 65,6%, `croston_dow` 65,6%, `sb0` 65,3%, `ml_mean` 64,6%, log-Croston modificado 62,7%, Croston modificado 62,2%, `ses` 61,3%, `mean20` 56,9%. Croston frente al `ml_mean`: +1,0 puntos (bootstrap de series de -0,6 a +2,5; gana en 11 de 16, p = 0,21). Frente a `ses`: +4,3 (de +1,7 a +7,8; 13 de 16, p = 0,021). La ventaja sobre `ses` bajó de +7,3 a +4,3 puntos porque el calendario de lunes a viernes también lo mejora a él (58,2% a 61,3%).
+- **Calibración de la probabilidad de Croston por día:** la probabilidad media pronosticada es 31,0% y la real 31,9% (la frecuencia histórica pronostica 27,2%, porque el consumo de 2026 sube). Los tramos bajos subestiman (24,7% pronosticado contra 29,2% real en el tramo de 0,2 a 0,3) y el más alto sobreestima (66,1% contra 55,6% entre 0,6 y 1,0).
+
+### Lectura honesta
+
+- **El perfil por día no sirve en este test.** El viernes bajo se ve en toda la historia, pero al usarlo como pronóstico fuera de muestra no baja el RMSE ni mejora la probabilidad más que sin él.
+- **La probabilidad de Croston solo supera a la frecuencia histórica por 1 a 2 puntos de habilidad.** Coincide con lo medido antes: los días sin consumo no anticipan cuándo vendrá el siguiente. Saber qué día cae el consumo con solo el historial no es posible aquí; para eso harían falta datos de pedidos o del cliente.
+- **Lo que sí mejora es el calendario.** Quitar el sábado evita pronosticar consumo cuando casi seguro no habrá, y no cambia el acierto semanal ni mensual.
+- **El tamaño:** `Z` supera a la mediana, pero la media histórica es algo mejor; las tres diferencias son de 1 punto.
+- **Alcance:** 16 SKUs de una planta y 9 meses; se evaluaron varias variantes sobre el mismo test. La contracción 20 y la grilla de `alpha` no se ajustaron.
+
+### Qué sigue (no se hace sin pedido)
+
+- Repartir el pronóstico mensual del `ml_mean` por día con el perfil de día de la semana y compararlo con Croston diario.
+- Probar si datos de pedidos, del planificador o del cliente dan una señal de qué día habrá consumo.
+- Las 769 series intermitentes del maestro, con exactitud e intervalos como criterios separados.

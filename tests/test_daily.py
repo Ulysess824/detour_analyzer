@@ -97,3 +97,32 @@ def test_ml_mean_by_month_reads_the_cache_and_checks_it_against_the_panel(tmp_pa
     broken.to_csv(path, index=False)
     with pytest.raises(SystemExit):
         du.ml_mean_by_month(path, "P", "A", df, "2024-05")
+
+
+def test_monday_to_friday_series_folds_the_weekend_into_the_next_monday():
+    rows = [("2024-01-05", 1.0), ("2024-01-06", 4.0), ("2024-01-07", 2.0), ("2024-01-08", 3.0)]  # Fri, Sat, Sun, Mon
+    s = du.daily_series(_master(rows), "P", "A", weekdays=5)
+    assert (s.index.dayofweek < 5).all()
+    assert s["2024-01-05"] == 1.0 and s["2024-01-08"] == 9.0  # 3 + Saturday 4 + Sunday 2
+    assert s.sum() == 10.0
+    assert s.index[-1] == pd.Timestamp("2024-03-29")  # Friday: the last Saturday and Sunday of the data have no Monday
+
+
+def test_default_calendar_is_still_monday_to_saturday():
+    s = du.daily_series(_master([("2024-01-06", 3.0)]), "P", "A")
+    assert s["2024-01-06"] == 3.0 and (s.index.dayofweek < 6).all()
+
+
+def test_month_comparison_with_a_profile_adds_dow_totals_that_change_only_through_the_weekday_mix():
+    days = pd.bdate_range("2025-07-07", "2026-03-27")  # Monday to Friday
+    values = np.where(days.dayofweek == 4, 0.0, 5.0)  # nothing on Fridays
+    s = pd.Series(values, index=days)
+    months = pd.PeriodIndex(["2026-01", "2026-02"], freq="M")
+    out = du.month_comparison(s, pd.Series([100.0, 90.0], index=months), pd.Series([95.0, 85.0], index=months), draws=100, seed=1,
+                              windows=(5, 20), weekdays=5, shrink=0.0)
+    assert "naive_dow" in out.columns and "croston_dow" in out.columns
+    # January 2026 has 22 working days: 4 Fridays (2, 9, 16, 23, 30 -> 5) so 5 Fridays and 17 other days
+    jan_fridays = 5
+    assert out.loc[0, "mean5_dow"] != out.loc[0, "mean5"]  # five Fridays: the weekday mix is not the average week
+    assert out.loc[0, "mean5_dow"] / out.loc[0, "mean5"] == pytest.approx((22 - jan_fridays) * 1.25 / 22, rel=1e-6)
+    assert out.loc[1, "mean5_dow"] / out.loc[1, "mean5"] == pytest.approx((20 - 4) * 1.25 / 20, rel=1e-6)  # February 2026: 4 Fridays in 20 days

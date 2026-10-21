@@ -779,6 +779,14 @@ Croston supera con claridad a `ses` (+7,3 puntos, intervalo de 90% de +4,5 a +10
 Los criterios fijados de antemano no los cumple ningún modelo a la vez (`croston` y `sb0` ganan en acierto pero no tienen intervalo; los que tienen intervalo pierden contra el `ml_mean`): el criterio de cobertura estaba mal planteado y no se reescribió después de ver el resultado.
 Son 16 series elegidas por el usuario en una planta y 9 meses: una referencia, no una prueba. Detalle en `docs/plan_croston.md`.
 
+### Calendario de lunes a viernes, perfil por día y probabilidad de consumo
+
+Ante la observación de que el modelo siempre pronostica consumo aunque muchos días no lo tienen, se midió que en estos SKUs el sábado casi nunca tiene consumo (0,3% de los sábados contra 30% a 33% de lunes a jueves y 23% el viernes), y se hicieron dos cambios:
+calendario de lunes a viernes (el fin de semana se suma al lunes) y un perfil por día de la semana (`scripts/croston_daily_batch.py --weekdays 5 --profile-shrink 20`), y Croston visto como probabilidad de consumo por tamaño (`scripts/croston_probability.py`).
+Con los 16 SKUs: el calendario no daña el acierto semanal (39,9%) ni el mensual (65,6%, `ml_mean` 64,6%) y evita pronosticar consumo el sábado; el perfil por día no baja el RMSE diario (1,520 a 1,521);
+la probabilidad de Croston supera a la frecuencia histórica por poco (habilidad de Brier +1,0% con perfil, +1,7% sin él, positiva en 7 de 16 SKUs); el tamaño `Z` supera a la mediana histórica (51,6% contra 52,2% de error), pero no a la media (50,7%).
+Saber qué día cae el consumo con solo el historial no es posible; para eso harían falta datos de pedidos o del cliente. Los resultados están en el dashboard "Croston en SVIG" y el detalle en `docs/plan_croston.md`.
+
 ## Pruebas
 
 ```bash

@@ -15,6 +15,7 @@ import pandas as pd
 from src.experiments import croston_backtest as cb
 from src.experiments import croston_scores as cs
 from src.experiments import daily_utils as du
+from src.experiments import weekday_profile as wp
 from src.experiments.croston_intervals import DRAWS
 from src.experiments.weekly_utils import weekly_series
 
@@ -23,18 +24,33 @@ BATCH_REFERENCES = ("naive", "mean6", "mean24", "ses")
 MIN_SERIES_SHARE = 0.5  # criterion 2: the model must beat ml_mean in at least this share of the series
 
 
-def run_series(df: pd.DataFrame, planta: str, sku: str, ml_mean: pd.Series, test_start: str, draws: int = DRAWS, seed: int = 0) -> dict:
+def windows_for(weekdays: int) -> tuple[int, int]:
+    r"""Moving averages of one week and four weeks of working days."""
+    return (weekdays, 4 * weekdays)
+
+
+def references_for(weekdays: int) -> tuple[str, ...]:
+    r"""Reference model names of a run (the moving averages are named after their length in days)."""
+    short, long = windows_for(weekdays)
+    return ("naive", f"mean{short}", f"mean{long}", "ses")
+
+
+def run_series(df: pd.DataFrame, planta: str, sku: str, ml_mean: pd.Series, test_start: str, draws: int = DRAWS, seed: int = 0,
+               weekdays: int = 6, shrink: float | None = None) -> dict:
     r"""
     The daily protocol for one series: rolling daily forecasts (h=1), weeks and months aggregated from them. Returns the tables
-    `daily`, `weeks` and `months`, each with a `series` column ("planta|sku").
+    `daily`, `weeks` and `months`, each with a `series` column ("planta|sku"). `weekdays` is 6 (Monday to Saturday, the first runs)
+    or 5 (Monday to Friday); `shrink` adds a `<model>_dow` copy of every model with the weekday profile of that shrinkage.
     """
     key = f"{planta}|{sku}"
-    series = du.daily_series(df, planta, sku)
+    series = du.daily_series(df, planta, sku, weekdays)
+    windows = windows_for(weekdays)
     real_monthly = df[(df["planta"] == planta) & (df["sku"] == sku)].groupby(df["fecha"].dt.to_period("M"))["consumo"].sum()
+    daily = cb.rolling_origin(series, test_start, (1,), draws, seed, windows=windows)
     out = {
-        "daily": cb.rolling_origin(series, test_start, (1,), draws, seed, windows=WINDOWS),
-        "weeks": du.week_comparison(series, weekly_series(df, planta, sku), test_start, draws, seed, WINDOWS),
-        "months": du.month_comparison(series, real_monthly.reindex(ml_mean.index, fill_value=0.0), ml_mean, draws, seed, WINDOWS),
+        "daily": wp.add_profile_rows(daily, series, weekdays, shrink) if shrink is not None else daily,
+        "weeks": du.week_comparison(series, weekly_series(df, planta, sku), test_start, draws, seed, windows, weekdays),
+        "months": du.month_comparison(series, real_monthly.reindex(ml_mean.index, fill_value=0.0), ml_mean, draws, seed, windows, weekdays, shrink),
     }
     for table in out.values():
         table.insert(0, "series", key)

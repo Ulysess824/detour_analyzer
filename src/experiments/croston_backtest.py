@@ -76,10 +76,10 @@ def rolling_weekly(series: pd.Series, test_start: str, horizons=(1, 4), draws: i
 rolling_origin = rolling_weekly  # the function is generic over the period; the name of the weekly runs is kept
 
 
-def month_business_days(month: pd.Period) -> int:
-    r"""Days of the month that are not Sunday."""
+def month_business_days(month: pd.Period, weekdays: int = 6) -> int:
+    r"""Working days of the month: Monday to Saturday by default (`weekdays=6`), Monday to Friday with `weekdays=5`."""
     days = pd.date_range(month.start_time, month.end_time.normalize(), freq="D")
-    return int((days.dayofweek != 6).sum())
+    return int((days.dayofweek < weekdays).sum())
 
 
 def monthly_comparison(series: pd.Series, real_monthly: pd.Series, ml_mean: pd.Series, draws: int = ci.DRAWS, seed: int = 0,
