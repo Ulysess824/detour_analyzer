@@ -22,7 +22,7 @@ Solo se agregan archivos nuevos en `src/experiments/`, `scripts/`, `tests/`, `re
 | Fase | Contenido | Salida | Criterio para pasar |
 |---|---|---|---|
 | 0 | Plan, referencia y rama (hecho) | este documento, `bibliografia/hyndman_croston.pdf` | revisión del usuario |
-| 1 | `weekly_utils.py`: agregación semanal desde `data/consumos_long.csv`, descarte de semanas parciales, serie del ejemplo | tabla semanal de SVIG `TSL/01/100gsm/2300mm/1200-1400` | 65 semanas completas, 6 en cero, suma igual al diario (429,2 TO) |
+| 1 | `weekly_utils.py`: agregación semanal desde `data/consumos_long.csv`, descarte de semanas parciales, serie del ejemplo | tabla semanal de SVIG `TSL/01/100gsm/2300mm/1200-1400` | 64 semanas completas, 6 en cero, 427,2 TO (= 429,2 TO diarios menos 2,0 TO de la semana parcial del 2026-09-28) |
 | 2 | `croston_utils.py`: `Z`, `P`, `F_cr`, `F_sb0`, `F_sb1`, Croston modificado y log modificado, estimación de `α` y `σ` | pronósticos de una semana | pruebas calculadas a mano y sin fugas |
 | 3 | Intervalos 95%: fórmula cerrada y simulación con semilla fija | límites por semana | los límites contienen al pronóstico; sin negativos tras truncar |
 | 4 | Rolling origin semanal 2026, referencias (`naive`, `mean4`, `mean8`, `ses`) y `ml_mean` mensual repartido | `results/croston_weekly_*.csv` | sin datos posteriores al origen; reparto mensual suma el mes |
@@ -102,8 +102,8 @@ Planta **SVIG**, SKU **`TSL/01/1/100gsm/2300mm`** (formato del planificador: gra
 
 - **Nombre en el consumo:** `TSL/01/100gsm/2300mm/1200-1400` (grade / sub-grade / gsm / ancho / ancho del core). Es la única serie de SVIG con 100 gsm y 2300 mm. El `1` extra del nombre del planificador no aparece en el consumo; hay que confirmar con el usuario que es solo el formato.
 - **Historia:** de 2025-07-09 a 2026-09-29, 134 filas diarias (51 en 2025 y 83 en 2026), 429,2 TO en total (156,1 TO en 2025 y 273,2 TO en 2026). Sin consumo en domingo.
-- **Semanas completas** desde 2025-07: 65, de ellas 6 en cero (3 en 2025 y 3 en 2026). Media semanal 6,0 TO en 2025 y 7,0 TO en 2026 (desviación 5,3 y 5,0; máximo 21,4 TO). Mensual: de 6,0 a 46,8 TO.
-- **Test 2026:** 38 semanas completas (la semana que empieza el 2026-09-28 es parcial y se descarta). Entrenamiento inicial: las 26 semanas de 2025.
+- **Semanas completas** desde la semana del 2025-07-07: 64, de ellas 6 en cero (3 en 2025 y 3 en 2026), 427,2 TO (los 2,0 TO restantes están en la semana parcial del 2026-09-28). Media semanal 6,0 TO en 2025 y 7,0 TO en 2026 (desviación 5,3 y 5,0; máximo 21,4 TO). Mensual: de 6,0 a 46,8 TO.
+- **Test 2026:** 38 semanas completas con lunes en 2026 (270,4 TO, 3 en cero); la semana que empieza el 2026-09-28 es parcial y se descarta. Entrenamiento inicial: las 26 semanas con lunes en 2025 (la del 2025-12-29 incluye días de enero y cuenta como 2025).
 - **Con tres semanas en cero de 38, el intervalo medio entre demandas `p` es cercano a 1.** En el modelo modificado, `m_h = Z/p` queda muy cerca de `Z` (SES del tamaño), y Croston casi no se distingue de un SES. La serie es irregular (tamaño muy variable) más que intermitente. Es un resultado esperable, no un fallo: este ejemplo prueba el método en el caso en que menos ayuda; los intervalos y el log-Croston modificado (tamaños positivos) sí pueden aportar.
 - Se muestra a mano, semana a semana: serie, `Z`, `P`, pronósticos, intervalo 95%, real y error.
 
