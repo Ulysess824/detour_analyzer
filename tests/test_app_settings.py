@@ -113,3 +113,63 @@ def test_only_the_one_month_forecast_of_a_closed_month_is_offered_to_measure(tmp
     write_data(tmp_path, df)  # June is now in the data: the forecast of 2025-06 can be measured
     rows = {(r["mes"], r["estrategia"]): r["por_medir"] for r in make_client(tmp_path).get("/api/historial").json()["pronosticos"]}
     assert rows == {("2025-06", "h1"): True, ("2025-06", "directa"): False}
+
+
+# ---- what the screens read: the plan in the status and the month in progress block -----------------------------------------------
+
+
+def test_the_status_carries_the_plan_and_the_next_forecast_follows_it(tmp_path):
+    assert make_client(tmp_path).get("/api/estado").json()["plan"] is None
+    client = _in_progress(tmp_path, "2025-05-20")
+    status = client.get("/api/estado").json()
+    assert status["proximo_pronostico"] == "2025-06" and status["plan"]["estrategia"] == "parcial" and status["plan"]["corte"] == 20
+    client.put("/api/ajustes", json={"estrategia": "parcial", "corte_manual": 25})
+    broken = client.get("/api/estado").json()
+    assert broken["plan"]["estrategia"] is None and "Ajustes" in broken["plan"]["error"] and broken["proximo_pronostico"] is None
+
+
+def _generated(tmp_path, strategy, cutoff):
+    client = _in_progress(tmp_path, "2025-05-20")
+    client.put("/api/ajustes", json={"estrategia": strategy, "corte_manual": cutoff})
+    wait(client, client.post("/api/pronostico/generar", json={}).json()["trabajo"])
+    return client
+
+
+def test_the_month_in_progress_block_matches_a_manual_calculation(tmp_path):
+    client = _generated(tmp_path, "nowcast_media", 12)
+    block = client.get("/api/pronostico").json()["mes_en_curso"]
+    df = make_consumption()
+    may = df[(df["fecha"] >= "2025-05-01") & (df["fecha"] <= "2025-05-12")]
+    seen = may[may["fecha"].dt.dayofweek != 6]
+    sundays_left = sum(1 for d in pd.date_range("2025-05-13", "2025-05-31") if d.dayofweek != 6)
+    first = may["consumo"].sum()
+    working_days_seen = len([d for d in pd.date_range("2025-05-01", "2025-05-12") if d.dayofweek != 6])
+    # the mean of each series over its working days seen (zeros included), times the working days left, added up
+    rest = (seen.groupby(["planta", "sku"])["consumo"].sum() / working_days_seen * sundays_left).sum()
+    assert (block["mes"], block["corte"], block["dias_vistos"], block["dias_restantes"]) == ("2025-05", 12, working_days_seen, sundays_left)
+    assert block["real_hasta_corte_TO"] == pytest.approx(first, abs=0.1) and block["resto_estimado_TO"] == pytest.approx(rest, abs=0.1)
+    assert block["total_estimado_TO"] == pytest.approx(first + rest, abs=0.1) and block["real_completo_TO"] is None
+
+
+def test_the_block_follows_the_selection_and_is_absent_for_other_strategies(tmp_path):
+    client = _generated(tmp_path, "parcial", 12)
+    everything = client.get("/api/pronostico").json()["mes_en_curso"]
+    planta = client.get("/api/pronostico", params={"planta": "A"}).json()["mes_en_curso"]
+    assert 0 < planta["real_hasta_corte_TO"] < everything["real_hasta_corte_TO"] and planta["dias_vistos"] == everything["dias_vistos"]
+    client.put("/api/ajustes", json={"estrategia": "directa", "corte_manual": None})
+    wait(client, client.post("/api/pronostico/generar", json={}).json()["trabajo"])
+    assert client.get("/api/pronostico", params={"estrategia": "directa"}).json()["mes_en_curso"] is None
+
+
+def test_the_reference_says_when_the_month_before_the_forecast_is_still_open(tmp_path):
+    reference = _generated(tmp_path, "parcial", 12).get("/api/pronostico").json()["ultimo_real"]
+    assert reference["mes"] == "2025-04" and reference["mes_anterior_abierto"] == "2025-05"
+    data = make_client(tmp_path)
+    write_data(tmp_path, make_consumption())  # May is closed now: the comparison is with the month before the forecast
+    assert data.get("/api/pronostico").json()["mes_en_curso"]["real_completo_TO"] > 0
+    assert data.get("/api/pronostico").json()["ultimo_real"]["mes_anterior_abierto"] is None
+
+
+def test_the_data_review_no_longer_says_the_partial_month_blocks_the_forecast():
+    from src.app.data_service import ADVICE
+    assert "no se podrá pronosticar" not in ADVICE["mes_parcial"] and "día 10" in ADVICE["mes_parcial"]

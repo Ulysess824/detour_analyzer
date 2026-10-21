@@ -1,7 +1,11 @@
 "use strict";
 /* Predicción and Seguimiento screens. Loaded before app.js, which owns the helpers (api, fmt, icon, combo, ...) used here at call time. */
 
-const forecastState = { planta: "", sku: "", mes: "" };
+const forecastState = { planta: "", sku: "", mes: "", estrategia: "" };
+const STRATEGY_NAMES = {
+  automatica: "Automática", h1: "Un mes de anticipación", directa: "Dos meses, directa", parcial: "Dos meses, directa y días del mes en curso",
+  nowcast_media: "Dos meses, mes en curso completado con la media", iterada: "Dos meses, iterada",
+};
 const trackState = { mes: "", origen: "" };
 const MODEL_NAMES = { ml_mean: "Modelo principal (promedio)", lgbm: "LightGBM", xgb: "XGBoost", rf: "Random Forest", naive: "Modelo simple (repite el mes anterior)" };
 const ORANGE = "#f97316";
@@ -14,6 +18,7 @@ async function apiPost(path, body, headers = {}) {
   return { ok: response.ok, status: response.status, body: await response.json().catch(() => ({})) };
 }
 
+const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const arrow = (v) => (v === null || v === undefined ? "" : v >= 0 ? "▲ " : "▼ ");
 const biasText = (pct) => (pct === null || pct === undefined ? "" : Math.abs(pct) < 0.05 ? "sin sesgo" : pct > 0 ? `el pronóstico quedó ${fmt(Math.abs(pct))}% por debajo` : `el pronóstico quedó ${fmt(Math.abs(pct))}% por arriba`);
 
@@ -31,8 +36,9 @@ async function renderForecast(view) {
   clearTimeout(pollTimer);
   const [status, list] = await Promise.all([api("estado"), api("pronosticos")]);
   if (!status.datos) { view.innerHTML = '<div class="card empty"><h3>Todavía no hay datos</h3><p>Carga los exportes de SAP en la sección Datos.</p></div>'; return; }
+  const plan = status.plan;
+  const have = plan && plan.estrategia ? list.pronosticos.find((f) => f.mes === plan.mes_pronosticado && f.estrategia === plan.estrategia) : null;
   const next = status.proximo_pronostico;
-  const have = list.pronosticos.find((f) => f.mes === next);
   view.innerHTML = `<div class="stack"><div class="card gen" id="gen-card"></div><div id="fc-body"></div></div>`;
   renderGenCard(status, have);
   if (list.pronosticos.length) await renderForecastBody();
@@ -42,21 +48,24 @@ async function renderForecast(view) {
 }
 
 function renderGenCard(status, have, extra = "") {
-  const data = status.datos, next = status.proximo_pronostico;
-  const partial = data.mes_parcial;
-  const text = partial
-    ? `El último mes de los datos (${monthLong(partial)}) está incompleto. Carga el mes completo en la sección Datos para poder pronosticar.`
+  const data = status.datos, plan = status.plan;
+  const blocked = !plan || !plan.estrategia;
+  const open = data.mes_parcial ? ` ${cap(monthLong(data.mes_parcial))} sigue en curso.` : "";
+  const text = blocked
+    ? (plan && plan.error ? esc(plan.error) : "Todavía no hay datos.")
     : have
-      ? `Generado el ${dateLong(have.creado_en)}. Usa los datos hasta ${monthLong(data.ultimo_mes_completo)}.`
-      : `Todavía no se genera. Usa los datos hasta ${monthLong(data.ultimo_mes_completo)} y tarda menos de un minuto.`;
-  $("#gen-card").innerHTML = `<div><h2>Pronóstico de ${monthLong(next)}</h2><p>${text}</p></div>
-    <button class="btn primary" id="gen-btn" ${partial ? "disabled" : ""}>${have ? "Generar de nuevo" : "Generar pronóstico"}</button>
+      ? `Generado el ${dateLong(have.creado_en)}. Usa los datos hasta el ${dateLong(data.ultimo_dia)}.${open}`
+      : `Todavía no se genera. Usa los datos hasta el ${dateLong(data.ultimo_dia)} y tarda menos de un minuto.${open}`;
+  const how = blocked ? "" : `<p class="how"><b>${esc(STRATEGY_NAMES[plan.estrategia])}</b>${plan.corte ? ` · corte el día ${plan.corte}` : ""} · parte de ${monthLong(plan.mes_origen)} · <a href="#/ajustes">Cambiar en Ajustes</a></p>
+    ${plan.avisos.map((n) => `<p class="how warn-text">${esc(n)}</p>`).join("")}`;
+  $("#gen-card").innerHTML = `<div><h2>${blocked ? "Pronóstico" : `Pronóstico de ${monthLong(plan.mes_pronosticado)}`}</h2><p>${text}</p>${how}</div>
+    <button class="btn primary" id="gen-btn" ${blocked ? "disabled" : ""}>${have ? "Generar de nuevo" : "Generar pronóstico"}</button>
     <div class="grow" id="gen-extra">${extra}</div>`;
   $("#gen-btn").onclick = () => (have ? askOverwrite(status, have) : startGenerate(false, status, have));
 }
 
 function askOverwrite(status, have) {
-  $("#gen-extra").innerHTML = `<div class="confirm">Ya existe el pronóstico de ${monthLong(have.mes)}. Si lo generas de nuevo, se reemplaza.
+  $("#gen-extra").innerHTML = `<div class="confirm">Ya existe el pronóstico de ${monthLong(have.mes)} (${esc(STRATEGY_NAMES[have.estrategia] || have.estrategia)}). Si lo generas de nuevo, se reemplaza.
     <button class="btn primary" id="yes">Sí, generar de nuevo</button><button class="btn" id="no">Cancelar</button></div>`;
   $("#yes").onclick = () => startGenerate(true, status, have);
   $("#no").onclick = () => ($("#gen-extra").innerHTML = "");
@@ -84,6 +93,7 @@ function watchJob(jobId) {
       pollTimer = setTimeout(tick, 700);
     } else if (job.estado === "listo") {
       forecastState.mes = job.resultado.mes;
+      forecastState.estrategia = job.resultado.estrategia;
       route();
     } else {
       extra.innerHTML = `<div class="banner warn">${icon("alert")}<div><b>No se pudo generar el pronóstico.</b><br>${esc(job.error)}</div></div>`;
@@ -106,7 +116,7 @@ async function refreshForecast() {
   result.innerHTML = '<div class="loading">Cargando…</div>';
   let d;
   try {
-    d = await api("pronostico", { mes: s.mes, planta: s.planta, sku: s.sku });
+    d = await api("pronostico", { mes: s.mes, estrategia: s.estrategia, planta: s.planta, sku: s.sku });
   } catch (error) {
     disposeCharts();
     result.innerHTML = notFoundHtml(error);
@@ -114,12 +124,13 @@ async function refreshForecast() {
     return;
   }
   s.mes = d.mes;
+  s.estrategia = d.estrategia;
   disposeCharts();
   result.innerHTML = forecastHtml(d);
   const element = $("#fc-chart");
   mountChart(element, forecastOption(d, element.clientWidth));
   const select = $("#fc-mes");
-  if (select) select.onchange = () => { s.mes = select.value; refreshForecast(); };
+  if (select) select.onchange = () => { [s.mes, s.estrategia] = select.value.split("|"); refreshForecast(); };
   result.querySelectorAll("tr[data-planta]").forEach((row) => (row.onclick = () => { s.planta = row.dataset.planta; s.sku = ""; renderForecastBody(); }));
 }
 
@@ -127,33 +138,49 @@ function forecastHtml(d) {
   const f = d.pronostico, last = d.ultimo_real;
   const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
   const who = [d.filtro.planta || "Todas las plantas", d.filtro.sku || "todos los SKU"].join(" · ");
-  const months = d.disponibles.length > 1 ? `<label class="hint" for="fc-mes">Pronóstico de </label><select class="pick" id="fc-mes">${d.disponibles.map((m) => `<option value="${m}" ${m === d.mes ? "selected" : ""}>${monthLong(m)}</option>`).join("")}</select>` : "";
+  const months = d.disponibles_detalle.length > 1 ? `<label class="hint" for="fc-mes">Pronóstico de </label><select class="pick" id="fc-mes">${d.disponibles_detalle.map((m) => `<option value="${m.mes}|${m.estrategia}" ${m.mes === d.mes && m.estrategia === d.estrategia ? "selected" : ""}>${monthLong(m.mes)} · ${esc(STRATEGY_NAMES[m.estrategia] || m.estrategia)}</option>`).join("")}</select>` : "";
+  const open = last.mes_anterior_abierto;
+  const current = d.mes_en_curso ? currentMonthHtml(d.mes_en_curso, card) : "";
   const t = d.tabla;
   const head = t.tipo === "planta" ? "<th>Planta</th>" : "<th>Planta</th><th>SKU</th>";
   const rows = t.filas.map((r) => `<tr ${t.tipo === "planta" ? `data-planta="${esc(r.planta)}"` : ""}>${t.tipo === "planta" ? `<td>${esc(r.planta)}</td>` : `<td>${esc(r.planta)}</td><td>${esc(r.sku)}</td>`}<td>${fx(r.pronostico_TO)}</td><td>${fx(r.real_ultimo_TO)}</td><td>${r.cambio_pct === null ? "–" : arrow(r.cambio_pct) + fmt(Math.abs(r.cambio_pct)) + "%"}</td></tr>`).join("");
   const more = t.total_filas > t.filas.length ? `<p class="note">Mostrando los ${t.filas.length} mayores de ${fmt(t.total_filas, 0)}. Filtra por planta o SKU para ver otros.</p>` : "";
   return `<div class="stack"><div class="grid cols-3">
-      ${card(`Pronóstico de ${monthLong(d.mes)}`, `${fmt(f.ml_mean_TO, 0)}<small>TO</small>`, "Promedio de los tres modelos (LightGBM, XGBoost y Random Forest).")}
-      ${card("Contra el último mes real", last.cambio_pct === null ? "–" : `${arrow(last.cambio_pct)}${fmt(Math.abs(last.cambio_pct))}%`, `${fmt(last.TO, 0)} TO en ${monthLong(last.mes)}.`)}
+      ${card(`Pronóstico de ${monthLong(d.mes)}`, `${fmt(f.ml_mean_TO, 0)}<small>TO</small>`, `${esc(STRATEGY_NAMES[d.estrategia] || d.estrategia)}${d.corte ? ` · corte el día ${d.corte}` : ""}. Promedio de LightGBM, XGBoost y Random Forest.`)}
+      ${card(open ? "Contra el último mes completo" : "Contra el último mes real", last.cambio_pct === null ? "–" : `${arrow(last.cambio_pct)}${fmt(Math.abs(last.cambio_pct))}%`, `${fmt(last.TO, 0)} TO en ${monthLong(last.mes)}.${open ? ` ${cap(monthLong(open))} sigue en curso.` : ""}`)}
       ${card("Rango entre modelos", `${fmt(f.minimo_TO, 0)} – ${fmt(f.maximo_TO, 0)}<small>TO</small>`, "Si los modelos se separan mucho, el pronóstico es menos seguro.")}
-    </div>
+    </div>${current}
     <div class="card"><div class="toolbar"><div><h2>Consumo real y pronóstico · ${esc(who)}</h2><p class="hint">Toneladas (TO), últimos 24 meses. La escala no empieza en cero. La franja naranja es el rango entre los tres modelos.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${months}<button class="btn" data-png="pronostico">Imagen (PNG)</button></div></div><div class="chart" id="fc-chart"></div></div>
     <div class="card"><h2>${t.tipo === "planta" ? "Pronóstico por planta" : "Pronóstico por SKU"}</h2><p class="hint">${t.tipo === "planta" ? "Toca una planta para ver sus SKU." : "Ordenado de mayor a menor pronóstico."}</p>
       <div class="tablewrap" style="margin-top:12px"><table class="data ${t.tipo === "planta" ? "clickable" : "two-left"}"><thead><tr>${head}<th>Pronóstico (TO)</th><th>Último mes real (TO)</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>${more}</div></div>`;
+}
+
+function currentMonthHtml(m, card) {
+  const closed = m.real_completo_TO !== null && m.real_completo_TO !== undefined;
+  return `<div class="card"><h2>El mes en curso: ${monthLong(m.mes)}</h2>
+    <p class="hint" style="margin-top:6px">Esto es lo que el pronóstico sabía de ${monthLong(m.mes)} al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos y ${fmt(m.dias_restantes, 0)} por venir. Los días que faltan se estiman con la media diaria de los vistos; es una estimación, no un dato.</p>
+    <div class="grid cols-3" style="margin-top:14px">
+      ${card(`Real hasta el día ${m.corte}`, `${fmt(m.real_hasta_corte_TO, 0)}<small>TO</small>`, "Consumo ya ocurrido.")}
+      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, "Media diaria de los días vistos por los días que faltan.")}
+      ${card("Mes completo, estimado", `${fmt(m.total_estimado_TO, 0)}<small>TO</small>`, closed ? `El mes ya cerró: el real fue ${fmt(m.real_completo_TO, 0)} TO.` : "Real hasta el corte más el resto estimado.")}
+    </div></div>`;
 }
 
 function forecastOption(d, width) {
   const f = d.pronostico;
   const cut = d.historia.etiquetas.indexOf(d.mes);
   const labelsAll = cut >= 0 ? d.historia.etiquetas.slice(0, cut) : d.historia.etiquetas;
-  const valuesAll = d.historia.valores.slice(0, labelsAll.length);
+  const open = d.historia.mes_parcial; // a month with only some of its days is not a real total: leave it out of the line
+  const valuesAll = d.historia.valores.slice(0, labelsAll.length).map((v, i) => (labelsAll[i] === open ? null : v));
   const keep = 24;
   const labels = [...labelsAll.slice(-keep), d.mes];
   const real = [...valuesAll.slice(-keep), null];
   let lastIdx = real.length - 2;
   while (lastIdx >= 0 && real[lastIdx] === null) lastIdx--;
+  const now = d.mes_en_curso;
   const connector = labels.map((l, i) => {
     if (i === lastIdx) return { value: real[lastIdx], symbol: "none" };
+    if (now && l === now.mes) return { value: now.total_estimado_TO, symbol: "circle", symbolSize: 9, itemStyle: { color: SURFACE, borderColor: ORANGE, borderWidth: 2 } };
     if (i === labels.length - 1) return { value: f.ml_mean_TO, symbol: "circle", symbolSize: 11, itemStyle: { color: ORANGE, borderColor: SURFACE, borderWidth: 2 },
       label: { show: true, position: "top", color: INK, fontWeight: 600, fontSize: 12, formatter: () => fmt(f.ml_mean_TO, 0) } };
     return null;
@@ -170,6 +197,10 @@ function forecastOption(d, width) {
   ];
   option.tooltip.formatter = (items) => {
     const label = items[0].axisValue;
+    if (d.mes_en_curso && label === d.mes_en_curso.mes) {
+      const m = d.mes_en_curso;
+      return tooltipHtml(`${monthLong(label)} · mes en curso`, [{ name: `Real hasta el día ${m.corte}`, value: m.real_hasta_corte_TO, color: SERIES_COLORS[0] }, { name: "Mes completo, estimado", value: m.total_estimado_TO, color: ORANGE }]);
+    }
     if (label === d.mes) {
       const rows = [{ name: MODEL_NAMES.ml_mean, value: f.ml_mean_TO, color: ORANGE }, ...["lgbm", "xgb", "rf"].map((m) => ({ name: MODEL_NAMES[m], value: f.modelos_TO[m], color: INK3 }))];
       return tooltipHtml(`${monthLong(label)} · pronóstico`, rows);

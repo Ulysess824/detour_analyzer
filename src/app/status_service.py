@@ -95,15 +95,16 @@ def pending_tracking(paths: AppPaths, last_complete_month: str | None, forecast:
     return forecast["mes"]
 
 
-def app_status(paths: AppPaths, info: dict | None, today: date) -> dict:
-    r"""Everything the Inicio screen needs in one dictionary; `info` is `ConsumptionStore.info()` (None when there is no data yet)."""
+def app_status(paths: AppPaths, info: dict | None, today: date, plan: dict | None = None) -> dict:
+    r"""Everything the Inicio screen needs in one dictionary; `info` is `ConsumptionStore.info()` (None when there is no data yet), `plan` the strategy that would run now."""
     forecast = last_forecast(paths)
     complete = None
     if info is not None:
         complete = info["meses"][-2] if info["mes_parcial"] else info["meses"][-1]
     return {
         "datos": None if info is None else {**{k: v for k, v in info.items() if k != "meses"}, "ultimo_mes_completo": complete},
-        "proximo_pronostico": str(pd.Period(complete, freq="M") + 1) if complete else None,
+        "proximo_pronostico": (plan["mes_pronosticado"] if plan else None) or (str(pd.Period(complete, freq="M") + 1) if complete and not plan else None),
+        "plan": plan,
         "pronostico": forecast,
         "seguimiento": last_tracking(paths),
         "seguimiento_pendiente": pending_tracking(paths, complete, forecast),

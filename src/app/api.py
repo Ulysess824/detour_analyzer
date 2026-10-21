@@ -111,7 +111,7 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
             info = store.info()
         except DataMissing:
             info = None
-        return app_status(paths, info, today())
+        return app_status(paths, info, today(), settings_service.plan_summary(paths, store) if info else None)
 
     @app.get("/api/plantas")
     def plantas():

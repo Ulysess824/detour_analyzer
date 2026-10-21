@@ -20,7 +20,7 @@ CURVE = [
     {"dia": 25, "sku": 70.2, "planta": 91.8, "total": 97.5}, {"dia": 28, "sku": 70.7, "planta": 92.1, "total": 97.6},
 ]
 OPTIONS = [
-    {"id": "automatica", "nombre": "Automática (recomendada)", "mes_en_curso": False, "recomendada": True, "acierto": None,
+    {"id": "automatica", "nombre": "Automática", "mes_en_curso": False, "recomendada": True, "acierto": None,
      "texto": f"Elige según los datos: con el último mes completo pronostica el mes siguiente; con el mes en curso usa sus primeros días desde el día {MIN_CUTOFF_DAY} y la directa antes."},
     {"id": "h1", "nombre": "Un mes de anticipación", "mes_en_curso": False, "recomendada": False, "acierto": {"sku": 71.0, "planta": 91.8, "total": 97.5},
      "texto": "Pronostica el mes siguiente al último mes completo. Es la más precisa, pero necesita el mes anterior terminado."},
@@ -67,11 +67,26 @@ def month_state(store: ConsumptionStore) -> MonthState:
 
 def current_plan(store: ConsumptionStore, settings: dict) -> StrategyPlan:
     r"""The strategy that would run now with these settings on the data loaded (ValueError when the cutoff does not fit the data)."""
-    return resolve_strategy(month_state(store), settings["estrategia"], settings["corte_manual"])
+    state = month_state(store)
+    try:
+        return resolve_strategy(state, settings["estrategia"], settings["corte_manual"])
+    except ValueError as error:  # the only way to get here with validated settings is a cutoff after the last record (the data changed)
+        raise ValueError(f"El día de corte ({settings['corte_manual']}) no puede ser posterior al último registro de los datos (día {state.cutoff_day}, {state.last_date.date()}). "
+                         "Cámbialo en Ajustes o vuelve al corte automático.") from error
 
 
 def _plan_record(plan: StrategyPlan) -> dict:
     return {"estrategia": plan.strategy, "corte": plan.cutoff_day, "mes_origen": plan.origin, "mes_pronosticado": plan.target, "avisos": plan.notes}
+
+
+def plan_summary(paths: AppPaths, store: ConsumptionStore) -> dict | None:
+    r"""The plan for the status of the app: None without data, with `error` set (and no strategy) when the saved cutoff does not fit the data."""
+    if not paths.consumption_csv.exists():
+        return None
+    try:
+        return {**_plan_record(current_plan(store, load(paths))), "error": None}
+    except ValueError as error:
+        return {"estrategia": None, "corte": None, "mes_origen": None, "mes_pronosticado": None, "avisos": [], "error": str(error)}
 
 
 def describe(paths: AppPaths, store: ConsumptionStore) -> dict:

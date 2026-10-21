@@ -12,6 +12,7 @@ import pandas as pd
 from src.app import settings_service
 from src.app.consumption_service import ConsumptionStore
 from src.app.paths import AppPaths
+from src.engine.month_in_progress import complete_calendar, forecast_media, seen_days
 from src.engine.prediction_run import run_prediction
 
 MODELS = ["lgbm", "xgb", "rf"]
@@ -60,7 +61,7 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
     of_month = [f for f in saved if f["mes"] == month]
     strategy = strategy or (of_month[0]["estrategia"] if of_month else "h1")
     forecast = load_forecast(paths, month, strategy)
-    planta, sku, _ = store.select(planta, sku)
+    planta, sku, index = store.select(planta, sku)
     mask = np.ones(len(forecast), dtype=bool)
     if planta:
         mask &= forecast["planta"].to_numpy() == planta
@@ -98,6 +99,7 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
         table = {"tipo": "sku", "filas": rows, "total_filas": len(top)}
 
     return {
+        "mes_en_curso": month_in_progress(store, month, strategy, next(f["corte"] for f in saved if f["mes"] == month and f["estrategia"] == strategy), index),
         "mes": month,
         "estrategia": strategy,
         "disponibles": list(dict.fromkeys(f["mes"] for f in saved)),
@@ -112,10 +114,38 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
             "maximo_TO": _number(max(spread)),
             "series": int(len(chosen)),
         },
-        "ultimo_real": {"mes": last, "TO": last_real, "cambio_pct": _change(totals["ml_mean"], last_real)},
+        "ultimo_real": {"mes": last, "TO": last_real, "cambio_pct": _change(totals["ml_mean"], last_real), "mes_anterior_abierto": _open_before(store, month, last)},
         "historia": {"etiquetas": history["etiquetas"], "valores": history["valores"], "mes_parcial": history["resumen"]["mes_parcial"]},
         "tabla": table,
     }
+
+
+def _open_before(store: ConsumptionStore, month: str, reference: str) -> str | None:
+    r"""The month right before the forecast when it is still open (in progress), so the screen can say why the comparison is with an older month."""
+    before = str(pd.Period(month, freq="M") - 1)
+    return before if before != reference and before in store.panel.labels else None
+
+
+def month_in_progress(store: ConsumptionStore, month: str, strategy: str, cutoff: int | None, index: np.ndarray) -> dict | None:
+    r"""
+    What the month in progress looked like when a forecast that uses it was made: the real first days, the rest estimated with the mean of the days
+    seen (the nowcast) and the total of both, for the series chosen. None for strategies that do not use the month in progress.
+    """
+    if strategy not in ("parcial", "nowcast_media") or cutoff is None:
+        return None
+    target = str(pd.Period(month, freq="M") - 1)
+    S = complete_calendar(store.panel)
+    if target not in S.labels:
+        return None
+    position = S.labels.index(target)
+    start = int(S.month_first_date[position])
+    days, left = seen_days(S, position, cutoff, index)
+    first = float(S.daily[index, start : start + cutoff].sum(dtype=float))
+    rest = float(forecast_media(days, left).sum())
+    closed = store.is_closed(target)
+    real_total = float(np.nansum(S.monthly[index, position])) if closed else None
+    return {"mes": target, "corte": cutoff, "dias_vistos": int(days.shape[1]), "dias_restantes": left, "real_hasta_corte_TO": _number(first), "resto_estimado_TO": _number(rest),
+            "total_estimado_TO": _number(first + rest), "real_completo_TO": _number(real_total) if real_total is not None else None}
 
 
 def reference_month(store: ConsumptionStore, month: str) -> str:

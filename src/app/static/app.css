@@ -230,3 +230,13 @@ table.data.sheet thead th { text-align: center; color: var(--ink-3); font-weight
 table.data.sheet .rownum { text-align: center; color: var(--ink-3); background: #fafbff; width: 34px; }
 table.data.sheet tr.titles td:not(.rownum) { font-weight: 650; background: var(--primary-soft); }
 table.data.sheet .untitled { color: var(--ink-3); font-weight: 400; font-style: italic; }
+
+/* Ajustes and the strategy lines of Predicción */
+.chiprow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.choice label small.note { margin-top: 6px; }
+.cutoffrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+input.num { height: 36px; width: 84px; border: 1.5px solid var(--line); border-radius: 10px; padding: 0 10px; background: #fff; font: inherit; }
+input.num:disabled { opacity: .5; }
+.gen .how { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
+.gen .how a { color: var(--primary); font-weight: 600; }
+.gen .how.warn-text { color: #b34a00; }
