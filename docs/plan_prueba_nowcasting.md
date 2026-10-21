@@ -165,7 +165,7 @@ Objetivo: que la estrategia se vea y se cambie desde la app. Hoy el backend ya f
 
 ### 10.2 Sección nueva "Ajustes" (5b)
 
-Entrada del menú: **Ajustes** (id \`ajustes\`), justo antes de "Ajuste de hiperparámetros"; subtítulo "Cómo se calcula el pronóstico". Los dos nombres se parecen, así que el subtítulo y una línea en cada pantalla aclaran la diferencia (esta elige la estrategia; la otra reentrena el modelo). Archivo \`views_ajustes.js\`. Tarjetas, de arriba abajo:
+Entrada del menú: **Ajustes** (id \`ajustes\`), justo antes de **Hiperparámetros**; subtítulo "Cómo se calcula el pronóstico". La sección que hoy se llama "Ajuste de hiperparámetros" pasa a llamarse **Hiperparámetros** (menú, título y textos de la app, de la Ayuda y de la documentación) para que los dos nombres no se confundan; su id y su comportamiento no cambian. Archivo \`views_ajustes.js\`. Tarjetas, de arriba abajo:
 
 1. **Estado de los datos y plan:** último registro, si el mes está completo o en curso, día de corte, días vistos y restantes; qué estrategia correría ahora, de qué mes parte y qué mes pronostica. Los avisos del plan (por ejemplo "hay solo 7 días, se usa la directa") y el error del corte manual se muestran en un recuadro de aviso.
 2. **Estrategia:** una lista de opciones con su nombre, la explicación y el acierto (SKU, planta, total) en etiquetas; "Automática" lleva la etiqueta "Recomendada". Si el mes está completo, las opciones que necesitan el mes en curso muestran la nota "Con el mes completo se usa un mes de anticipación" (se pueden elegir igual: valen para la próxima vez).
@@ -186,6 +186,7 @@ Entrada del menú: **Ajustes** (id \`ajustes\`), justo antes de "Ajuste de hiper
 - **Inicio:** la tarjeta "Próximo pronóstico" muestra mes y estrategia; "listo" cuando el último pronóstico guardado coincide con el plan.
 - **Historial:** columna "Estrategia"; "Ver" y "Excel" por mes y estrategia.
 - **Descargar:** el selector de pronóstico incluye la estrategia.
+- **Renombrar:** "Ajuste de hiperparámetros" pasa a "Hiperparámetros" en el menú (\`app.js\`), el título de la pantalla (\`views_tuning.js\`) y los textos que la nombran.
 - **Ayuda:** corregir "Mes parcial" y "No me deja generar el pronóstico"; entradas nuevas para "Estrategia de pronóstico" y "Día de corte". La guía de instalación se corrige en la fase 7.
 
 ### 10.5 Verificación (5e)
@@ -198,7 +199,7 @@ Entrada del menú: **Ajustes** (id \`ajustes\`), justo antes de "Ajuste de hiper
 
 ### 10.6 Decisiones que tomo salvo que digas otra cosa
 
-1. La sección se llama "Ajustes" y va antes de "Ajuste de hiperparámetros".
-2. La tarjeta "Mes en curso" solo aparece con \`parcial\` y \`nowcast_media\`.
-3. Las opciones que necesitan el mes en curso se pueden elegir aunque el mes esté completo (valen para la próxima vez).
-4. El gráfico por día de corte usa los números ya medidos (constantes del módulo), no recalcula nada.
+1. La sección nueva se llama "Ajustes" y va antes de "Hiperparámetros" (nombre nuevo de la sección que se llamaba "Ajuste de hiperparámetros"). Confirmado.
+2. La tarjeta "Mes en curso" solo aparece con \`parcial\` y \`nowcast_media\`. Confirmado.
+3. Las opciones que necesitan el mes en curso se pueden elegir aunque el mes esté completo (valen para la próxima vez). Confirmado.
+4. El gráfico por día de corte usa los números ya medidos (constantes del módulo), no recalcula nada. Confirmado.
