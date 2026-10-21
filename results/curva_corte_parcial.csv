@@ -1,0 +1,13 @@
+estrategia,acierto_sku,acierto_planta,acierto_total,meses_de_12_que_gana_a_la_directa
+directa,66.1,90.0,94.1,
+iterada,65.4,89.8,94.4,
+parcial dia 5,66.8,89.8,93.8,10.0
+parcial dia 8,67.2,89.9,94.2,11.0
+parcial dia 10,67.8,90.5,94.8,12.0
+parcial dia 12,68.2,90.8,95.1,12.0
+parcial dia 15,68.7,90.9,96.0,12.0
+parcial dia 18,69.2,91.0,95.9,12.0
+parcial dia 20,69.4,91.3,96.6,12.0
+parcial dia 22,69.6,91.2,96.4,12.0
+parcial dia 25,70.2,91.8,97.5,12.0
+parcial dia 28,70.7,92.1,97.6,12.0

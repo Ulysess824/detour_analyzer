@@ -102,7 +102,7 @@ Capas (`tests/test_layers.py`): `engine <- evaluation <- experiments <- app`. La
 ## 7. Fases
 
 0. **Esta rama y este plan.**
-1. **Validación previa, curva por día de corte:** correr `compare_horizon_strategies.py --cutoff-day N` (el script ya acepta el corte y guarda la caché por corte) y `nowcast_media_2026.py --cutoffs` con N = 5, 8, 10, 12, 15, 18, 20, 22, 25 y 28. Resultado: acierto de `parcial`, `nowcast_media` y `directa` en función del día. De ahí salen el **rango validado** (desde qué día `parcial` supera a `directa` en la mayoría de los 12 meses) y si algún corte alto se acerca a `h1`. Hasta tener esa curva, el único corte respaldado es el 15.
+1. **Validación previa, curva por día de corte: hecha** (sección 9). Falta la misma curva para `nowcast_media`, que se puede correr después porque la estrategia por defecto es `parcial`.
 2. **Engine:** mover las piezas de la sección 5, crear `strategies.py`, tests de equivalencia y de no fuga.
 3. **Script:** `--strategy`, `--cutoff-day`, manifiesto.
 4. **App backend:** servicio de ajustes y endpoints, `forecast_service` con la estrategia.
@@ -120,4 +120,32 @@ Criterio de cierre: CI verde en Linux y Windows, el pronóstico a h=1 sin cambio
 3. El corte se detecta del último registro de los datos y también se puede fijar a mano en Ajustes (nunca después del último registro). Fuera del rango validado la pantalla avisa.
 4. Si el corte detectado supera el rango validado por arriba, se usa `parcial` igual; Ajustes permite cambiarlo a la directa con el último mes completo.
 
-Pendiente: el rango validado sale de la fase 1 (curva por día de corte). Hasta tenerla, el único corte respaldado es el 15.
+El rango validado salió de la fase 1: desde el día 10 (sección 9).
+
+## 9. Resultado de la fase 1: acierto de `parcial` según el día de corte
+
+Misma prueba que `compare_horizon_strategies.py` (2025-10..2026-09, 12 meses, 24.407 SKU-mes, `ml_mean`, parámetros de h=1), solo cambia el día de corte de la estrategia `parcial`. El corte 15 reproduce las cifras publicadas. Tabla en `results/curva_corte_parcial.csv`.
+
+| Estrategia | SKU | Planta | Total | Meses de 12 que gana a la directa (SKU) |
+|---|---|---|---|---|
+| Directa (sin mes en curso) | 66,1 | 90,0 | 94,1 | |
+| Iterada | 65,4 | 89,8 | 94,4 | |
+| Parcial, corte día 5 | 66,8 | 89,8 | 93,8 | 10 |
+| Parcial, corte día 8 | 67,2 | 89,9 | 94,2 | 11 |
+| Parcial, corte día 10 | 67,8 | 90,5 | 94,8 | 12 |
+| Parcial, corte día 12 | 68,2 | 90,8 | 95,1 | 12 |
+| Parcial, corte día 15 | 68,7 | 90,9 | 96,0 | 12 |
+| Parcial, corte día 18 | 69,2 | 91,0 | 95,9 | 12 |
+| Parcial, corte día 20 | 69,4 | 91,3 | 96,6 | 12 |
+| Parcial, corte día 22 | 69,6 | 91,2 | 96,4 | 12 |
+| Parcial, corte día 25 | 70,2 | 91,8 | 97,5 | 12 |
+| Parcial, corte día 28 | 70,7 | 92,1 | 97,6 | 12 |
+| Un mes antes (referencia) | 71,0 | 91,8 | 97,5 | |
+
+Lectura:
+
+- El acierto sube con el día de corte y no tiene saltos: cuantos más días del mes en curso se conocen, mejor. En el día 25 y el 28 ya está cerca de pronosticar con el mes anterior completo (70,2 y 70,7 contra 71,0).
+- **Rango validado: desde el día 10.** Desde ahí `parcial` supera a la directa en SKU, planta y total y gana en los 12 meses. En el día 5 y el 8 mejora poco en SKU (10 y 11 meses de 12) y no mejora a la directa en planta ni en total (89,8 y 93,8 en el día 5; 89,9 y 94,2 en el día 8, contra 90,0 y 94,1).
+- Regla para la app: corte de 10 o más, `parcial`; corte menor que 10, directa y aviso. Por encima del rango no hay límite: el día 28 es el mejor.
+- Salvedad: es el universo de todos los SKU vivos. En los SKU grandes de SCAN los 15 días no mejoraban a la directa (84,1% contra 84,3%), y esta curva no lo cubre.
+- Falta la curva de `nowcast_media` (mes completado con la media como entrada): se corre aparte con `nowcast_input_ml_mean.py --cutoff-day N`.
