@@ -15,24 +15,12 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # make `src` importable
 
-from src.engine.panel_utils import build_panel, load_consumption
-from src.evaluation.cache_utils import check_alignment
+from src.engine.panel_utils import load_consumption
 from src.experiments import croston_backtest as cb
 from src.experiments import croston_scores as cs
 from src.experiments.croston_intervals import DRAWS
+from src.experiments.daily_utils import ml_mean_by_month
 from src.experiments.weekly_utils import match_planner_sku, weekly_series
-
-
-def ml_mean_by_month(predictions: Path, planta: str, sku: str, df: pd.DataFrame, first_month: str) -> pd.Series:
-    r"""ml_mean (mean of lgbm, xgb, rf) of the one-month-ahead cache for the target months from `first_month`, indexed by Period."""
-    S = build_panel(df)
-    res = pd.read_csv(predictions)
-    check_alignment(res, S)
-    series = S.keys.index((planta, sku))
-    rows = res[res["series"] == series]
-    months = pd.PeriodIndex([S.labels[t] for t in rows["t"]], freq="M")
-    ml = pd.Series(rows[["p_lgbm", "p_xgb", "p_rf"]].mean(axis=1).to_numpy(), index=months)
-    return ml[ml.index >= pd.Period(first_month, "M")]
 
 
 def main() -> None:

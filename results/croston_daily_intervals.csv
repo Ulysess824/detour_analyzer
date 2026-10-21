@@ -1,0 +1,5 @@
+model,n,coverage,mean_width,weeks_with_zero_lower
+croston_model,234,0.9487,5.2735,234
+log_croston_model,234,0.9744,6.1713,234
+modified,234,0.953,5.6406,234
+modified_log,234,0.9829,7.0692,234

@@ -14,20 +14,21 @@ REFERENCES = ("naive", "mean4", "mean8", "ses")
 COVERAGE_RANGE = (0.85, 1.0)  # fixed before looking at the results
 
 
-def _scores(rows: dict[str, tuple[np.ndarray, np.ndarray]]) -> pd.DataFrame:
+def _scores(rows: dict[str, tuple[np.ndarray, np.ndarray]], rmse: bool = False) -> pd.DataFrame:
     out = []
     for model, (y, p) in rows.items():
         s = score(y, p)
-        out.append({"model": model, "n": len(y), "mae": float(np.mean(np.abs(y - p))), **s})
+        extra = {"rmse": float(np.sqrt(np.mean((y - p) ** 2)))} if rmse else {}
+        out.append({"model": model, "n": len(y), "mae": float(np.mean(np.abs(y - p))), **extra, **s})
     return rank_by_wape(out)
 
 
-def weekly_scores(weekly: pd.DataFrame, h: int) -> pd.DataFrame:
-    r"""Accuracy table at horizon `h` over the target weeks that every model forecasts (same weeks for all, so they are comparable)."""
+def weekly_scores(weekly: pd.DataFrame, h: int, rmse: bool = False) -> pd.DataFrame:
+    r"""Accuracy table at horizon `h` over the target periods that every model forecasts (same periods for all, so they are comparable)."""
     table = weekly[weekly["h"] == h]
     common = set.intersection(*(set(g["target"]) for _, g in table.groupby("model")))
     table = table[table["target"].isin(common)]
-    return _scores({m: (g["real"].to_numpy(), g["forecast"].to_numpy()) for m, g in table.groupby("model")})
+    return _scores({m: (g["real"].to_numpy(), g["forecast"].to_numpy()) for m, g in table.groupby("model")}, rmse)
 
 
 def wide_table(weekly: pd.DataFrame, h: int) -> pd.DataFrame:
@@ -54,18 +55,34 @@ def interval_scores(weekly: pd.DataFrame, h: int) -> pd.DataFrame:
 
 def monthly_scores(monthly: pd.DataFrame) -> pd.DataFrame:
     r"""Accuracy over the months of `monthly_comparison`: every column except month, origin and real is a forecast."""
-    models = [c for c in monthly.columns if c not in ("month", "origin", "real")]
+    models = [c for c in monthly.columns if c not in ("month", "week", "origin", "real")]
     return _scores({m: (monthly["real"].to_numpy(), monthly[m].to_numpy()) for m in models})
 
 
-def decision_criteria(scores_h1: pd.DataFrame, intervals_h1: pd.DataFrame) -> dict:
+def decision_criteria(scores_h1: pd.DataFrame, intervals_h1: pd.DataFrame, references: tuple[str, ...] = ("naive", "mean4")) -> dict:
     r"""
     The three criteria of docs/plan_croston.md, evaluated as they were fixed: (1) some Croston model beats naive and mean4 in weekly
     accuracy, (2) its 95% coverage is within COVERAGE_RANGE, (3) otherwise Croston stays as a reference.
     """
     acc = scores_h1["accuracy"]
-    bar = max(acc["naive"], acc["mean4"])
+    bar = max(acc[r] for r in references)
     winners = [m for m in CROSTON_MODELS if m in acc.index and acc[m] > bar]
     covered = [m for m in winners if m in intervals_h1.index and COVERAGE_RANGE[0] <= intervals_h1.loc[m, "coverage"] <= COVERAGE_RANGE[1]]
     return {"bar_accuracy": float(bar), "beat_naive_and_mean4": winners, "with_coverage_in_range": covered,
             "criterion_1": bool(winners), "criterion_2": bool(covered), "meets_preset_criteria": bool(covered)}
+
+
+def daily_decision(week_scores: pd.DataFrame, month_scores: pd.DataFrame, intervals_h1: pd.DataFrame,
+                   references: tuple[str, ...] = ("naive", "mean6", "mean24", "ses")) -> dict:
+    r"""
+    The criteria of the daily run (docs/plan_croston.md, fixed before the results): the SAME Croston model must (1) beat every
+    reference in weekly accuracy, (2) match or beat ml_mean in monthly accuracy and (3) have 95% daily coverage within COVERAGE_RANGE.
+    """
+    week_acc, month_acc = week_scores["accuracy"], month_scores["accuracy"]
+    bar = max(week_acc[r] for r in references)
+    c1 = [m for m in CROSTON_MODELS if m in week_acc.index and week_acc[m] > bar]
+    c2 = [m for m in CROSTON_MODELS if m in month_acc.index and month_acc[m] >= month_acc["ml_mean"]]
+    c3 = [m for m in CROSTON_MODELS if m in intervals_h1.index and COVERAGE_RANGE[0] <= intervals_h1.loc[m, "coverage"] <= COVERAGE_RANGE[1]]
+    both = [m for m in c1 if m in c2 and m in c3]
+    return {"week_bar_accuracy": float(bar), "month_ml_mean_accuracy": float(month_acc["ml_mean"]), "criterion_1": c1, "criterion_2": c2,
+            "criterion_3": c3, "meets_all": both, "adopted": bool(both)}

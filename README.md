@@ -752,6 +752,25 @@ Los intervalos al 95% cubren entre 92% y 100% de las semanas, pero todos incluye
 más simples, superan a todos los modelos de Croston, y ninguno supera al `ml_mean` mensual. Con tan pocos ceros (3 semanas de 38) Croston se parece a un suavizado simple.
 Es una sola serie y 38 semanas: una referencia, no una prueba.
 
+### Versión diaria
+
+Pedida después de la semanal: `scripts/croston_daily.py`, mismos criterios de cuidado (archivos nuevos, sin tocar la app). La serie es de días hábiles (lunes a sábado; el domingo se suma al lunes siguiente),
+el pronóstico es del día siguiente al cierre de cada día de 2026 (234 días) y la semana y el mes son la suma de los pronósticos diarios desde el último día antes del periodo; así el `ml_mean` mensual tiene la misma información.
+Con 65% de los días en cero, el WAPE diario no sirve para decidir (todos los modelos pasan de 100%), y el RMSE diario favorece a Croston; se decide con semana y mes.
+
+| Modelo | Acierto semanal (38 semanas) | Acierto mensual (9 meses) |
+|---|---|---|
+| log-Croston modificado | 47,0% | 74,8% |
+| Croston (`croston`) | 48,5% | 74,4% |
+| `sb0` | 48,1% | 73,7% |
+| Croston modificado | 47,1% | 73,2% |
+| `ml_mean` | | 72,2% |
+| `ses` | 44,4% | 64,6% |
+| `mean24` | 41,0% | 63,9% |
+
+Los criterios más exigentes fijados antes (superar a las cuatro referencias en la semana, igualar al `ml_mean` en el mes, cobertura diaria de 85% a 100%) los cumplen solo el Croston modificado y el log-Croston modificado.
+Es una serie, 9 meses y una elección entre siete modelos sobre el mismo test: una referencia, no una prueba. Detalle y limitaciones en `docs/plan_croston.md`.
+
 ## Pruebas
 
 ```bash

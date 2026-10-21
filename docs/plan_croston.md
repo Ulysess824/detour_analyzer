@@ -1,6 +1,6 @@
 # Plan: método de Croston y modelos estocásticos asociados (pronóstico semanal)
 
-Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: fases 0 a 6 hechas (resultados al final).
+Rama `experiment/croston`. Solo archivos nuevos; no se modifica ningún modelo ni resultado existente (`src/engine/`, `src/evaluation/` y los resultados mensuales no cambian). Estado: versión semanal hecha (fases 0 a 6) y versión diaria hecha (secciones "Versión diaria" y "Resultados diarios" al final).
 
 Decisiones del usuario: la metodología es la del artículo de la sección siguiente; el ejemplo es SVIG `TSL/01/1/100gsm/2300mm`; el test es todo 2026; el pronóstico es **semanal**.
 
@@ -188,3 +188,73 @@ A h=4 el orden es parecido (`mean8` 50,8%, log-Croston modificado 50,7%, `crosto
 - Repetir con las series intermitentes de verdad (grupo ADI ≥ 1,32 del plan) para ver si Croston aporta donde sí hay muchos ceros.
 - Verificar `F_sb1` y las condiciones de `alpha` fuera de la grilla (0, 1].
 - Decidir si interesan los intervalos (única parte que el proyecto no tenía) con otro método menos ancho.
+
+## Versión diaria (decisión del usuario, después de la semanal)
+
+El usuario pidió pasar a pronóstico **a nivel diario**. Todo sigue en archivos nuevos de `src/experiments/`, `scripts/` y `tests/`; el backend y la app no se tocan, y la versión semanal queda como estaba (sus resultados no cambian).
+
+- **Serie** (`daily_utils.daily_series`): un valor por día hábil (lunes a sábado), desde el primer consumo del SKU hasta el último día hábil del dato. Un domingo con consumo se suma al lunes siguiente (conserva los totales); un domingo que sea el último día del dato se descarta. Los festivos son días en cero.
+- **Modelos:** los mismos de la versión semanal con el periodo en días (`Q_j` en días hábiles). Referencias: `naive`, `mean6` y `mean24` (una y cuatro semanas de días hábiles) y `ses`. Rolling origin diario: cada día de 2026 se pronostica al cierre del día anterior (h=1) con datos hasta ese día.
+- **Agregados:** semana = 6 × el pronóstico diario del sábado anterior; mes = días hábiles del mes × el pronóstico diario del último día hábil antes del mes (el `ml_mean` tiene la misma información: datos hasta el fin del mes anterior). La versión plana ignora que el log-Croston modificado depende de `h` (la diferencia es del orden del 2%).
+- **Métrica:** con más de la mitad de los días en cero, el pronóstico que minimiza el error absoluto es la mediana (0) y el que minimiza el cuadrático es la media `Z/p`. El WAPE diario premia pronosticar cerca de 0 y castiga a Croston aunque estime bien la tasa; por eso las métricas **primarias** son las agregadas (semana y mes) y el WAPE y el RMSE diarios son secundarios.
+
+### Criterios nuevos (fijados antes de ver los resultados diarios)
+
+Los criterios de la versión semanal se escribieron sabiendo que Croston no ganaba a `mean8` ni a `ses`, y por eso la vara era baja. Estos suben la vara. El mismo modelo de Croston (alpha estimado) debe:
+
+1. superar a `naive`, `mean6`, `mean24` y `ses` en acierto semanal agregado;
+2. igualar o superar al `ml_mean` en acierto mensual;
+3. tener cobertura diaria del 95% entre 85% y 100%.
+
+Solo se adopta si el mismo modelo cumple los tres; si no, queda como referencia. Los modelos candidatos son los siete con alpha estimado (`croston`, `sb0`, `sb1`, `modified`, `modified_log`, `croston_model`, `log_croston_model`).
+
+## Resultados diarios (SVIG `TSL/01/100gsm/2300mm/1200-1400`, test 2026)
+
+Datos: `results/croston_daily_*.csv`; script `scripts/croston_daily.py`. Serie: 385 días hábiles (2025-07-09 a 2026-09-30), 134 con consumo (35%); test: 234 días hábiles de 2026. En 2026 el día medio es 1,17 TO, el día con consumo 3,29 TO (máximo 10,7 TO) y 64,5% de los días están en cero.
+
+**Acierto semanal agregado** (38 semanas; sesgo > 0 = pronóstico bajo):
+
+| Modelo | Acierto | Sesgo |
+|---|---|---|
+| log-Croston (modelo, simulado) | 49,9% | +17,8% |
+| `croston` | 48,5% | +12,9% |
+| `sb0` | 48,1% | +15,1% |
+| `croston` con alpha 0,1 | 47,2% | +7,7% |
+| Croston modificado | 47,1% | +16,4% |
+| log-Croston modificado | 47,0% | +10,1% |
+| `ses` | 44,4% | +9,8% |
+| `mean24` | 41,0% | +7,6% |
+| Croston (modelo, simulado) | 37,6% | +44,4% |
+| `mean6` | 26,0% | +2,7% |
+| `naive` | -14,7% | +84,0% |
+| `sb1` | 0,0% | +99,95% |
+
+**Acierto mensual** (9 meses de 2026, mismo origen que el `ml_mean`): log-Croston modificado 74,8%, `croston` 74,4%, `sb0` 73,7%, Croston modificado 73,2%, **`ml_mean` 72,2%**, `croston` con alpha 0,1 70,6%, `ses` 64,6%, `mean24` 63,9%, log-Croston (modelo) 53,3%, Croston (modelo) 50,7%, `mean6` 41,1%, `naive` -56,0%.
+
+**Diario** (234 días; secundario): ningún modelo pasa de acierto 0 (WAPE entre 100% y 164%). RMSE: `croston` 1,956, log-Croston modificado 1,957, `sb0` 1,958, Croston modificado 1,960, `ses` 1,977, `mean24` 1,990, `mean6` 2,098, `naive` 2,922: en error cuadrático los modelos de Croston son los mejores, como se esperaba.
+
+**Intervalos diarios al 95%:** Croston (simulado) 94,9% de cobertura y ancho medio 5,3 TO; log-Croston (simulado) 97,4% y 6,2 TO; Croston modificado 95,3% y 5,6 TO; log-Croston modificado 98,3% y 7,1 TO. El límite inferior es 0 en los 234 días en los cuatro.
+
+### Criterios
+
+1. **Semanal:** la vara es `ses` (44,4%). La superan `croston`, `sb0`, Croston modificado, log-Croston modificado y el log-Croston simulado.
+2. **Mensual contra `ml_mean` (72,2%):** lo igualan o superan `croston`, `sb0`, Croston modificado y log-Croston modificado.
+3. **Cobertura diaria entre 85% y 100%:** la cumplen los cuatro modelos con intervalo.
+
+**Cumplen los tres: Croston modificado y log-Croston modificado.** Con la regla escrita, para esta serie se adoptan.
+
+### Lectura honesta
+
+- **Es una sola serie.** 38 semanas y 9 meses; la ventaja sobre el `ml_mean` es de 1,0 a 2,6 puntos, dentro del ruido de 9 meses. Se eligió entre siete modelos mirando las mismas semanas y meses del test (sesgo de selección). No es una prueba de que Croston supere al `ml_mean`.
+- **A nivel diario Croston sí está en su terreno** (intervalo medio de unos 3 días, 65% de días en cero) y mejora sobre su propia versión semanal: acierto mensual 74,4% contra 67,5% de la corrida semanal y semanal 48,5% contra 45,7%. No se probó por qué; una hipótesis es que el día resuelve mejor la estructura de ceros y tamaños.
+- **Contexto de la corrida semanal:** su `mean8` (49,6% semanal) queda por encima de los Croston diarios salvo el log-Croston simulado (49,9%); esa referencia no estaba en el conjunto diario (`mean24` es de cuatro semanas) y no se agregó después de ver los resultados.
+- **`sb1` queda inservible a nivel diario.** Con la fórmula tal como está impresa, `Z/(P·100^(P-1))` y `P` cercano a 3, el factor es de 10.000 y el pronóstico es casi 0 (acierto 0%). Sigue pendiente verificar la fórmula contra Syntetos y Boylan (2001).
+- **Los modelos de un paso del Teorema 3 subpronostican** en 39% a 45% (siguen siendo una aproximación del artículo, no corregida); por eso no ganan aquí.
+- **El WAPE diario no sirve para decidir**, por la razón de la sección anterior; el RMSE diario favorece a Croston.
+- **Los intervalos cubren pero son anchos** (de 5 a 7 TO para un día de 1,2 TO de media), y el límite inferior es siempre 0. Dicen "este día puede ser 0 o hasta unos 6 TO", no más.
+
+### Qué sigue (no se hace sin pedido)
+
+- Probar otras series intermitentes con la misma evaluación diaria, y un mes de más (`2026-10`) cuando exista, antes de pensar en adopción.
+- Verificar `F_sb1` y la restricción de alpha a (0, 1].
+- Decidir cómo se usaría un pronóstico diario en el proyecto (hoy todo es mensual): no se conecta a la app ni a `predict_next_month.py` sin una decisión aparte.

@@ -14,22 +14,26 @@ import pandas as pd
 from src.experiments import croston_intervals as ci
 from src.experiments import croston_utils as cu
 
+WEEKLY_WINDOWS = (4, 8)  # the two moving averages of the weekly runs (mean4, mean8); the daily run uses (6, 24)
 FIXED_ALPHAS = (0.1, 0.5)  # sensitivity of F_cr; 0.5 is the value used in the paper for F_sb0 and F_sb1
 MODELS_WITH_INTERVAL = ("modified", "modified_log", "croston_model", "log_croston_model")
 
 
-def _simple_models(y: np.ndarray) -> dict[str, float]:
-    out = {"naive": float(y[-1]), "mean4": float(np.mean(y[-4:])), "mean8": float(np.mean(y[-8:]))}
+def _simple_models(y: np.ndarray, windows: tuple[int, ...] = WEEKLY_WINDOWS) -> dict[str, float]:
+    out = {"naive": float(y[-1])}
+    out.update({f"mean{k}": float(np.mean(y[-k:])) for k in windows})
     out["ses"] = cu.ses(y, cu.fit_alpha(y))[0] if len(y) >= 2 else float(y[-1])
     return out
 
 
-def origin_forecasts(y: np.ndarray, h: int, draws: int, seed: int, level: float = 0.95) -> list[dict]:
+def origin_forecasts(y: np.ndarray, h: int, draws: int, seed: int, level: float = 0.95,
+                     windows: tuple[int, ...] = WEEKLY_WINDOWS) -> list[dict]:
     r"""
-    Forecast of the week `h` weeks after the end of `y` by every model: a list of {model, forecast, lower, upper} (limits NaN for
-    models without interval). The Croston models are left out when `y` has fewer than cu.MIN_DEMANDS positive weeks.
+    Forecast of the period `h` periods after the end of `y` (weeks or days) by every model: a list of {model, forecast, lower, upper}
+    (limits NaN for models without interval). The Croston models are left out when `y` has fewer than cu.MIN_DEMANDS positive periods.
+    `windows` are the lengths of the moving averages (named mean<k>).
     """
-    rows = [{"model": m, "forecast": v, "lower": np.nan, "upper": np.nan} for m, v in _simple_models(y).items()]
+    rows = [{"model": m, "forecast": v, "lower": np.nan, "upper": np.nan} for m, v in _simple_models(y, windows).items()]
     fit, fit_log = cu.fit(y), cu.fit(y, log=True)
     if fit is None:
         return rows
@@ -50,10 +54,12 @@ def origin_forecasts(y: np.ndarray, h: int, draws: int, seed: int, level: float 
     return rows
 
 
-def rolling_weekly(series: pd.Series, test_start: str, horizons=(1, 4), draws: int = ci.DRAWS, seed: int = 0) -> pd.DataFrame:
+def rolling_weekly(series: pd.Series, test_start: str, horizons=(1, 4), draws: int = ci.DRAWS, seed: int = 0,
+                   windows: tuple[int, ...] = WEEKLY_WINDOWS) -> pd.DataFrame:
     r"""
-    Long table of the rolling-origin forecasts: one row per (target week, h, model) with `origin`, `target`, `real`, `forecast`,
-    `lower`, `upper`. Targets are the weeks of `series` with Monday >= test_start; the origin is `h` weeks before the target.
+    Long table of the rolling-origin forecasts: one row per (target period, h, model) with `origin`, `target`, `real`, `forecast`,
+    `lower`, `upper`. Targets are the periods of `series` (weeks, or days for the daily run) dated >= test_start; the origin is `h`
+    periods before the target.
     """
     values = series.to_numpy(dtype=float)
     rows = []
@@ -62,9 +68,12 @@ def rolling_weekly(series: pd.Series, test_start: str, horizons=(1, 4), draws: i
             origin = pos - h
             if origin < 1:
                 continue
-            for r in origin_forecasts(values[: origin + 1], h, draws, seed * 1_000_003 + pos * 10 + h):
+            for r in origin_forecasts(values[: origin + 1], h, draws, seed * 1_000_003 + pos * 10 + h, windows=windows):
                 rows.append({"origin": series.index[origin], "target": series.index[pos], "h": h, **r, "real": values[pos]})
     return pd.DataFrame(rows)
+
+
+rolling_origin = rolling_weekly  # the function is generic over the period; the name of the weekly runs is kept
 
 
 def month_business_days(month: pd.Period) -> int:
