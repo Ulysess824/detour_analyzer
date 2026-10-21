@@ -203,3 +203,61 @@ Entrada del menú: **Ajustes** (id `ajustes`), justo antes de **Hiperparámetros
 2. La tarjeta "Mes en curso" solo aparece con `parcial` y `nowcast_media`. Confirmado.
 3. Las opciones que necesitan el mes en curso se pueden elegir aunque el mes esté completo (valen para la próxima vez). Confirmado.
 4. El gráfico por día de corte usa los números ya medidos (constantes del módulo), no recalcula nada. Confirmado.
+
+## 11. Plan de la fase 6: seguimiento por estrategia
+
+Objetivo: poder medir contra el real cada pronóstico guardado según la estrategia con que se hizo, y comparar las estrategias entre sí con el consumo real. Hoy el seguimiento solo mide el pronóstico de un mes (\`h1\`): \`to_measure\`, \`measure\`, \`top_errors\` y el Excel suponen el archivo \`forecast_<mes>.csv\`, y \`tracked_months\` da por medido un mes en cuanto se mide cualquiera de sus pronósticos. Los pronósticos de mitad de mes (\`forecast_<mes>_<estrategia>.csv\`) ya se guardan y se listan, pero no se pueden medir.
+
+### 11.1 Qué hay hoy y qué cambia
+
+| Pieza | Hoy | Cambio |
+|---|---|---|
+| Filas del historial (\`results/seguimiento.csv\`) | \`run_id, mes, nivel, planta, modelo, acierto, wape, bias_pct, n, real_TO, pronostico_TO, alerta, creado_en\` | Dos columnas al final: \`estrategia\` y \`corte\` (día de corte, vacío si no aplica). Las filas viejas se leen como \`h1\` (todo lo anterior a la fase 3 lo fue) |
+| Base de datos (\`seguimiento\`, \`corridas\`) | esquema 2 | Esquema 3: \`estrategia\` en las dos tablas y \`corte\` en \`corridas\`, con migración automática de una base en esquema 2 (\`ALTER TABLE\`, sin perder filas) |
+| Estrategia de un pronóstico guardado | no se guarda | Sale del manifiesto (\`strategy.used\`, \`strategy.cutoff_day\`); si no hay manifiesto, del nombre del archivo; si tampoco, \`h1\` |
+| Identidad de lo medido | el mes | el par (mes, estrategia); volver a generar un pronóstico ya medido no lo ofrece otra vez, como hoy |
+| Umbrales de alerta | los mismos para todo (SKU 64, planta 85, total 90) | \`h1\` igual; las estrategias a dos meses con umbrales propios más bajos (propuesta en 11.5) |
+| Prueba histórica | solo \`backtest-h1\` (12 meses) | Además \`backtest-directa\`, \`backtest-parcial\` (corte 15) y \`backtest-iterada\`, tomadas de \`results/horizon_strategies.csv\` (las mismas 12 pruebas de la fase 1); sirven de referencia para juzgar los meses reales. \`nowcast_media\` no tiene prueba guardada |
+
+### 11.2 Subpasos
+
+**6a. Datos y motor** (\`engine\`, \`evaluation\`)
+- \`TRACKING_COLUMNS\` con \`estrategia\` y \`corte\`; \`tracking_rows\` los recibe; \`read_tracking_csv\` rellena lo que falte; \`write_tracking_csv\` conserva la clave (run_id, mes).
+- \`db_utils\`: esquema 3 y migración; \`upsert_run\` y \`replace_tracking\` con las columnas nuevas.
+- \`tracking_run.strategy_of(forecast_path, manifest)\` y \`thresholds_for(strategy)\`; \`track_saved_forecast\` guarda la estrategia y usa los umbrales que le tocan.
+- \`track_backtest\` generalizado: \`backtest_forecasts\` para el caché de \`h1\` y uno nuevo para el caché de estrategias a dos meses (series vivas en el mes de origen; en \`parcial\` e \`iterada\` solo \`ml_mean\` y \`naive\`, porque el caché no guarda los tres modelos).
+- \`scripts/track_forecast.py\`: muestra la estrategia al medir y \`--backtest\` carga las cuatro pruebas históricas.
+
+**6b. Servicios de la app** (\`tracking_service\`, \`history_service\`, \`status_service\`, \`export_service\`, \`forecast_service\`)
+- \`to_measure\` devuelve pares (mes, estrategia) de pronósticos guardados cuyo mes ya cerró y que no se midieron.
+- \`measure(mes, estrategia)\` usa el archivo de esa estrategia; \`top_errors\` y \`detail\` aceptan la estrategia (en \`detail\`, una corrida por mes y estrategia: la última guardada).
+- \`history\` agrega \`estrategia\` a cada punto y un bloque \`comparacion\`: por estrategia, meses medidos en producción, acierto medio por SKU, planta y total, y el de su prueba histórica.
+- API: \`POST /api/seguimiento/medir\` con \`estrategia\` (por defecto \`h1\`), \`GET /api/seguimiento/detalle?mes&estrategia\`, Excel de seguimiento con la estrategia en el nombre y el resumen.
+- Estado de Inicio: el aviso de "ya cerró" y la tarjeta de último seguimiento dicen la estrategia; el historial de pronósticos marca "medido" por (mes, estrategia).
+
+**6c. Pantallas**
+- **Seguimiento:** avisos por (mes, estrategia) con su botón "Medir acierto"; selector de estrategia sobre el gráfico (producción con rombos y prueba histórica de esa estrategia con círculos); tarjeta nueva "Comparación de estrategias" (tabla con medias en producción y en la prueba histórica); el detalle indica estrategia y corte y, cuando el mismo mes tiene varias estrategias medidas, una mini tabla "Mismo mes, otras estrategias".
+- **Inicio e Historial:** el estado "Por medir" y "Medido" por estrategia.
+- **Ayuda:** una entrada sobre cómo se mide cada estrategia y por qué no se comparan a ciegas.
+
+### 11.3 Cuidados al comparar
+
+- Un pronóstico de mitad de mes y uno de un mes anterior al mes pronosticado tienen información distinta (el segundo ve un mes más completo): la comparación dice qué es cada uno y no los ordena como si fueran iguales.
+- Cada estrategia se evalúa sobre sus propias series (las vivas en su mes de origen); la tabla muestra cuántas series entran.
+- Con pocos meses medidos las medias no son concluyentes: la tabla lo dice cuando hay menos de 3 meses.
+
+### 11.4 Verificación (6d)
+
+- **Equivalencia con lo medido:** el acierto por SKU de cada mes de \`backtest-directa\`, \`backtest-parcial\` e \`backtest-iterada\` coincide con la tabla por mes de la fase 1 (por ejemplo, octubre de 2025: directa 64,0%, iterada 62,9%, parcial 66,3%) y el de \`backtest-h1\` no cambia.
+- **Migración:** una base en esquema 2 con datos pasa a 3 sin perder filas; un CSV viejo sin las columnas se lee como \`h1\`.
+- **Pruebas** (≈20): estrategia desde el manifiesto, desde el nombre y por defecto; (mes, estrategia) en \`to_measure\` y \`measure\`; dos estrategias del mismo mes que se miden por separado y no se pisan; umbrales por estrategia; \`comparacion\`; endpoints y Excel; estado de Inicio; el CSV de producción no se contamina con pronósticos de pruebas (la guarda que ya existe).
+- **Mutaciones** en la identidad (mes, estrategia), los umbrales y la lectura de filas viejas.
+- **Capturas** de Seguimiento con un mes medido por dos estrategias, con avisos pendientes y con solo prueba histórica; sin errores de consola.
+
+### 11.5 Decisiones que tomo salvo que digas otra cosa
+
+1. **Umbrales a dos meses:** SKU 60, planta 83 y total 87 para \`directa\`, \`parcial\`, \`nowcast_media\` e \`iterada\` (la misma distancia que hoy hay entre \`h1\` y sus umbrales, aplicada a lo que acierta la directa); \`h1\` no cambia. Si quieres los mismos umbrales para todos, dímelo.
+2. **Pruebas históricas por estrategia:** se cargan \`directa\`, \`parcial\` (corte 15) e \`iterada\`; \`nowcast_media\` queda sin prueba histórica hasta que se corra y se guarde.
+3. **Gráfico de Seguimiento:** por defecto la estrategia del último pronóstico medido en producción; si no hay, \`h1\`.
+4. **Lo ya medido:** las filas de producción anteriores se consideran \`h1\`.
+
