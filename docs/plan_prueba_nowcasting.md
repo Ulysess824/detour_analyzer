@@ -149,3 +149,56 @@ Lectura:
 - Regla para la app: corte de 10 o más, `parcial`; corte menor que 10, directa y aviso. Por encima del rango no hay límite: el día 28 es el mejor.
 - Salvedad: es el universo de todos los SKU vivos. En los SKU grandes de SCAN los 15 días no mejoraban a la directa (84,1% contra 84,3%), y esta curva no lo cubre.
 - Falta la curva de `nowcast_media` (mes completado con la media como entrada): se corre aparte con `nowcast_input_ml_mean.py --cutoff-day N`.
+
+## 10. Plan de la fase 5: pantallas
+
+Objetivo: que la estrategia se vea y se cambie desde la app. Hoy el backend ya funciona (fase 4) pero las pantallas siguen con la lógica de un solo mes: el botón de Predicción se bloquea con el mes en curso y todo habla del "mes siguiente". Archivos que cambian: \`src/app/static/\` (\`index.html\`, \`app.js\`, \`views_forecast.js\`, \`views_extra.js\`, nuevo \`views_ajustes.js\`, \`app.css\`), \`status_service.py\`, \`forecast_service.py\` y el texto de \`data_service.py\`.
+
+### 10.1 Cambios de backend que las pantallas necesitan (5a)
+
+| Cambio | Para qué |
+|---|---|
+| \`status_service.app_status\` devuelve \`plan\` (estrategia, corte, mes de origen, mes pronosticado, avisos, error) y \`proximo_pronostico\` pasa a ser el mes que pronostica ese plan | Predicción e Inicio dejan de calcular el mes siguiente por su cuenta |
+| \`forecast_detail\` agrega \`mes_en_curso\`: mes, corte, días vistos y restantes, real hasta el corte, estimación del resto con la media y total estimado, para la planta y el SKU elegidos; solo cuando la estrategia usa el mes en curso (\`parcial\`, \`nowcast_media\`) | La tarjeta "Mes en curso" de Predicción. Se calcula con \`complete_calendar\`, \`seen_days\` y \`forecast_media\` del engine, sin duplicar lógica |
+| \`forecast_detail\` indica si el mes de referencia es el anterior al pronóstico o el último mes completo | Rotular bien "Contra el último mes real" cuando el mes anterior sigue abierto |
+| Texto del aviso \`mes_parcial\` de la carga de datos | Hoy dice que no se podrá pronosticar hasta que llegue el mes completo; ya no es cierto |
+
+### 10.2 Sección nueva "Ajustes" (5b)
+
+Entrada del menú: **Ajustes** (id \`ajustes\`), justo antes de "Ajuste de hiperparámetros"; subtítulo "Cómo se calcula el pronóstico". Los dos nombres se parecen, así que el subtítulo y una línea en cada pantalla aclaran la diferencia (esta elige la estrategia; la otra reentrena el modelo). Archivo \`views_ajustes.js\`. Tarjetas, de arriba abajo:
+
+1. **Estado de los datos y plan:** último registro, si el mes está completo o en curso, día de corte, días vistos y restantes; qué estrategia correría ahora, de qué mes parte y qué mes pronostica. Los avisos del plan (por ejemplo "hay solo 7 días, se usa la directa") y el error del corte manual se muestran en un recuadro de aviso.
+2. **Estrategia:** una lista de opciones con su nombre, la explicación y el acierto (SKU, planta, total) en etiquetas; "Automática" lleva la etiqueta "Recomendada". Si el mes está completo, las opciones que necesitan el mes en curso muestran la nota "Con el mes completo se usa un mes de anticipación" (se pueden elegir igual: valen para la próxima vez).
+3. **Día de corte:** Automático (muestra el día detectado) o Manual (número entre 1 y el día detectado). Aviso si queda bajo el día 10. Deshabilitado con el mes completo.
+4. **Gráfico "Cuánto mejora según el día de corte":** acierto por SKU, planta y total de \`parcial\` del día 5 al 28, con líneas de referencia de la directa y del pronóstico a un mes, marca en el día 10 y en el corte actual. Botón de imagen PNG como en las otras pantallas.
+5. **Guardar** y **Volver a automático**. El botón de guardar se activa solo cuando hay cambios; al guardar se vuelve a pedir \`/api/ajustes\` y se actualiza el plan. Errores 422 en un recuadro.
+
+### 10.3 Predicción (5c)
+
+- **Tarjeta de generación:** título "Pronóstico de <mes del plan>", con la estrategia, el corte y el mes de origen; los avisos del plan; enlace "Cambiar en Ajustes". El botón solo se bloquea si el plan tiene error o no hay datos (ya no por el mes en curso). La confirmación para reemplazar es por mes y estrategia.
+- **Selector de pronóstico:** lista "mes · estrategia" (\`disponibles_detalle\`), con la estrategia en español y el corte.
+- **Tarjeta "Mes en curso"** (solo \`parcial\` y \`nowcast_media\`): real hasta el día de corte, estimación del resto con la media (marcada como estimación) y total estimado del mes, para la planta y el SKU elegidos.
+- **Tarjeta "Contra el último mes real":** rotula el mes de referencia y avisa que el mes anterior sigue en curso cuando es el caso.
+- **Gráfico:** el mes en curso aparece sombreado como parcial (ya existe) y el pronóstico queda en el mes siguiente.
+
+### 10.4 Inicio, Historial, Descargar y Ayuda (5d)
+
+- **Inicio:** la tarjeta "Próximo pronóstico" muestra mes y estrategia; "listo" cuando el último pronóstico guardado coincide con el plan.
+- **Historial:** columna "Estrategia"; "Ver" y "Excel" por mes y estrategia.
+- **Descargar:** el selector de pronóstico incluye la estrategia.
+- **Ayuda:** corregir "Mes parcial" y "No me deja generar el pronóstico"; entradas nuevas para "Estrategia de pronóstico" y "Día de corte". La guía de instalación se corrige en la fase 7.
+
+### 10.5 Verificación (5e)
+
+- **Pruebas de backend** (≈12): \`plan\` en el estado, \`mes_en_curso\` igual a un cálculo manual (real hasta el corte, media del resto, total) para todo, una planta y un SKU, la referencia del último real, el texto de la carga de datos.
+- **Mutaciones** en el cálculo de \`mes_en_curso\` y en el plan del estado.
+- **Navegador sin ventana** (Chromium con Playwright, como en las fases anteriores): capturas de Ajustes con el mes completo, con el mes en curso, con un corte manual inválido y con la opción "nowcast"; Predicción con \`h1\`, \`parcial\` y \`nowcast_media\`; Inicio e Historial. Se revisa que no haya errores en la consola y que nada se desborde en anchos de 1100 y 1400 px. Las capturas se te envían.
+- **Sintaxis de JavaScript** con \`node --check\` en todos los archivos.
+- **Windows:** la ventana real (WebView2) solo se puede probar en tu equipo o en el CI de Windows.
+
+### 10.6 Decisiones que tomo salvo que digas otra cosa
+
+1. La sección se llama "Ajustes" y va antes de "Ajuste de hiperparámetros".
+2. La tarjeta "Mes en curso" solo aparece con \`parcial\` y \`nowcast_media\`.
+3. Las opciones que necesitan el mes en curso se pueden elegir aunque el mes esté completo (valen para la próxima vez).
+4. El gráfico por día de corte usa los números ya medidos (constantes del módulo), no recalcula nada.
