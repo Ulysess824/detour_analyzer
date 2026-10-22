@@ -91,7 +91,7 @@ def test_the_tracking_workbook_needs_tracking_and_then_has_the_detail(workdir):
     close_the_month(workdir)
     client.post("/api/seguimiento/medir", json={"mes": "2025-07"})
     wb = book(client.get("/api/descargas/seguimiento"))
-    assert wb.sheetnames == ["Historial", "Por modelo", "Por planta", "Mayores errores"]
+    assert wb.sheetnames == ["Historial", "Comparación", "Por modelo", "Por planta", "Mayores errores"]
     history = frame(wb, "Historial")
     assert list(history["Mes"]) == ["2025-07"] and history["Origen"].iloc[0] == "Producción"
     assert frame(wb, "Por modelo")["Modelo"].iloc[0] == "ml_mean" and len(frame(wb, "Mayores errores")) <= 15

@@ -20,7 +20,7 @@ import pandas as pd
 from src.engine.data_checks import SKU_PATTERN, check_consumption
 from src.engine.panel_utils import Panel
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS plantas (
@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS corridas (
     huella_datos      TEXT,
     params_hash       TEXT,
     csv_sha256        TEXT,
-    total_ml_mean     REAL
+    total_ml_mean     REAL,
+    estrategia        TEXT,
+    corte             INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS seguimiento (
@@ -89,6 +91,8 @@ CREATE TABLE IF NOT EXISTS seguimiento (
     pronostico_TO   REAL,
     alerta          TEXT NOT NULL DEFAULT '',
     creado_en       TEXT NOT NULL,
+    estrategia      TEXT NOT NULL DEFAULT 'h1',
+    corte           INTEGER,
     PRIMARY KEY (run_id, mes, nivel, planta, modelo)
 ) WITHOUT ROWID;
 
@@ -114,6 +118,10 @@ def create_schema(con: sqlite3.Connection) -> None:
     columns = [row[1] for row in con.execute("PRAGMA table_info(consumos_predichos)")]
     if "run_id" not in columns:  # version 1 -> 2: only adds, nothing is deleted
         con.execute("ALTER TABLE consumos_predichos ADD COLUMN run_id TEXT")
+    for table, column, definition in (("seguimiento", "estrategia", "TEXT NOT NULL DEFAULT 'h1'"), ("seguimiento", "corte", "INTEGER"),
+                                      ("corridas", "estrategia", "TEXT"), ("corridas", "corte", "INTEGER")):  # version 2 -> 3: the strategy of each run
+        if column not in [row[1] for row in con.execute(f"PRAGMA table_info({table})")]:
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
     con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     con.commit()
 
@@ -270,24 +278,25 @@ def predictions_from_forecast(frame: pd.DataFrame, estrategia: str = "h1") -> pd
     )
 
 
-TRACKING_COLUMNS = ["run_id", "mes", "nivel", "planta", "modelo", "acierto", "wape", "bias_pct", "n", "real_TO", "pronostico_TO", "alerta", "creado_en"]
+TRACKING_COLUMNS = ["run_id", "mes", "nivel", "planta", "modelo", "acierto", "wape", "bias_pct", "n", "real_TO", "pronostico_TO", "alerta", "creado_en", "estrategia", "corte"]
 
 
 def upsert_run(con: sqlite3.Connection, manifest: dict) -> None:
     r"""Store (or replace) the row of a forecast run from its manifest (src/engine/run_manifest.py); missing fields are left empty."""
     run, code, data = manifest.get("run", {}), manifest.get("code", {}), manifest.get("data", {})
-    params, output = manifest.get("params", {}), manifest.get("output", {})
+    params, output, strategy = manifest.get("params", {}), manifest.get("output", {}), manifest.get("strategy", {})
     with con:
         con.execute(
-            "INSERT OR REPLACE INTO corridas (run_id, creado_en, mes_pronosticado, as_of, commit_git, huella_datos, params_hash, csv_sha256, total_ml_mean) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO corridas (run_id, creado_en, mes_pronosticado, as_of, commit_git, huella_datos, params_hash, csv_sha256, total_ml_mean, estrategia, corte) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (run["run_id"], run.get("created_at") or now_utc(), run.get("forecast_month"), run.get("as_of"), code.get("commit"), data.get("panel_fingerprint"),
-             params.get("params_hash"), output.get("csv_sha256"), output.get("total_ml_mean")),
+             params.get("params_hash"), output.get("csv_sha256"), output.get("total_ml_mean"), strategy.get("used", "h1"), strategy.get("cutoff_day")),
         )
 
 
 def replace_tracking(con: sqlite3.Connection, rows: pd.DataFrame) -> int:
     r"""Replace the tracking rows of every (run_id, mes) present in `rows` (the columns of TRACKING_COLUMNS) in one transaction."""
+    rows = rows.assign(**{column: default for column, default in (("estrategia", "h1"), ("corte", None)) if column not in rows.columns})  # rows of before the strategies
     missing = set(TRACKING_COLUMNS) - set(rows.columns)
     if missing:
         raise ValueError(f"rows lacks the columns {sorted(missing)}")
@@ -300,8 +309,13 @@ def replace_tracking(con: sqlite3.Connection, rows: pd.DataFrame) -> int:
 
 
 def read_tracking_csv(path: str | Path) -> pd.DataFrame:
-    r"""The tracking history file (results/seguimiento.csv) with empty planta and alerta as empty strings and no infinite values (read as empty)."""
+    r"""The tracking history file (results/seguimiento.csv) with empty planta and alerta as empty strings, no infinite values (read as empty) and the strategy of every row (`h1` for a history without it)."""
     table = pd.read_csv(path, dtype={"planta": str, "alerta": str}).fillna({"planta": "", "alerta": ""})
+    if "estrategia" not in table.columns:  # a history from before the strategies: every run was the one-month forecast
+        table["estrategia"] = "h1"
+    if "corte" not in table.columns:
+        table["corte"] = np.nan
+    table["estrategia"] = table["estrategia"].fillna("h1")
     return table.replace([np.inf, -np.inf], np.nan)
 
 

@@ -6,7 +6,10 @@ const STRATEGY_NAMES = {
   automatica: "Automática", h1: "Un mes de anticipación", directa: "Dos meses, directa", parcial: "Dos meses, directa y días del mes en curso",
   nowcast_media: "Dos meses, mes en curso completado con la media", iterada: "Dos meses, iterada",
 };
-const trackState = { mes: "", origen: "" };
+const trackState = { mes: "", origen: "", estrategia: "", grafico: "" };
+const STRATEGY_ORDER = ["h1", "directa", "parcial", "nowcast_media", "iterada"];
+const STRATEGY_SHORT = { h1: "Un mes", directa: "Directa", parcial: "Directa + mes en curso", nowcast_media: "Mes completado", iterada: "Iterada" };
+const strategyName = (id) => STRATEGY_NAMES[id] || id;
 const MODEL_NAMES = { ml_mean: "Modelo principal (promedio)", lgbm: "LightGBM", xgb: "XGBoost", rf: "Random Forest", naive: "Modelo simple (repite el mes anterior)" };
 const ORANGE = "#f97316";
 const FIXED = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -217,22 +220,30 @@ async function renderTracking(view) {
   const history = await api("seguimiento");
   const s = trackState;
   let detail = null;
-  try { detail = await api("seguimiento/detalle", { mes: s.mes, origen: s.origen }); } catch (error) { if (error.status !== 404) throw error; s.mes = s.origen = ""; }
-  const banners = history.por_medir.map((m) => `<div class="banner warn">${icon("alert")}<div class="grow"><b>${monthLong(m)} ya cerró.</b> Mide qué tanto acertó el pronóstico de ese mes contra el consumo real.</div>
-      <button class="btn primary" data-measure="${m}">Medir acierto</button></div>`).join("");
+  try { detail = await api("seguimiento/detalle", { mes: s.mes, origen: s.origen, estrategia: s.estrategia }); } catch (error) { if (error.status !== 404) throw error; s.mes = s.origen = s.estrategia = ""; }
+  const banners = history.por_medir.map((m) => `<div class="banner warn">${icon("alert")}<div class="grow"><b>${monthLong(m.mes)} ya cerró.</b> Mide qué tanto acertó contra el consumo real el pronóstico de ese mes hecho con «${esc(strategyName(m.estrategia))}».</div>
+      <button class="btn primary" data-measure="${m.mes}" data-strategy="${m.estrategia}">Medir acierto</button></div>`).join("");
   const hasHistory = history.backtest.length || history.produccion.length;
+  const present = new Set([...history.produccion, ...history.backtest].map((r) => r.estrategia));
+  const strategies = STRATEGY_ORDER.filter((id) => present.has(id));
+  const chosen = strategies.includes(s.grafico) ? s.grafico : (detail && strategies.includes(detail.estrategia) ? detail.estrategia : (history.produccion.length ? history.produccion[history.produccion.length - 1].estrategia : (strategies.includes("h1") ? "h1" : strategies[0])));
+  s.grafico = chosen;
+  const thresholds = chosen === "h1" ? history.umbrales : history.umbrales_dos_meses;
+  const picker = strategies.length > 1 ? `<div class="seg" id="tr-estr">${strategies.map((id) => `<button data-v="${id}" class="${id === chosen ? "on" : ""}" title="${esc(strategyName(id))}">${esc(STRATEGY_SHORT[id] || id)}</button>`).join("")}</div>` : "";
   view.innerHTML = `<div class="stack">${banners ? `<div class="stack" id="measure-box">${banners}</div>` : ""}
-    <div class="card"><div class="toolbar"><h2>Acierto por mes</h2><button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div><p class="hint">Del modelo principal, contra el consumo real de cada mes. Los rombos son meses reales medidos en producción; los puntos pequeños, la prueba histórica.</p>
+    <div class="card"><div class="toolbar"><div><h2>Acierto por mes${strategies.length ? ` · ${esc(strategyName(chosen))}` : ""}</h2><p class="hint">Del modelo principal, contra el consumo real de cada mes. Los rombos son meses reales medidos en producción; los puntos pequeños, la prueba histórica de esa estrategia.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${picker}<button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div></div>
       ${hasHistory ? '<div class="chart small" id="tr-chart"></div>' : '<div class="empty">Todavía no hay seguimiento.</div>'}
-      <p class="note">Se marca una alerta si el acierto baja de ${fmt(history.umbrales.sku, 0)}% por SKU, ${fmt(history.umbrales.planta, 0)}% por planta o ${fmt(history.umbrales.total, 0)}% en el total, o si el modelo queda peor que repetir el mes anterior.</p></div>
+      <p class="note">Se marca una alerta si el acierto baja de ${fmt(thresholds.sku, 0)}% por SKU, ${fmt(thresholds.planta, 0)}% por planta o ${fmt(thresholds.total, 0)}% en el total, o si el modelo queda peor que repetir el mes anterior. ${chosen === "h1" ? "" : "Los pronósticos a dos meses tienen umbrales más bajos porque aciertan menos."}</p></div>
+    ${comparisonHtml(history)}
     <div id="tr-detail">${detail ? detailHtml(detail, history) : ""}</div></div>`;
-  if (hasHistory) mountChart($("#tr-chart"), trackingOption(history));
+  if (hasHistory) mountChart($("#tr-chart"), trackingOption(history, chosen));
+  if ($("#tr-estr")) $("#tr-estr").onclick = (event) => { const b = event.target.closest("button"); if (b) { s.grafico = b.dataset.v; route(); } };
   if (detail) bindDetail(detail, history);
   view.querySelectorAll("[data-measure]").forEach((button) => (button.onclick = async () => {
     button.parentElement.querySelectorAll(".error-text").forEach((old) => old.remove());  // one message at a time, not one more per click
     button.disabled = true;
     button.textContent = "Midiendo…";
-    const reply = await apiPost("seguimiento/medir", { mes: button.dataset.measure });
+    const reply = await apiPost("seguimiento/medir", { mes: button.dataset.measure, estrategia: button.dataset.strategy || "h1" });
     if (!reply.ok) {
       button.disabled = false;
       button.textContent = "Medir acierto";
@@ -241,14 +252,29 @@ async function renderTracking(view) {
     }
     s.mes = button.dataset.measure;
     s.origen = "produccion";
+    s.estrategia = button.dataset.strategy || "h1";
+    s.grafico = s.estrategia;
     route();
   }));
 }
 
-function trackingOption(h) {
+function comparisonHtml(h) {
+  if (!h.comparacion.length) return "";
+  const cell = (x, key) => (x ? fmt(x[key]) + "%" : "–");
+  const rows = h.comparacion.map((c) => {
+    const p = c.produccion, b = c.prueba_historica;
+    const few = p && p.meses < 3 ? ` <span class="badge neutral" title="Con menos de 3 meses el promedio no dice mucho">pocos meses</span>` : "";
+    return `<tr><td>${esc(strategyName(c.estrategia))}</td><td>${p ? fmt(p.meses, 0) : "–"}${few}</td><td>${cell(p, "sku")}</td><td>${cell(p, "planta")}</td><td>${cell(p, "total")}</td><td>${b ? fmt(b.meses, 0) : "–"}</td><td>${cell(b, "sku")}</td><td>${cell(b, "planta")}</td><td>${cell(b, "total")}</td></tr>`;
+  }).join("");
+  return `<div class="card"><h2>Comparación de estrategias</h2><p class="hint">Promedio del acierto de los meses medidos, por SKU, planta y total. La prueba histórica son los últimos 12 meses con lo que se sabía en cada momento. Cada estrategia se mide sobre sus propias series, y un pronóstico de mitad de mes ve menos información que uno hecho con el mes anterior completo: no se comparan de uno en uno.</p>
+    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th rowspan="2">Estrategia</th><th colspan="4" style="text-align:center">En producción</th><th colspan="4" style="text-align:center">Prueba histórica</th></tr>
+      <tr><th>Meses</th><th>SKU</th><th>Planta</th><th>Total</th><th>Meses</th><th>SKU</th><th>Planta</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function trackingOption(h, strategy) {
   const byMonth = new Map();
-  h.backtest.forEach((r) => byMonth.set(r.mes, { ...r, prod: false }));
-  h.produccion.forEach((r) => byMonth.set(r.mes, { ...r, prod: true }));
+  h.backtest.filter((r) => r.estrategia === strategy).forEach((r) => byMonth.set(r.mes, { ...r, prod: false }));
+  h.produccion.filter((r) => r.estrategia === strategy).forEach((r) => byMonth.set(r.mes, { ...r, prod: true }));
   const rows = [...byMonth.values()].sort((a, b) => (a.mes < b.mes ? -1 : 1));
   const labels = rows.map((r) => r.mes);
   const option = baseOption(labels, monthShort);
@@ -281,29 +307,34 @@ function detailHtml(d, h) {
   const t = d.total;
   const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
   const prodMonths = new Set(h.produccion.map((r) => r.mes)), backMonths = new Set(h.backtest.map((r) => r.mes));
+  const th = d.estrategia === "h1" ? h.umbrales : h.umbrales_dos_meses;
+  const how = `${esc(strategyName(d.estrategia))}${d.corte ? ` · corte el día ${d.corte}` : ""}`;
+  const strategySelect = d.estrategias.length > 1 ? `<select class="pick" id="tr-estr-detalle">${d.estrategias.map((id) => `<option value="${id}" ${id === d.estrategia ? "selected" : ""}>${esc(STRATEGY_SHORT[id] || id)}</option>`).join("")}</select>` : "";
+  const others = d.otras_estrategias.length ? `<div class="card"><h2>El mismo mes con otras estrategias</h2><p class="hint">Acierto del modelo principal en ${monthLong(d.mes)}. No son del todo comparables: no vieron la misma información.</p>
+    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Estrategia</th><th>SKU</th><th>Planta</th><th>Total</th></tr></thead><tbody>${d.otras_estrategias.map((o) => `<tr><td>${esc(strategyName(o.estrategia))}</td><td>${fmt(o.sku)}%</td><td>${fmt(o.planta)}%</td><td>${fmt(o.total)}%</td></tr>`).join("")}</tbody></table></div></div>` : "";
   const origins = ["produccion", "backtest"].filter((o) => (o === "produccion" ? prodMonths : backMonths).has(d.mes));
   const seg = origins.length > 1 ? `<div class="seg" id="tr-origen">${origins.map((o) => `<button data-v="${o}" class="${o === d.origen ? "on" : ""}">${ORIGIN_TEXT[o]}</button>`).join("")}</div>` : `<span class="badge neutral">${ORIGIN_TEXT[d.origen]}</span>`;
   const select = `<select class="pick" id="tr-mes">${d.disponibles.map((m) => `<option value="${m}" ${m === d.mes ? "selected" : ""}>${monthLong(m)}</option>`).join("")}</select>`;
   const models = d.modelos.map((m) => `<tr ${m.modelo === "ml_mean" ? 'style="font-weight:650"' : ""}><td>${MODEL_NAMES[m.modelo] || m.modelo}</td><td>${fmt(m.sku)}%</td><td>${fmt(m.planta)}%</td><td>${fmt(m.total)}%</td><td>${m.sesgo_total_pct === null ? "–" : (m.sesgo_total_pct > 0 ? "+" : "") + fmt(m.sesgo_total_pct) + "%"}</td></tr>`).join("");
-  const plantas = d.plantas.map((p) => `<tr><td>${esc(p.planta)}</td><td><div class="barcell"><div class="track"><div class="fill ${p.acierto < h.umbrales.planta_revisar ? "low" : ""}" style="width:${Math.max(0, Math.min(100, p.acierto))}%"></div></div><span style="min-width:48px">${fmt(p.acierto)}%</span></div></td><td>${fmt(p.real_TO, 0)}</td><td>${fmt(p.pronostico_TO, 0)}</td></tr>`).join("");
+  const plantas = d.plantas.map((p) => `<tr><td>${esc(p.planta)}</td><td><div class="barcell"><div class="track"><div class="fill ${p.acierto < th.planta_revisar ? "low" : ""}" style="width:${Math.max(0, Math.min(100, p.acierto))}%"></div></div><span style="min-width:48px">${fmt(p.acierto)}%</span></div></td><td>${fmt(p.real_TO, 0)}</td><td>${fmt(p.pronostico_TO, 0)}</td></tr>`).join("");
   const alerts = d.alertas.length
     ? d.alertas.map((a) => `<span class="badge warn">${icon("alert")}${esc(ALERT_TEXT[a.codigo] || a.codigo)}${a.planta ? ": " + esc(a.planta) : ""}</span>`).join("")
     : `<span class="badge ok">${icon("check")}Sin alertas</span>`;
   const missing = d.sin_pronostico ? `<p class="note">${fmt(d.sin_pronostico.series, 0)} series consumieron en el mes y no tenían pronóstico (${fmt(d.sin_pronostico.real_TO, 0)} TO).</p>` : "";
   const errors = d.errores.length ? `<div class="card"><h2>Donde más falló</h2><p class="hint">Las series con mayor error en toneladas. Error = pronóstico − real.</p><div class="tablewrap" style="margin-top:12px"><table class="data"><thead><tr><th>Planta y SKU</th><th>Real (TO)</th><th>Pronóstico (TO)</th><th>Error (TO)</th></tr></thead><tbody>${d.errores.map((e) => `<tr><td>${esc(e.planta)} · ${esc(e.sku)}</td><td>${fx(e.real_TO)}</td><td>${fx(e.pronostico_TO)}</td><td>${e.error_TO > 0 ? "+" : ""}${fx(e.error_TO)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
   return `<div class="stack">
-    <div class="card"><div class="toolbar"><div><h2>Detalle de ${monthLong(d.mes)}</h2><p class="hint">Acierto = 100% − error total ÷ consumo real. Sesgo positivo: el pronóstico quedó por debajo del real.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${select}${seg}</div></div>
+    <div class="card"><div class="toolbar"><div><h2>Detalle de ${monthLong(d.mes)} · ${how}</h2><p class="hint">Acierto = 100% − error total ÷ consumo real. Sesgo positivo: el pronóstico quedó por debajo del real.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${select}${strategySelect}${seg}</div></div>
       <div class="grid cols-4" style="margin-top:12px">
-        ${card("Acierto por SKU", `${fmt(main.sku)}%`, scoreBadge(main.sku, h.umbrales.sku))}
-        ${card("Acierto por planta", `${fmt(main.planta)}%`, scoreBadge(main.planta, h.umbrales.planta))}
-        ${card("Acierto del total", `${fmt(main.total)}%`, scoreBadge(main.total, h.umbrales.total))}
+        ${card("Acierto por SKU", `${fmt(main.sku)}%`, scoreBadge(main.sku, th.sku))}
+        ${card("Acierto por planta", `${fmt(main.planta)}%`, scoreBadge(main.planta, th.planta))}
+        ${card("Acierto del total", `${fmt(main.total)}%`, scoreBadge(main.total, th.total))}
         ${t ? card("Total del mes", `${fmt(t.real_TO, 0)}<small>TO</small>`, `Pronóstico ${fmt(t.pronostico_TO, 0)} TO; ${biasText(t.sesgo_pct)}.`) : ""}
       </div>
       <div class="alertlist" style="flex-direction:row;flex-wrap:wrap">${alerts}</div>${missing}</div>
     <div class="split">
       <div class="card"><h2>Por modelo</h2><div class="tablewrap" style="margin-top:12px"><table class="data"><thead><tr><th>Modelo</th><th>SKU</th><th>Planta</th><th>Total</th><th>Sesgo</th></tr></thead><tbody>${models}</tbody></table></div></div>
       <div class="card"><h2>Por planta</h2><p class="hint">De la que peor acertó a la mejor.</p><div class="tablewrap" style="margin-top:12px;max-height:340px"><table class="data"><thead><tr><th>Planta</th><th>Acierto</th><th>Real (TO)</th><th>Pronóstico (TO)</th></tr></thead><tbody>${plantas}</tbody></table></div></div>
-    </div>${errors}</div>`;
+    </div>${others}${errors}</div>`;
 }
 
 function bindDetail(d, h) {
@@ -312,8 +343,11 @@ function bindDetail(d, h) {
     s.mes = event.target.value;
     const prod = h.produccion.some((r) => r.mes === s.mes);
     s.origen = prod ? "produccion" : "backtest";
+    s.estrategia = "";
     route();
   };
+  const strategy = $("#tr-estr-detalle");
+  if (strategy) strategy.onchange = (event) => { s.mes = d.mes; s.origen = d.origen; s.estrategia = event.target.value; route(); };
   const seg = $("#tr-origen");
-  if (seg) seg.onclick = (event) => { const b = event.target.closest("button"); if (b) { s.mes = d.mes; s.origen = b.dataset.v; route(); } };
+  if (seg) seg.onclick = (event) => { const b = event.target.closest("button"); if (b) { s.mes = d.mes; s.origen = b.dataset.v; s.estrategia = ""; route(); } };
 }

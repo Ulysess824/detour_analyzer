@@ -103,16 +103,20 @@ def test_validate_rejects_booleans_and_non_integers_directly():
     assert settings_service.validate("h1", 12) == {"estrategia": "h1", "corte_manual": 12}
 
 
-def test_only_the_one_month_forecast_of_a_closed_month_is_offered_to_measure(tmp_path):
+def test_every_strategy_of_a_closed_month_is_offered_to_measure_until_it_is_measured(tmp_path):
     df = make_consumption()
     write_data(tmp_path, df[df["fecha"] <= pd.Timestamp("2025-05-31")])
     client = make_client(tmp_path)
     wait(client, client.post("/api/pronostico/generar", json={}).json()["trabajo"])  # h1 for 2025-06
     results = tmp_path / "results"
     (results / "forecast_2025-06_directa.csv").write_text((results / "forecast_2025-06.csv").read_text())
-    write_data(tmp_path, df)  # June is now in the data: the forecast of 2025-06 can be measured
-    rows = {(r["mes"], r["estrategia"]): r["por_medir"] for r in make_client(tmp_path).get("/api/historial").json()["pronosticos"]}
-    assert rows == {("2025-06", "h1"): True, ("2025-06", "directa"): False}
+    write_data(tmp_path, df)  # June is now in the data: both forecasts of 2025-06 can be measured
+    client = make_client(tmp_path)
+    rows = {(r["mes"], r["estrategia"]): r["por_medir"] for r in client.get("/api/historial").json()["pronosticos"]}
+    assert rows == {("2025-06", "h1"): True, ("2025-06", "directa"): True}
+    assert client.post("/api/seguimiento/medir", json={"mes": "2025-06"}).status_code == 200  # the one-month forecast
+    rows = {(r["mes"], r["estrategia"]): (r["por_medir"], r["medido"] is not None) for r in client.get("/api/historial").json()["pronosticos"]}
+    assert rows == {("2025-06", "h1"): (False, True), ("2025-06", "directa"): (True, False)}  # measuring one does not measure the other
 
 
 # ---- what the screens read: the plan in the status and the month in progress block -----------------------------------------------

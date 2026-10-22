@@ -20,6 +20,9 @@ from src.evaluation.metrics_utils import score
 MODELS = ["ml_mean", "lgbm", "xgb", "rf", "naive"]
 # strict "below" thresholds; observed over the 12 backtest months (ml_mean): SKU 66.2-74.7%, planta 87.3-95.3%, total 91.2-99.6%, a planta-month below 60% in 3 of 180
 THRESHOLDS = {"sku": 0.64, "planta": 0.85, "total": 0.90, "planta_revisar": 0.60}
+# The two-month strategies (directa, parcial, nowcast_media, iterada) are measured on the 12 test months of results/horizon_strategies.csv: SKU 66.1-68.7%,
+# planta 89.8-90.9%, total 94.1-96.0% over the year; the thresholds keep about the same distance from those figures that the one-month ones keep from theirs.
+THRESHOLDS_TWO_MONTHS = {"sku": 0.60, "planta": 0.83, "total": 0.87, "planta_revisar": 0.60}
 ALERT_TEXT = {
     "sku_bajo": "SKU accuracy of ml_mean is below the threshold",
     "planta_bajo": "planta accuracy of ml_mean is below the threshold",
@@ -27,6 +30,11 @@ ALERT_TEXT = {
     "peor_que_naive": "ml_mean is worse than the naive at SKU level",
     "planta_revisar": "a planta with accuracy of ml_mean below the review threshold",
 }
+
+
+def thresholds_for(strategy: str) -> dict:
+    r"""The alert thresholds of a strategy: the one-month forecast keeps its own, the strategies that forecast two months ahead have lower ones."""
+    return THRESHOLDS if strategy == "h1" else THRESHOLDS_TWO_MONTHS
 
 
 def check_month_closed(df: pd.DataFrame, month: str) -> None:
@@ -127,8 +135,8 @@ def find_alerts(scores: pd.DataFrame, thresholds: dict | None = None) -> pd.Data
     return pd.DataFrame(found, columns=["codigo", "tipo", "nivel", "planta", "valor", "umbral", "texto"])
 
 
-def tracking_rows(run_id: str, scores: pd.DataFrame, alerts: pd.DataFrame, created_at: str | None = None) -> pd.DataFrame:
-    r"""The scores as rows for storage: the run, the alert code on the `ml_mean` row it refers to, and the time."""
+def tracking_rows(run_id: str, scores: pd.DataFrame, alerts: pd.DataFrame, created_at: str | None = None, strategy: str = "h1", cutoff: int | None = None) -> pd.DataFrame:
+    r"""The scores as rows for storage: the run, the alert code on the `ml_mean` row it refers to, the time, and the strategy and cutoff day of the forecast."""
     if np.isinf(scores.select_dtypes("number").to_numpy(dtype=float)).any():
         raise ValueError("The scores have infinite values; they would break the history file and its JSON.")
     rows = scores.copy()
@@ -138,6 +146,8 @@ def tracking_rows(run_id: str, scores: pd.DataFrame, alerts: pd.DataFrame, creat
         hit = (rows["mes"] == scores["mes"].iloc[0]) & (rows["modelo"] == "ml_mean") & (rows["nivel"] == a["nivel"]) & (rows["planta"] == a["planta"])
         rows.loc[hit, "alerta"] = rows.loc[hit, "alerta"].map(lambda current: f"{current};{a['codigo']}" if current else a["codigo"])
     rows["creado_en"] = created_at or now_utc()
+    rows["estrategia"] = strategy
+    rows["corte"] = cutoff
     return rows[TRACKING_COLUMNS]
 
 
@@ -146,6 +156,7 @@ def write_tracking_csv(path, rows: pd.DataFrame) -> None:
     from pathlib import Path
 
     path = Path(path)
+    rows = rows.assign(**{column: default for column, default in (("estrategia", "h1"), ("corte", np.nan)) if column not in rows.columns})  # rows from before the strategies
     if path.exists():
         old = read_tracking_csv(path)
         keys = set(rows[["run_id", "mes"]].itertuples(index=False, name=None))
@@ -154,6 +165,24 @@ def write_tracking_csv(path, rows: pd.DataFrame) -> None:
     rows = rows.sort_values(["mes", "run_id", "nivel", "planta", "modelo"]).reset_index(drop=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     rows.to_csv(path, index=False, float_format="%.6f")
+
+
+def horizon_backtest_forecasts(S: Panel, cache: pd.DataFrame, column: str, members: bool = False) -> dict[str, pd.DataFrame]:
+    r"""
+    One forecast table per target month from the two-month cache (results/horizon_strategies.csv): `column` is the `ml_mean` of the strategy
+    (p_direct, p_partial, p_iterated); `members` adds lgbm, xgb and rf when the cache keeps them (the direct strategy does).
+    """
+    out = {}
+    for t, block in cache.groupby("t"):
+        keys = np.asarray(S.keys, dtype=object)[block["series"].to_numpy()]
+        table = pd.DataFrame({"planta": keys[:, 0], "sku": keys[:, 1], "mes": S.labels[t]})
+        if members:
+            for kind in ("lgbm", "xgb", "rf"):
+                table[kind] = block[f"p_direct_{kind}"].to_numpy()
+        table["ml_mean"] = block[column].to_numpy()
+        table["naive"] = block["p_naive"].to_numpy()
+        out[S.labels[t]] = table
+    return out
 
 
 def backtest_forecasts(S: Panel, cache: pd.DataFrame) -> dict[str, pd.DataFrame]:

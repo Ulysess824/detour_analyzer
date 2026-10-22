@@ -193,7 +193,7 @@ def test_a_month_that_is_still_open_cannot_be_measured(workdir):
 def test_measuring_a_closed_month_stores_the_scores_and_lists_the_biggest_misses(workdir):
     close_the_month(workdir)
     client = make_client(workdir)
-    assert client.get("/api/seguimiento").json()["por_medir"] == ["2025-07"]
+    assert client.get("/api/seguimiento").json()["por_medir"] == [{"mes": "2025-07", "estrategia": "h1"}]
     done = client.post("/api/seguimiento/medir", json={"mes": "2025-07"})
     assert done.status_code == 200
     body = done.json()["detalle"]

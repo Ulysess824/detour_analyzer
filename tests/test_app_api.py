@@ -167,10 +167,10 @@ def test_retune_state_depends_on_the_days_left(tmp_path, last, state, left):
     assert (got["estado"], got["dias_restantes"]) == (state, left)
 
 
-def make_tracking(month, run_id, ml_levels, alert=""):
+def make_tracking(month, run_id, ml_levels, alert="", strategy="h1", cutoff=None, created="2026-10-20 10:00:00"):
     rows = [
         {"run_id": run_id, "mes": month, "nivel": level, "planta": "", "modelo": "ml_mean", "acierto": value, "wape": 1 - value, "bias_pct": 0.0, "n": 10,
-         "real_TO": 1.0, "pronostico_TO": 1.0, "alerta": alert if level == "sku" else "", "creado_en": "2026-10-20 10:00:00"}
+         "real_TO": 1.0, "pronostico_TO": 1.0, "alerta": alert if level == "sku" else "", "creado_en": created, "estrategia": strategy, "corte": cutoff}
         for level, value in ml_levels.items()
     ]
     return pd.DataFrame(rows)[TRACKING_COLUMNS]
@@ -197,20 +197,40 @@ def test_tracking_prefers_production_runs_over_the_backtest_and_collects_alerts(
     assert (got["origen"], got["mes"], got["acierto_sku"], got["acierto_total"]) == ("backtest", "2026-09", 66.0, 99.0)
     write_tracking_csv(paths.tracking_csv, make_tracking("2026-10", "run-1", {"sku": 0.6, "planta": 0.9, "total": 0.95}, alert="sku_bajo;peor_que_naive"))
     got = last_tracking(paths)
-    assert (got["origen"], got["mes"], got["alertas"]) == ("produccion", "2026-10", ["peor_que_naive", "sku_bajo"])
+    assert (got["origen"], got["mes"], got["alertas"], got["estrategia"]) == ("produccion", "2026-10", ["peor_que_naive", "sku_bajo"], "h1")
+    write_tracking_csv(paths.tracking_csv, make_tracking("2026-10", "run-2", {"sku": 0.7, "planta": 0.9, "total": 0.95}, strategy="parcial", cutoff=15))
+    assert last_tracking(paths)["estrategia"] == "h1" and last_tracking(paths)["acierto_sku"] == 60.0  # the one-month forecast when the month has several
+    write_tracking_csv(paths.tracking_csv, make_tracking("2026-11", "run-3", {"sku": 0.7}, strategy="directa"))
+    assert (last_tracking(paths)["mes"], last_tracking(paths)["estrategia"]) == ("2026-11", "directa")
+
+
+def _forecast_file(paths, name):
+    pd.DataFrame({"planta": ["A"], "sku": ["x"], "mes": [name[9:16]], "ml_mean": [2.5]}).to_csv(paths.results / name, index=False)
 
 
 def test_a_forecast_is_pending_only_when_its_month_closed_and_is_not_tracked(tmp_path):
     paths = AppPaths(tmp_path)
     paths.results.mkdir()
-    forecast = {"mes": "2026-10"}
-    assert pending_tracking(paths, "2026-09", forecast) is None  # the month has not closed
-    assert pending_tracking(paths, "2026-10", None) is None and pending_tracking(paths, None, forecast) is None
-    assert pending_tracking(paths, "2026-10", forecast) == "2026-10"
+    assert pending_tracking(paths, "2026-10") == [] and pending_tracking(paths, None) == []  # no forecast saved, or no data
+    _forecast_file(paths, "forecast_2026-10.csv")
+    assert pending_tracking(paths, "2026-09") == []  # the month has not closed
+    assert pending_tracking(paths, "2026-10") == [{"mes": "2026-10", "estrategia": "h1"}]
     write_tracking_csv(paths.tracking_csv, make_tracking("2026-10", "backtest-h1", {"sku": 0.6}))
-    assert pending_tracking(paths, "2026-10", forecast) == "2026-10"  # a backtest row does not count
+    assert pending_tracking(paths, "2026-10") == [{"mes": "2026-10", "estrategia": "h1"}]  # a backtest row does not count
     write_tracking_csv(paths.tracking_csv, make_tracking("2026-10", "run-1", {"sku": 0.6}))
-    assert pending_tracking(paths, "2026-10", forecast) is None
+    assert pending_tracking(paths, "2026-10") == []
+
+
+def test_every_strategy_of_a_closed_month_is_pending_until_it_is_measured(tmp_path):
+    paths = AppPaths(tmp_path)
+    paths.results.mkdir()
+    for name in ("forecast_2026-10.csv", "forecast_2026-10_parcial.csv", "forecast_2026-11_parcial.csv"):
+        _forecast_file(paths, name)
+    assert pending_tracking(paths, "2026-10") == [{"mes": "2026-10", "estrategia": "h1"}, {"mes": "2026-10", "estrategia": "parcial"}]  # November has not closed
+    write_tracking_csv(paths.tracking_csv, make_tracking("2026-10", "run-1", {"sku": 0.6}))  # measuring the one-month forecast
+    assert pending_tracking(paths, "2026-10") == [{"mes": "2026-10", "estrategia": "parcial"}]  # does not measure the mid-month one
+    write_tracking_csv(paths.tracking_csv, make_tracking("2026-10", "run-2", {"sku": 0.6}, strategy="parcial", cutoff=15))
+    assert pending_tracking(paths, "2026-11") == [{"mes": "2026-11", "estrategia": "parcial"}]
 
 
 def test_status_names_the_next_forecast_month(root):

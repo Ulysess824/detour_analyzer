@@ -31,6 +31,7 @@ class SettingsBody(BaseModel):
 
 class MeasureBody(BaseModel):
     mes: str
+    estrategia: str = "h1"
 
 
 class UnlockBody(BaseModel):
@@ -188,12 +189,12 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
             return tracking_service.history(paths, None)
 
     @app.get("/api/seguimiento/detalle")
-    def tracking_detail(mes: str | None = None, origen: Literal["produccion", "backtest"] | None = None):
-        return tracking_service.detail(paths, store if paths.consumption_csv.exists() else None, mes, origen)
+    def tracking_detail(mes: str | None = None, origen: Literal["produccion", "backtest"] | None = None, estrategia: str | None = None):
+        return tracking_service.detail(paths, store if paths.consumption_csv.exists() else None, mes, origen, estrategia)
 
     @app.post("/api/seguimiento/medir")
     def measure(body: MeasureBody):
-        return tracking_service.measure(paths, store, body.mes)
+        return tracking_service.measure(paths, store, body.mes, body.estrategia)
 
     # ---- hyperparameter retune ----------------------------------------------------------------------------------------------
 
@@ -289,8 +290,8 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
         return workbook(export_service.consumption_workbook(store, planta, sku, nivel, desde, hasta))
 
     @app.get("/api/descargas/seguimiento")
-    def download_tracking(mes: str | None = None):
-        return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes))
+    def download_tracking(mes: str | None = None, estrategia: str | None = None, origen: Literal["produccion", "backtest"] | None = None):
+        return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes, estrategia, origen))
 
     @app.get("/api/acerca")
     def about():

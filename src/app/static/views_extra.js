@@ -56,10 +56,11 @@ async function renderDownloads(view) {
   const [list, tracking] = await Promise.all([api("pronosticos"), api("seguimiento")]);
   const d = downloadState;
   const months = list.pronosticos.map((f) => `${f.mes}|${f.estrategia}`);
-  const trackMonths = [...new Set([...tracking.produccion, ...tracking.backtest].map((r) => r.mes))].sort().reverse();
+  const trackItems = [...tracking.produccion.map((r) => ({ ...r, origen: "produccion" })), ...tracking.backtest.map((r) => ({ ...r, origen: "backtest" }))];
+  const trackMonths = trackItems.sort((a, b) => (a.mes < b.mes ? 1 : a.mes > b.mes ? -1 : a.origen < b.origen ? 1 : -1)).map((r) => `${r.mes}|${r.estrategia}|${r.origen}`);
   const options = (items, selected) => items.map((m) => {
-    const [month, strategy] = m.split("|");
-    return `<option value="${m}" ${m === selected ? "selected" : ""}>${monthLong(month)}${strategy ? ` · ${esc(STRATEGY_NAMES[strategy] || strategy)}` : ""}</option>`;
+    const [month, strategy, origin] = m.split("|");
+    return `<option value="${m}" ${m === selected ? "selected" : ""}>${monthLong(month)}${strategy ? ` · ${esc(STRATEGY_NAMES[strategy] || strategy)}` : ""}${origin === "backtest" ? " · prueba histórica" : ""}</option>`;
   }).join("");
   view.innerHTML = `<div class="stack"><div class="tiles">
     <div class="card tile"><h2>Pronóstico (Excel)</h2><p>El pronóstico de un mes: resumen, por planta y cada SKU con los tres modelos, su rango y el último mes real.</p>
@@ -75,7 +76,7 @@ async function renderDownloads(view) {
   const select = (id, key) => { const el = $(id); if (el) { d[key] = el.value; el.onchange = () => (d[key] = el.value); } };
   select("#x-pron", "mesPron"); select("#x-seg", "mesSeg");
   if ($("#x-pron-go")) $("#x-pron-go").onclick = () => { const [mes, estrategia] = (d.mesPron || $("#x-pron").value).split("|"); downloadExcel("pronostico", { mes, estrategia }, $("#x-pron-msg")); };
-  if ($("#x-seg-go")) $("#x-seg-go").onclick = () => downloadExcel("seguimiento", { mes: d.mesSeg }, $("#x-seg-msg"));
+  if ($("#x-seg-go")) $("#x-seg-go").onclick = () => { const [mes, estrategia, origen] = (d.mesSeg || $("#x-seg").value).split("|"); downloadExcel("seguimiento", { mes, estrategia, origen }, $("#x-seg-msg")); };
   $("#x-nivel").onclick = (event) => { const b = event.target.closest("button"); if (b) { d.nivel = b.dataset.v; $("#x-nivel").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); } };
   $("#x-cons-go").onclick = () => downloadExcel("consumo", { planta: $("#f-planta").value, sku: $("#f-sku").value, nivel: d.nivel }, $("#x-cons-msg"));
   $("#x-go-consumo").onclick = () => (location.hash = "#/consumo");
@@ -117,6 +118,7 @@ const FAQ = [
   ["¿Qué mes está pronosticando la app?", "<p>Si el último mes de los datos está completo, el siguiente. Si el mes sigue en curso, el que viene después de ese: por ejemplo, con datos hasta mediados de octubre pronostica noviembre. La pantalla Predicción lo dice arriba, junto con la estrategia.</p>"],
   ["Cargué un archivo y dice que hay valores distintos", "<p>El exporte trae un número diferente para un día que ya estaba cargado. Eso pasa cuando SAP corrige un movimiento. Si el exporte nuevo es el correcto, elige <b>Usar los valores del exporte nuevo</b>. Los datos de antes quedan en un respaldo.</p>"],
   ["Me equivoqué al cargar datos", "<p>En <b>Datos</b> usa <b>Deshacer la última carga</b>: vuelve a los datos que había antes.</p>"],
+  ["¿Cómo se mide cada estrategia?", "<p>Un pronóstico se mide cuando cierra el mes que pronostica, contra el consumo real de ese mes. Si para el mismo mes hay uno hecho a mitad del mes anterior y otro hecho con el mes anterior completo, cada uno se mide por separado (Seguimiento tiene un botón para cada uno). La tabla de comparación promedia los meses medidos de cada estrategia y los pone junto a su prueba histórica de los últimos 12 meses. No son del todo comparables: el de mitad de mes ve menos información.</p>"],
   ["¿Puedo cambiar un pronóstico ya generado?", "<p>No se edita; se genera de nuevo. Al generar el mismo mes otra vez, la app pide confirmación y reemplaza el anterior.</p>"],
   ["¿Para qué sirve la clave de Hiperparámetros?", "<p>Reafinar los modelos cambia los pronósticos futuros, y la clave evita hacerlo por accidente. Es una protección sencilla, no seguridad real: quien tenga acceso a los archivos de la app puede saltársela.</p>"],
   ["Algunas plantas acertaron poco", "<p>Si una planta cambió de nivel de consumo de un mes a otro, el modelo tarda en seguirla. Aparece como aviso en Seguimiento. Conviene confirmar el cambio con quien maneja los datos.</p>"],

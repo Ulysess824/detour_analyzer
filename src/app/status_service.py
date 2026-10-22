@@ -8,7 +8,9 @@ from datetime import date
 import pandas as pd
 
 from src.app.paths import AppPaths
+from src.app.tracking_service import STRATEGY_ORDER, tracked_pairs
 from src.engine.db_utils import read_tracking_csv
+from src.evaluation.tracking_run import BACKTEST_RUN, is_backtest
 
 RETUNE_MONTHS = 6
 WARN_DAYS = 30
@@ -67,15 +69,22 @@ def last_tracking(paths: AppPaths) -> dict | None:
     table = table[table["modelo"] == "ml_mean"]
     if table.empty:
         return None
-    real = table[table["run_id"] != "backtest-h1"]
-    source = real if len(real) else table
+    real = table[~table["run_id"].map(is_backtest)]
+    source = real if len(real) else table[table["run_id"] == BACKTEST_RUN]
+    if source.empty:
+        return None
     month = source["mes"].max()
     rows = source[source["mes"] == month]
+    strategies = sorted(set(rows["estrategia"]), key=lambda name: STRATEGY_ORDER.index(name) if name in STRATEGY_ORDER else 99)
+    strategy = "h1" if "h1" in strategies else strategies[0]  # the one-month forecast when the month has several
+    rows = rows[rows["estrategia"] == strategy]
+    rows = rows[rows["run_id"] == rows.loc[rows["creado_en"].idxmax(), "run_id"]]  # one run: the newest of the month and strategy
     pick = lambda level: rows[(rows["nivel"] == level) & (rows["planta"] == "")]
     score = lambda level: _percent(pick(level)["acierto"].iloc[0]) if len(pick(level)) else None
     alerts = sorted({code for cell in rows["alerta"].fillna("") for code in str(cell).split(";") if code})
     return {
         "mes": month,
+        "estrategia": strategy,
         "origen": "produccion" if len(real) else "backtest",
         "acierto_sku": score("sku"),
         "acierto_planta": score("planta"),
@@ -84,15 +93,12 @@ def last_tracking(paths: AppPaths) -> dict | None:
     }
 
 
-def pending_tracking(paths: AppPaths, last_complete_month: str | None, forecast: dict | None) -> str | None:
-    r"""The month of the saved forecast when it has already closed in the data but is not tracked yet."""
-    if forecast is None or last_complete_month is None or forecast["mes"] > last_complete_month:
-        return None
-    if paths.tracking_csv.exists():
-        done = read_tracking_csv(paths.tracking_csv)
-        if ((done["mes"] == forecast["mes"]) & (done["run_id"] != "backtest-h1")).any():
-            return None
-    return forecast["mes"]
+def pending_tracking(paths: AppPaths, last_complete_month: str | None) -> list[dict]:
+    r"""The saved forecasts (month and strategy) whose month has already closed in the data and that are not tracked yet, oldest first."""
+    if last_complete_month is None:
+        return []
+    done = tracked_pairs(paths)
+    return [{"mes": month, "estrategia": strategy} for month, strategy, _ in sorted(paths.forecast_files()) if month <= last_complete_month and (month, strategy) not in done]
 
 
 def app_status(paths: AppPaths, info: dict | None, today: date, plan: dict | None = None) -> dict:
@@ -107,6 +113,6 @@ def app_status(paths: AppPaths, info: dict | None, today: date, plan: dict | Non
         "plan": plan,
         "pronostico": forecast,
         "seguimiento": last_tracking(paths),
-        "seguimiento_pendiente": pending_tracking(paths, complete, forecast),
+        "seguimiento_pendiente": (pending_tracking(paths, complete) or [None])[0],
         "ajuste": {**retune_status(paths, today), "candidato": paths.tuning_candidate.exists()},
     }
