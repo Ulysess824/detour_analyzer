@@ -8,8 +8,8 @@ Forecast del consumo por planta y SKU a partir de exportes de SAP. El objetivo e
 | Versión | Rama / commit | Qué incluye |
 |---|---|---|
 | **v1** | rama `v1` (commit `4150a26`) | Pronóstico mensual por SKU, planta y total con el ensamble de LightGBM, XGBoost y Random Forest (`ml_mean`), comparación con el planificador y con el modelo interno, pronóstico a dos meses, dashboard (Streamlit, retirado en la fase 0 de la app de escritorio) y Excel |
-| **v2** | `main` (commit `13c870a`) | Todo lo de la v1 más el nowcasting del mes en curso como experimento (media, mediana y Monte Carlo), la carpeta `bibliografia/` y la app de escritorio (`detour.exe`, pronóstico a un mes) |
-| **v3** | rama `prueba_nowcasting` (todavía no está en `main`) | Todo lo de la v2 más las estrategias a mitad de mes en producción (directa, directa + días del mes en curso, mes en curso completado con la media e iterada), detección automática del mes en curso y del día de corte, la sección Ajustes de la app (con el método para estimar el resto del mes en curso: media o Monte Carlo) y el seguimiento por estrategia |
+| **v2** | commit `13c870a` de `main` | Todo lo de la v1 más el nowcasting del mes en curso como experimento (media, mediana y Monte Carlo), la carpeta `bibliografia/` y la app de escritorio (`detour.exe`, pronóstico a un mes) |
+| **v3** | `main` (commit `c81e112`, fusión de la rama `prueba_nowcasting`) | Todo lo de la v2 más las estrategias a mitad de mes en producción (directa, directa + días del mes en curso, mes en curso completado con la media e iterada), detección automática del mes en curso y del día de corte, la sección Ajustes de la app (con el método para estimar el resto del mes en curso: media o Monte Carlo) y el seguimiento por estrategia |
 
 La v2 no cambió ningún modelo ni resultado de la v1: añadió el nowcasting experimental, la bibliografía y la app. La v3 no cambia el pronóstico a un mes (el de octubre
 de 2026 sale idéntico byte a byte); añade lo que se hace cuando el último mes todavía no terminó. Para recuperar la v1: `git checkout v1`
@@ -509,8 +509,8 @@ consumo en la ventana.
 
 ## Pendiente
 
-- Rama `prueba_nowcasting`: el pronóstico de producción a mitad de mes (directa, directa + mes en curso, mes completado con la media e iterada), la sección Ajustes y el
-  seguimiento por estrategia están hechos (ver "Estrategias a mitad de mes") pero la rama todavía no se fusionó a `main`. Quedan: una prueba histórica de la estrategia del
+- Pronóstico de producción a mitad de mes (directa, directa + mes en curso, mes completado con la media e iterada), la sección Ajustes y el
+  seguimiento por estrategia están hechos (ver "Estrategias a mitad de mes") y están en `main` desde el commit `c81e112`. Quedan: una prueba histórica de la estrategia del
   mes completado con la media (no tiene) y la validación del corte en los SKU grandes de SCAN, donde los
   primeros días del mes no mejoraron a la directa.
 - Evaluación con un rango de meses como test: hoy la prueba es un origen móvil a un mes (cada mes de prueba se pronostica con los
