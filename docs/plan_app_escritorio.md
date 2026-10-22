@@ -18,9 +18,9 @@ vale es la predicción del modelo; la del planificador es orientativa.
 
 1. **Inicio**: estado (último mes con datos, último pronóstico, próximo ajuste, alertas).
 2. **Consumo real**: filtros por planta y por nombre de SKU, ambos escribibles con sugerencias de la coincidencia más cercana.
-3. **Predicción**: genera el pronóstico del mes siguiente con barra de avance.
-4. **Seguimiento**: al cerrar el mes compara el pronóstico guardado con el real (acierto por SKU, planta y total, alertas).
-5. **Ajuste de hiperparámetros**: bloqueado con contraseña; muestra la última fecha y la próxima (6 meses).
+3. **Predicción**: genera el pronóstico con barra de avance (el mes siguiente, o el que sigue al mes en curso a mitad de mes, según los ajustes).
+4. **Seguimiento**: al cerrar el mes compara cada pronóstico guardado con el real según su estrategia (acierto por SKU, planta y total, alertas, comparación de estrategias).
+5. **Ajustes** (estrategia de pronóstico y día de corte, sin clave) e **Hiperparámetros** (antes "Ajuste de hiperparámetros"): bloqueado con contraseña; muestra la última fecha y la próxima (6 meses).
 6. **Datos**: carga de exportes SAP con la validación de entrada.
 7. **Ayuda**, **Descargar** (PNG y Excel) e **Historial** de pronósticos.
 
@@ -166,6 +166,15 @@ Pantallas servidas por la propia API (`src/app/static/`: `index.html`, `app.css`
 - Lo que solo puede comprobar el CI de Windows: la compilación, pywebview/WebView2 y el diálogo de guardar. El CI de Windows compiló el programa y su autoprueba pasó (17 de 18 la primera vez: faltaba Optuna en los requisitos de la compilación; después, 18 de 18), con un pronóstico de octubre de 53.253 TO frente a 53.220 TO en Linux (0,06%, diferencia normal de las bibliotecas de árboles entre sistemas). Falta probar la ventana real, el diálogo de guardar y el aviso de SmartScreen en un Windows con pantalla.
 - Dos errores de Windows que solo vio el CI: la prueba del fallo de arranque abría el cuadro de error modal de Windows y dejó el CI colgado (ahora el cuadro es una función aparte que la prueba reemplaza), y el CI limita el trabajo a 20 minutos y vuelca la traza de los hilos si una prueba pasa 5 minutos detenida.
 - 14 pruebas nuevas (`tests/test_app_launcher.py`); 8 errores inyectados, los 8 detectados. Una de las pruebas encontró un error real: con el puerto ocupado, el lanzador creía que su servidor había arrancado porque contestaba el otro programa; ahora espera la señal de arranque del propio servidor.
+
+## Fase 7: estrategias de pronóstico (rama `prueba_nowcasting`, hecha)
+
+Plan y decisiones en `docs/plan_prueba_nowcasting.md`. La app pasa de pronosticar siempre el mes siguiente al último mes completo a leer el estado de los datos: con el último mes terminado
+pronostica el mes siguiente, y con el mes en curso (mitad de mes) pronostica el que sigue a ese, con la estrategia elegida en la sección nueva **Ajustes** (automática por defecto: `parcial`
+desde el día 10 del mes en curso). El día de corte se detecta del último registro y se puede fijar a mano. Cambios: `settings_service.py` y `config/ajustes_app.json`; `/api/ajustes`;
+`forecast_service` (tarjeta "El mes en curso", referencia al último mes completo, archivos `forecast_<mes>_<estrategia>.csv`); seguimiento por (mes, estrategia) con comparación de estrategias y
+pruebas históricas de `directa`, `parcial` e `iterada`; la sección que reentrena los modelos pasa a llamarse **Hiperparámetros**. Verificado con pruebas, mutaciones, capturas de Chromium sin
+ventana y datos reales; la ventana real (WebView2) solo se puede probar en Windows.
 
 ## Contraseña
 
