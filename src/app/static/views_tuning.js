@@ -1,5 +1,5 @@
 "use strict";
-/* Ajuste de hiperparámetros. The section is locked with a password; the session token lives only in memory (reloading the app locks it again). */
+/* Hiperparámetros (the section that retunes the models). The section is locked with a password; the session token lives only in memory (reloading the app locks it again). */
 
 let tuningToken = "";
 const authHeader = () => ({ "X-Ajuste-Token": tuningToken });

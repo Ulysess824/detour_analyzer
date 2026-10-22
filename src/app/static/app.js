@@ -20,6 +20,7 @@ const ICONS = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   trend: '<path d="M3 17l6-6 4 4 8-9"/><path d="M15 6h6v6"/>',
   check: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
   sliders: '<path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/>',
   database: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
   download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
@@ -43,9 +44,10 @@ async function api(path, params = {}) {
 const SECTIONS = [
   { id: "inicio", label: "Inicio", icon: "home", title: "Inicio", subtitle: "El estado del modelo de un vistazo." },
   { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "Lo que se consumió, por planta y por SKU." },
-  { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico del mes siguiente." },
+  { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico con los datos que hay." },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "Qué tanto acertó el pronóstico cuando cerró el mes." },
-  { id: "ajuste", label: "Ajuste de hiperparámetros", icon: "sliders", title: "Ajuste de hiperparámetros", subtitle: "Reafinar el modelo cada seis meses." },
+  { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "Cómo se calcula el pronóstico." },
+  { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "Reafinar el modelo cada seis meses." },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP." },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel." },
   { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes." },
@@ -86,6 +88,7 @@ async function route() {
     else if (section.id === "consumo") await renderConsumption(view);
     else if (section.id === "prediccion") await renderForecast(view);
     else if (section.id === "seguimiento") await renderTracking(view);
+    else if (section.id === "ajustes") await renderSettings(view);
     else if (section.id === "ajuste") await renderTuning(view);
     else if (section.id === "datos") await renderData(view);
     else if (section.id === "descargar") await renderDownloads(view);
@@ -256,30 +259,34 @@ async function renderHome(view) {
   const retune = status.ajuste;
   const notes = [];
   if (!data) notes.push(`<div class="banner warn">${icon("alert")}<div><b>Todavía no hay datos de consumo.</b> Carga los exportes de SAP en la sección Datos para empezar.</div></div>`);
-  if (status.seguimiento_pendiente) notes.push(`<div class="banner warn">${icon("alert")}<div><b>${monthLong(status.seguimiento_pendiente)} ya cerró.</b> Falta medir qué tanto acertó el pronóstico de ese mes (sección Seguimiento).</div></div>`);
-  if (retune.candidato) notes.push(`<div class="banner info">${icon("info")}<div><b>Hay parámetros nuevos esperando una decisión.</b> Revísalos en la sección Ajuste de hiperparámetros.</div></div>`);
-  if (retune.estado === "por_vencer" || retune.estado === "vencido") notes.push(`<div class="banner warn">${icon("alert")}<div><b>${retune.estado === "vencido" ? "El ajuste de hiperparámetros está vencido." : "El ajuste de hiperparámetros vence pronto."}</b> Próximo ajuste: ${dateLong(retune.proximo)}.</div></div>`);
+  if (status.seguimiento_pendiente) notes.push(`<div class="banner warn">${icon("alert")}<div><b>${cap(monthLong(status.seguimiento_pendiente.mes))} ya cerró.</b> Falta medir qué tanto acertó el pronóstico de ese mes hecho con «${esc(STRATEGY_NAMES[status.seguimiento_pendiente.estrategia] || status.seguimiento_pendiente.estrategia)}» (sección Seguimiento).</div></div>`);
+  if (retune.candidato) notes.push(`<div class="banner info">${icon("info")}<div><b>Hay parámetros nuevos esperando una decisión.</b> Revísalos en la sección Hiperparámetros.</div></div>`);
+  if (retune.estado === "por_vencer" || retune.estado === "vencido") notes.push(`<div class="banner warn">${icon("alert")}<div><b>${retune.estado === "vencido" ? "Los hiperparámetros están vencidos." : "Los hiperparámetros vencen pronto."}</b> Próximo ajuste: ${dateLong(retune.proximo)}.</div></div>`);
 
   const dataCard = data
     ? statCard("database", "", "Datos", monthLong(data.ultimo_mes_completo), `Último mes completo.<br>${fmt(data.filas, 0)} filas · ${fmt(data.series, 0)} series · ${data.plantas} plantas`, `<span class="badge neutral">Último dato: ${dateLong(data.ultimo_dia)}</span>${data.mes_parcial ? `<span class="badge warn">Mes parcial: ${monthLong(data.mes_parcial)}</span>` : ""}`)
     : statCard("database", "", "Datos", "Sin datos", "Carga los exportes de SAP.");
 
-  const ready = forecast && status.proximo_pronostico === forecast.mes;
-  const forecastCard = statCard("trend", "orange", "Próximo pronóstico", monthLong(status.proximo_pronostico),
-    ready ? `Generado el ${dateLong(forecast.creado_en)}.<br>Total estimado: <b>${fmt(forecast.total_ml_mean_TO, 0)} TO</b>` : "Todavía no se genera el pronóstico de este mes.",
-    ready ? '<span class="badge ok">' + icon("check") + "Listo</span>" : '<span class="badge warn">' + icon("alert") + "Pendiente</span>");
+  const plan = status.plan;
+  const ready = forecast && plan && plan.estrategia && forecast.mes === plan.mes_pronosticado && forecast.estrategia === plan.estrategia;
+  const how = plan && plan.estrategia ? `<br>${esc(STRATEGY_NAMES[plan.estrategia] || plan.estrategia)}${plan.corte ? ` · corte el día ${plan.corte}` : ""}` : "";
+  const forecastCard = plan && plan.error
+    ? statCard("trend", "orange", "Próximo pronóstico", "Sin definir", "Los ajustes guardados no sirven con los datos actuales.", '<span class="badge warn">' + icon("alert") + "Revisa Ajustes</span>")
+    : statCard("trend", "orange", "Próximo pronóstico", monthLong(status.proximo_pronostico),
+      (ready ? `Generado el ${dateLong(forecast.creado_en)}.<br>Total estimado: <b>${fmt(forecast.total_ml_mean_TO, 0)} TO</b>` : "Todavía no se genera este pronóstico.") + how,
+      ready ? '<span class="badge ok">' + icon("check") + "Listo</span>" : '<span class="badge warn">' + icon("alert") + "Pendiente</span>");
 
   let trackingCard;
   if (tracking) {
     const scores = `<div class="scores"><div><b>${fmt(tracking.acierto_sku)}%</b><span>SKU</span></div><div><b>${fmt(tracking.acierto_planta)}%</b><span>planta</span></div><div><b>${fmt(tracking.acierto_total)}%</b><span>total</span></div></div>`;
     const alerts = tracking.alertas.length ? tracking.alertas.map((a) => `<span class="badge warn">${esc(ALERT_TEXT[a] || a)}</span>`).join("") : '<span class="badge ok">' + icon("check") + "Sin alertas</span>";
-    trackingCard = statCard("check", "teal", "Último seguimiento", monthLong(tracking.mes), (tracking.origen === "backtest" ? "Prueba histórica (aún no hay un mes real medido)." : "Pronóstico guardado contra el consumo real.") + scores, alerts);
+    trackingCard = statCard("check", "teal", "Último seguimiento", monthLong(tracking.mes), (tracking.origen === "backtest" ? "Prueba histórica (aún no hay un mes real medido)." : `Pronóstico guardado contra el consumo real.<br>${esc(STRATEGY_NAMES[tracking.estrategia] || tracking.estrategia)}`) + scores, alerts);
   } else {
     trackingCard = statCard("check", "teal", "Último seguimiento", "Sin medir", "Cuando cierre el mes pronosticado se compara con el real.");
   }
 
   const r = RETUNE[retune.estado];
-  const retuneCard = statCard("sliders", "", "Ajuste de hiperparámetros", retune.proximo ? dateLong(retune.proximo) : "–",
+  const retuneCard = statCard("sliders", "", "Hiperparámetros", retune.proximo ? dateLong(retune.proximo) : "–",
     retune.ultimo ? `Próximo ajuste. El último fue el ${dateLong(retune.ultimo)}; se repite cada ${retune.intervalo_meses} meses.` : "No hay un ajuste registrado.",
     `<span class="badge ${r.cls}">${icon(r.icon)}${r.text}${retune.dias_restantes !== null && retune.estado !== "vencido" ? ` · faltan ${fmt(retune.dias_restantes, 0)} días` : ""}</span>`);
 

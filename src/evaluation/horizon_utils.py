@@ -13,65 +13,17 @@ Every forecast of month `t` uses only what is known at the end of month `o` (and
 
 from __future__ import annotations
 
-import dataclasses
-
-import numpy as np
 import pandas as pd
 
-from src.engine.feature_utils import SERIES_FEATURES, frame_at_origin
-from src.engine.member_utils import ML_MODELS, ml_forecast
+from src.engine.feature_utils import SERIES_FEATURES
+from src.engine.member_utils import ML_MODELS, ml_forecasts
+from src.engine.month_in_progress import mask_panel, with_pseudo_month  # noqa: F401  (re-exported for the scripts and tests)
 from src.engine.panel_utils import Panel
 from src.engine.partial_utils import PARTIAL_FEATURES
+from src.engine.strategies import iterated_forecast
 
 HORIZON = 2
 BASELINES = ["naive"]
-
-
-def mask_panel(S: Panel, last_known: int) -> Panel:
-    r"""Copy of the panel in which every month after `last_known` is unknown (NaN)."""
-    cut = last_known + 1
-    monthly, active = S.monthly.copy(), S.active_days.copy()
-    planta, total = S.planta_monthly.copy(), S.total_monthly.copy()
-    monthly[:, cut:], active[:, cut:], planta[:, cut:], total[cut:] = np.nan, np.nan, np.nan, np.nan
-    return dataclasses.replace(S, monthly=monthly, active_days=active, planta_monthly=planta, total_monthly=total)
-
-
-def with_pseudo_month(S: Panel, month: int, series: np.ndarray, values: np.ndarray, active_days: np.ndarray) -> Panel:
-    r"""Copy of the panel in which `month` holds forecasts (as if observed) for `series`; the other series stay NaN there."""
-    monthly, active = S.monthly.copy(), S.active_days.copy()
-    planta, total = S.planta_monthly.copy(), S.total_monthly.copy()
-    monthly[series, month] = values
-    active[series, month] = active_days
-    planta[:, month] = np.bincount(S.planta_code[series], weights=values, minlength=len(S.plantas))
-    total[month] = values.sum()
-    return dataclasses.replace(S, monthly=monthly, active_days=active, planta_monthly=planta, total_monthly=total)
-
-
-def ml_forecasts(train: pd.DataFrame, rows: pd.DataFrame, tuned: dict, features: list[str] | None = None) -> dict:
-    r"""Forecast of each machine-learning model plus their mean (`ml_mean`) for `rows`."""
-    out = {kind: ml_forecast(kind, train, rows, tuned, features) for kind in ML_MODELS}
-    out["ml_mean"] = np.mean([out[kind] for kind in ML_MODELS], axis=0)
-    return out
-
-
-def iterated_forecast(S: Panel, frame1: pd.DataFrame, origin: int, tuned: dict) -> pd.Series:
-    r"""
-    Two applications of the one-month-ahead model, trained on the targets known at `origin`.
-
-    Month `origin + 1` is filled with the first forecasts (active days from the recent occupancy) and the
-    features of origin `origin + 1` are rebuilt from the panel with the later months hidden.
-    Returns the forecast of month `origin + 2`, indexed by series.
-    """
-    train = frame1[frame1["t"] <= origin]
-    rows = frame1[frame1["o"] == origin].reset_index(drop=True)
-    first = ml_forecasts(train, rows, tuned)["ml_mean"]
-    days = S.business_days[origin + 1]
-    active = np.minimum(rows["occ6"].fillna(0.0).to_numpy() * days, days)
-    pseudo = with_pseudo_month(mask_panel(S, origin), origin + 1, rows["series"].to_numpy(), first, active)
-    rows2 = frame_at_origin(pseudo, origin + 1, 1)
-    rows2 = rows2[rows2["series"].isin(rows["series"])].reset_index(drop=True)
-    second = ml_forecasts(train, rows2, tuned)["ml_mean"]
-    return pd.Series(second, index=rows2["series"].to_numpy())
 
 
 def strategy_forecasts(

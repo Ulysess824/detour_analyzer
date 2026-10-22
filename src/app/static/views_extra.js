@@ -55,9 +55,13 @@ document.addEventListener("click", (event) => {
 async function renderDownloads(view) {
   const [list, tracking] = await Promise.all([api("pronosticos"), api("seguimiento")]);
   const d = downloadState;
-  const months = list.pronosticos.map((f) => f.mes);
-  const trackMonths = [...new Set([...tracking.produccion, ...tracking.backtest].map((r) => r.mes))].sort().reverse();
-  const options = (items, selected) => items.map((m) => `<option value="${m}" ${m === selected ? "selected" : ""}>${monthLong(m)}</option>`).join("");
+  const months = list.pronosticos.map((f) => `${f.mes}|${f.estrategia}`);
+  const trackItems = [...tracking.produccion.map((r) => ({ ...r, origen: "produccion" })), ...tracking.backtest.map((r) => ({ ...r, origen: "backtest" }))];
+  const trackMonths = trackItems.sort((a, b) => (a.mes < b.mes ? 1 : a.mes > b.mes ? -1 : a.origen < b.origen ? 1 : -1)).map((r) => `${r.mes}|${r.estrategia}|${r.origen}`);
+  const options = (items, selected) => items.map((m) => {
+    const [month, strategy, origin] = m.split("|");
+    return `<option value="${m}" ${m === selected ? "selected" : ""}>${monthLong(month)}${strategy ? ` · ${esc(STRATEGY_NAMES[strategy] || strategy)}` : ""}${origin === "backtest" ? " · prueba histórica" : ""}</option>`;
+  }).join("");
   view.innerHTML = `<div class="stack"><div class="tiles">
     <div class="card tile"><h2>Pronóstico (Excel)</h2><p>El pronóstico de un mes: resumen, por planta y cada SKU con los tres modelos, su rango y el último mes real.</p>
       ${months.length ? `<select class="pick" id="x-pron">${options(months, d.mesPron)}</select><div class="rowbtns"><button class="btn primary" id="x-pron-go">Descargar Excel</button></div>` : '<p class="note">Todavía no hay pronósticos.</p>'}<div id="x-pron-msg"></div></div>
@@ -71,8 +75,8 @@ async function renderDownloads(view) {
   bindFilters(d, () => {});
   const select = (id, key) => { const el = $(id); if (el) { d[key] = el.value; el.onchange = () => (d[key] = el.value); } };
   select("#x-pron", "mesPron"); select("#x-seg", "mesSeg");
-  if ($("#x-pron-go")) $("#x-pron-go").onclick = () => downloadExcel("pronostico", { mes: d.mesPron }, $("#x-pron-msg"));
-  if ($("#x-seg-go")) $("#x-seg-go").onclick = () => downloadExcel("seguimiento", { mes: d.mesSeg }, $("#x-seg-msg"));
+  if ($("#x-pron-go")) $("#x-pron-go").onclick = () => { const [mes, estrategia] = (d.mesPron || $("#x-pron").value).split("|"); downloadExcel("pronostico", { mes, estrategia }, $("#x-pron-msg")); };
+  if ($("#x-seg-go")) $("#x-seg-go").onclick = () => { const [mes, estrategia, origen] = (d.mesSeg || $("#x-seg").value).split("|"); downloadExcel("seguimiento", { mes, estrategia, origen }, $("#x-seg-msg")); };
   $("#x-nivel").onclick = (event) => { const b = event.target.closest("button"); if (b) { d.nivel = b.dataset.v; $("#x-nivel").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); } };
   $("#x-cons-go").onclick = () => downloadExcel("consumo", { planta: $("#f-planta").value, sku: $("#f-sku").value, nivel: d.nivel }, $("#x-cons-msg"));
   $("#x-go-consumo").onclick = () => (location.hash = "#/consumo");
@@ -83,15 +87,15 @@ async function renderHistory(view) {
   const list = (await api("historial")).pronosticos;
   if (!list.length) { view.innerHTML = '<div class="card empty"><h3>Todavía no hay pronósticos guardados</h3><p>Genera el primero en la sección Predicción.</p></div>'; return; }
   const rows = list.map((r) => {
-    const done = r.medido ? `<span class="badge ok">${icon("check")}Medido: ${fmt(r.medido.sku)} / ${fmt(r.medido.planta)} / ${fmt(r.medido.total)}%</span>`
+    const done = r.medido ? `<span class="badge ok" title="Acierto medido: SKU / planta / total">${icon("check")}${fmt(r.medido.sku)} / ${fmt(r.medido.planta)} / ${fmt(r.medido.total)}%</span>`
       : r.por_medir ? `<span class="badge warn">${icon("alert")}Por medir</span>` : '<span class="badge neutral">Mes sin cerrar</span>';
-    return `<tr><td>${monthLong(r.mes)}</td><td>${r.creado_en ? dateLong(r.creado_en) : "–"}</td><td>${fmt(r.total_TO, 0)}</td><td>${r.datos_hasta ? dateLong(r.datos_hasta) : "–"}</td><td>${esc(r.parametros || "–")}</td><td>${done}</td>
-      <td><button class="btn" data-view="${r.mes}" style="height:32px">Ver</button> <button class="btn" data-xlsx="${r.mes}" style="height:32px">Excel</button></td></tr>`;
+    return `<tr><td>${monthLong(r.mes)}</td><td style="white-space:normal;min-width:130px;max-width:160px">${esc(STRATEGY_NAMES[r.estrategia] || r.estrategia)}</td><td>${r.creado_en ? dateLong(r.creado_en) : "–"}<br><span class="note" style="margin:0">datos hasta el ${r.datos_hasta ? dateLong(r.datos_hasta) : "–"}</span></td><td>${fmt(r.total_TO, 0)}</td><td style="white-space:normal;word-break:break-all;max-width:120px">${esc(r.parametros || "–")}</td><td>${done}</td>
+      <td><button class="btn" data-view="${r.mes}|${r.estrategia}" style="height:32px;padding:0 12px">Ver</button> <button class="btn" data-xlsx="${r.mes}|${r.estrategia}" style="height:32px;padding:0 12px">Excel</button></td></tr>`;
   }).join("");
-  view.innerHTML = `<div class="card"><h2>Pronósticos guardados</h2><p class="hint">Cada pronóstico queda con su fecha, los datos y los parámetros con que se hizo. Si generas de nuevo el mismo mes, el anterior se reemplaza. El acierto es por SKU / planta / total.</p>
-    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Mes</th><th>Generado el</th><th>Total (TO)</th><th>Datos hasta</th><th>Parámetros</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div id="h-msg"></div></div>`;
-  view.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { forecastState.mes = b.dataset.view; location.hash = "#/prediccion"; }));
-  view.querySelectorAll("[data-xlsx]").forEach((b) => (b.onclick = () => downloadExcel("pronostico", { mes: b.dataset.xlsx }, $("#h-msg"))));
+  view.innerHTML = `<div class="card"><h2>Pronósticos guardados</h2><p class="hint">Cada pronóstico queda con su fecha, los datos y los parámetros con que se hizo. Si generas de nuevo el mismo mes con la misma estrategia, el anterior se reemplaza. El acierto es por SKU / planta / total.</p>
+    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Mes</th><th>Estrategia</th><th>Generado el</th><th>Total (TO)</th><th>Parámetros</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div id="h-msg"></div></div>`;
+  view.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { [forecastState.mes, forecastState.estrategia] = b.dataset.view.split("|"); location.hash = "#/prediccion"; }));
+  view.querySelectorAll("[data-xlsx]").forEach((b) => (b.onclick = () => { const [mes, estrategia] = b.dataset.xlsx.split("|"); downloadExcel("pronostico", { mes, estrategia }, $("#h-msg")); }));
 }
 
 /* ---- Ayuda ------------------------------------------------------------------------------------------------------------------ */
@@ -103,16 +107,20 @@ const GLOSSARY = [
   ["Acierto", "100% menos el error total dividido por el consumo real. Si el real fue 100 TO y el pronóstico 90 TO, el acierto es 90%. Se mide por SKU, por planta y para el total."],
   ["Sesgo", "Si el pronóstico tiende a quedar por debajo (positivo) o por arriba (negativo) del real."],
   ["Modelo simple", "Repite el consumo del mes anterior. Sirve de referencia: el modelo debe ganarle."],
-  ["Mes parcial", "Un mes del que solo hay una parte de los días. No entra en los resúmenes y no se puede pronosticar el mes siguiente hasta que esté completo."],
+  ["Mes en curso (parcial)", "Un mes del que solo hay una parte de los días. No entra en los resúmenes de consumo, pero el pronóstico sí usa los días que lleva para pronosticar el mes siguiente."],
+  ["Estrategia de pronóstico", "La forma de calcular el pronóstico. Con el mes completo se pronostica el mes siguiente; a mitad de mes se usa el mes en curso para pronosticar el que sigue. Se elige en Ajustes."],
+  ["Día de corte", "Cuántos días del mes en curso conoce el pronóstico. La app lo toma del último registro de los datos. Desde el día 10 esos días mejoran el resultado."],
   ["Prueba histórica", "Cómo habría acertado el modelo en los últimos 12 meses, usando solo lo que se sabía en cada momento."],
-  ["Ajuste de hiperparámetros", "Buscar la mejor configuración interna de los modelos con los datos más nuevos. Se repite cada 6 meses."],
+  ["Hiperparámetros", "La configuración interna de los modelos. Reafinarlos es buscar la mejor con los datos más nuevos; se repite cada 6 meses. No es lo mismo que Ajustes, que elige la estrategia del pronóstico."],
 ];
 const FAQ = [
-  ["No me deja generar el pronóstico", "<p>Lo más probable es que el último mes de los datos esté incompleto. Entra a <b>Datos</b>, carga el exporte con el mes completo y vuelve a intentar. La pantalla Predicción dice el motivo exacto.</p>"],
+  ["No me deja generar el pronóstico", "<p>La pantalla Predicción dice el motivo. Lo más común es que no haya datos cargados, o que el día de corte guardado en <b>Ajustes</b> sea posterior al último registro de los datos (por ejemplo si cargaste un exporte más corto). Cámbialo en Ajustes o vuelve al corte automático.</p>"],
+  ["¿Qué mes está pronosticando la app?", "<p>Si el último mes de los datos está completo, el siguiente. Si el mes sigue en curso, el que viene después de ese: por ejemplo, con datos hasta mediados de octubre pronostica noviembre. La pantalla Predicción lo dice arriba, junto con la estrategia.</p>"],
   ["Cargué un archivo y dice que hay valores distintos", "<p>El exporte trae un número diferente para un día que ya estaba cargado. Eso pasa cuando SAP corrige un movimiento. Si el exporte nuevo es el correcto, elige <b>Usar los valores del exporte nuevo</b>. Los datos de antes quedan en un respaldo.</p>"],
   ["Me equivoqué al cargar datos", "<p>En <b>Datos</b> usa <b>Deshacer la última carga</b>: vuelve a los datos que había antes.</p>"],
+  ["¿Cómo se mide cada estrategia?", "<p>Un pronóstico se mide cuando cierra el mes que pronostica, contra el consumo real de ese mes. Si para el mismo mes hay uno hecho a mitad del mes anterior y otro hecho con el mes anterior completo, cada uno se mide por separado (Seguimiento tiene un botón para cada uno). La tabla de comparación promedia los meses medidos de cada estrategia y los pone junto a su prueba histórica de los últimos 12 meses. No son del todo comparables: el de mitad de mes ve menos información.</p>"],
   ["¿Puedo cambiar un pronóstico ya generado?", "<p>No se edita; se genera de nuevo. Al generar el mismo mes otra vez, la app pide confirmación y reemplaza el anterior.</p>"],
-  ["¿Para qué sirve la clave del ajuste?", "<p>Reafinar los modelos cambia los pronósticos futuros, y la clave evita hacerlo por accidente. Es una protección sencilla, no seguridad real: quien tenga acceso a los archivos de la app puede saltársela.</p>"],
+  ["¿Para qué sirve la clave de Hiperparámetros?", "<p>Reafinar los modelos cambia los pronósticos futuros, y la clave evita hacerlo por accidente. Es una protección sencilla, no seguridad real: quien tenga acceso a los archivos de la app puede saltársela.</p>"],
   ["Algunas plantas acertaron poco", "<p>Si una planta cambió de nivel de consumo de un mes a otro, el modelo tarda en seguirla. Aparece como aviso en Seguimiento. Conviene confirmar el cambio con quien maneja los datos.</p>"],
 ];
 
@@ -121,7 +129,7 @@ async function renderHelp(view) {
   view.innerHTML = `<div class="stack">
     <div class="card"><h2>Cada mes, en tres pasos</h2><div class="steps">
       <div class="step"><b>Cargar los datos</b><p>Cuando termina el mes, carga el exporte de SAP con los días nuevos.</p><button class="btn" data-go="datos">Ir a Datos</button></div>
-      <div class="step"><b>Generar el pronóstico</b><p>Genera el del mes siguiente. Tarda menos de un minuto.</p><button class="btn" data-go="prediccion">Ir a Predicción</button></div>
+      <div class="step"><b>Generar el pronóstico</b><p>Genera el que corresponde a los datos que hay (el mes siguiente, o el que sigue al mes en curso). Tarda menos de un minuto.</p><button class="btn" data-go="prediccion">Ir a Predicción</button></div>
       <div class="step"><b>Medir el acierto</b><p>Cuando cierra el mes pronosticado, mide qué tanto acertó.</p><button class="btn" data-go="seguimiento">Ir a Seguimiento</button></div></div></div>
     <div class="card"><h2>Qué significa cada palabra</h2><div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><tbody>${GLOSSARY.map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${esc(k)}</b></td><td style="white-space:normal">${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>
     <div class="card"><h2>Preguntas frecuentes</h2>${FAQ.map(([q, a]) => `<details class="faq"><summary>${esc(q)}</summary>${a}</details>`).join("")}</div>

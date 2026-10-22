@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 
 STATIC = Path(__file__).resolve().parent / "static"  # the screens (html, css, js, ECharts, logo) served by the API
+
+
+FORECAST_NAME = re.compile(r"^forecast_(\d{4}-\d{2})(?:_([a-z_]+))?$")
 
 
 @dataclass(frozen=True)
@@ -67,8 +71,22 @@ class AppPaths:
     def database(self) -> Path:
         return self.root / "data" / "detour.db"
 
-    def forecast_csv(self, month: str) -> Path:
-        return self.results / f"forecast_{month}.csv"
+    def forecast_csv(self, month: str, strategy: str = "h1") -> Path:
+        r"""`forecast_<month>.csv` for the one-month forecast, `forecast_<month>_<strategy>.csv` for the others (same names as the script)."""
+        return self.results / (f"forecast_{month}.csv" if strategy == "h1" else f"forecast_{month}_{strategy}.csv")
+
+    def forecast_files(self) -> list[tuple[str, str, Path]]:
+        r"""Saved forecasts as (target month, strategy, csv), newest month first and the one-month forecast first within a month."""
+        found = []
+        for csv in self.results.glob("forecast_*.csv"):
+            match = FORECAST_NAME.match(csv.stem)
+            if match:
+                found.append((match.group(1), match.group(2) or "h1", csv))
+        return sorted(found, key=lambda f: (f[0], f[1] == "h1", f[1]), reverse=True)
+
+    @property
+    def settings_json(self) -> Path:
+        return self.root / "config" / "ajustes_app.json"
 
     @property
     def adjustments_json(self) -> Path:

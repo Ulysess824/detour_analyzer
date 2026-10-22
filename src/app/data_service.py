@@ -42,7 +42,7 @@ TITLES = {
 ADVICE = {
     "duplicate": "Revisa el exporte: el mismo día aparece más de una vez.", "month_gap": "Falta un mes completo entre los datos; el modelo necesita meses seguidos.",
     "daily_peak": "Solo es un aviso: confirma que no sea un error de SAP.", "spike": "Solo es un aviso: confirma que no sea un error de SAP.",
-    "mes_parcial": "Se puede cargar, pero no se podrá pronosticar el mes siguiente hasta que llegue el mes completo.",
+    "mes_parcial": "Se puede cargar. El pronóstico usará los días que lleva ese mes (desde el día 10 mejoran el resultado); los resúmenes de consumo lo dejan fuera hasta que termine.",
 }
 
 

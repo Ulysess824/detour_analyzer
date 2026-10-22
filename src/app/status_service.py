@@ -8,7 +8,9 @@ from datetime import date
 import pandas as pd
 
 from src.app.paths import AppPaths
+from src.app.tracking_service import STRATEGY_ORDER, tracked_pairs
 from src.engine.db_utils import read_tracking_csv
+from src.evaluation.tracking_run import BACKTEST_RUN, is_backtest
 
 RETUNE_MONTHS = 6
 WARN_DAYS = 30
@@ -36,12 +38,11 @@ def retune_status(paths: AppPaths, today: date) -> dict:
 
 def last_forecast(paths: AppPaths) -> dict | None:
     r"""The newest `results/forecast_<month>.csv` with the figures of its manifest (when it has one)."""
-    files = sorted(paths.results.glob("forecast_????-??.csv"))
+    files = paths.forecast_files()
     if not files:
         return None
-    csv = files[-1]
-    month = csv.stem.removeprefix("forecast_")
-    out = {"mes": month, "archivo": csv.name, "creado_en": None, "total_ml_mean_TO": None, "series": None}
+    month, strategy, csv = files[0]
+    out = {"mes": month, "estrategia": strategy, "archivo": csv.name, "creado_en": None, "total_ml_mean_TO": None, "series": None}
     manifest = csv.with_suffix(".manifest.json")
     if manifest.exists():
         data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -68,15 +69,22 @@ def last_tracking(paths: AppPaths) -> dict | None:
     table = table[table["modelo"] == "ml_mean"]
     if table.empty:
         return None
-    real = table[table["run_id"] != "backtest-h1"]
-    source = real if len(real) else table
+    real = table[~table["run_id"].map(is_backtest)]
+    source = real if len(real) else table[table["run_id"] == BACKTEST_RUN]
+    if source.empty:
+        return None
     month = source["mes"].max()
     rows = source[source["mes"] == month]
+    strategies = sorted(set(rows["estrategia"]), key=lambda name: STRATEGY_ORDER.index(name) if name in STRATEGY_ORDER else 99)
+    strategy = "h1" if "h1" in strategies else strategies[0]  # the one-month forecast when the month has several
+    rows = rows[rows["estrategia"] == strategy]
+    rows = rows[rows["run_id"] == rows.loc[rows["creado_en"].idxmax(), "run_id"]]  # one run: the newest of the month and strategy
     pick = lambda level: rows[(rows["nivel"] == level) & (rows["planta"] == "")]
     score = lambda level: _percent(pick(level)["acierto"].iloc[0]) if len(pick(level)) else None
     alerts = sorted({code for cell in rows["alerta"].fillna("") for code in str(cell).split(";") if code})
     return {
         "mes": month,
+        "estrategia": strategy,
         "origen": "produccion" if len(real) else "backtest",
         "acierto_sku": score("sku"),
         "acierto_planta": score("planta"),
@@ -85,28 +93,26 @@ def last_tracking(paths: AppPaths) -> dict | None:
     }
 
 
-def pending_tracking(paths: AppPaths, last_complete_month: str | None, forecast: dict | None) -> str | None:
-    r"""The month of the saved forecast when it has already closed in the data but is not tracked yet."""
-    if forecast is None or last_complete_month is None or forecast["mes"] > last_complete_month:
-        return None
-    if paths.tracking_csv.exists():
-        done = read_tracking_csv(paths.tracking_csv)
-        if ((done["mes"] == forecast["mes"]) & (done["run_id"] != "backtest-h1")).any():
-            return None
-    return forecast["mes"]
+def pending_tracking(paths: AppPaths, last_complete_month: str | None) -> list[dict]:
+    r"""The saved forecasts (month and strategy) whose month has already closed in the data and that are not tracked yet, oldest first."""
+    if last_complete_month is None:
+        return []
+    done = tracked_pairs(paths)
+    return [{"mes": month, "estrategia": strategy} for month, strategy, _ in sorted(paths.forecast_files()) if month <= last_complete_month and (month, strategy) not in done]
 
 
-def app_status(paths: AppPaths, info: dict | None, today: date) -> dict:
-    r"""Everything the Inicio screen needs in one dictionary; `info` is `ConsumptionStore.info()` (None when there is no data yet)."""
+def app_status(paths: AppPaths, info: dict | None, today: date, plan: dict | None = None) -> dict:
+    r"""Everything the Inicio screen needs in one dictionary; `info` is `ConsumptionStore.info()` (None when there is no data yet), `plan` the strategy that would run now."""
     forecast = last_forecast(paths)
     complete = None
     if info is not None:
         complete = info["meses"][-2] if info["mes_parcial"] else info["meses"][-1]
     return {
         "datos": None if info is None else {**{k: v for k, v in info.items() if k != "meses"}, "ultimo_mes_completo": complete},
-        "proximo_pronostico": str(pd.Period(complete, freq="M") + 1) if complete else None,
+        "proximo_pronostico": (plan["mes_pronosticado"] if plan else None) or (str(pd.Period(complete, freq="M") + 1) if complete and not plan else None),
+        "plan": plan,
         "pronostico": forecast,
         "seguimiento": last_tracking(paths),
-        "seguimiento_pendiente": pending_tracking(paths, complete, forecast),
+        "seguimiento_pendiente": (pending_tracking(paths, complete) or [None])[0],
         "ajuste": {**retune_status(paths, today), "candidato": paths.tuning_candidate.exists()},
     }

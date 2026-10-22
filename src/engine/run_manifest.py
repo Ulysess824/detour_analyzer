@@ -93,6 +93,7 @@ def build_manifest(
     git: dict,
     validation: Report | None = None,
     rows_in_file: int | None = None,
+    strategy: dict | None = None,
 ) -> dict:
     r"""
     The manifest of one forecast run.
@@ -154,4 +155,5 @@ def build_manifest(
         "params": params,
         "environment": environment_info(),
         "output": output,
+        **({"strategy": strategy} if strategy is not None else {}),
     }

@@ -50,13 +50,15 @@ def _num(value) -> float | None:
     return None if value is None or (isinstance(value, float) and np.isnan(value)) else float(value)
 
 
-def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | None) -> tuple[str, bytes]:
+def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | None, strategy: str | None = None) -> tuple[str, bytes]:
     r"""The saved forecast of a month: a summary, the plantas and every SKU with the three models, their range and the last real month."""
     saved = forecast_service.list_forecasts(paths)
     if not saved:
         raise forecast_service.ForecastMissing("Todavía no hay pronósticos. Genera el de este mes.")
     month = month or saved[0]["mes"]
-    forecast = forecast_service.load_forecast(paths, month)
+    of_month = [f for f in saved if f["mes"] == month]
+    strategy = strategy or (of_month[0]["estrategia"] if of_month else "h1")
+    forecast = forecast_service.load_forecast(paths, month, strategy)
     last = forecast_service.reference_month(store, month)
     real = store.month_values(last)
     forecast["real_ultimo_TO"] = [real.get(key, 0.0) for key in zip(forecast["planta"], forecast["sku"])]
@@ -72,8 +74,8 @@ def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | Non
     by_planta["cambio"] = np.where(by_planta["real"] > 0, (by_planta["ml"] / by_planta["real"].where(by_planta["real"] > 0) - 1) * 100, np.nan)
     planta_sheet = by_planta.sort_values("ml", ascending=False).rename(columns={"planta": "Planta", "ml": "Pronóstico (TO)", "lgbm": "LightGBM (TO)", "xgb": "XGBoost (TO)", "rf": "Random Forest (TO)",
                                                                                 "real": f"Real {last} (TO)", "series": "Series", "cambio": "Cambio contra el último real (%)"})
-    manifest_file = paths.forecast_csv(month).with_suffix(".manifest.json")
-    info = {"Mes pronosticado": month, "Total pronosticado (TO)": round(float(forecast["ml_mean"].sum()), 1), "Series": int(len(forecast)), "Último mes real usado": last}
+    manifest_file = paths.forecast_csv(month, strategy).with_suffix(".manifest.json")
+    info = {"Mes pronosticado": month, "Estrategia": strategy, "Total pronosticado (TO)": round(float(forecast["ml_mean"].sum()), 1), "Series": int(len(forecast)), "Último mes real usado": last}
     if manifest_file.exists():
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         info["Generado el"] = manifest["run"]["created_at"][:19].replace("T", " ")
@@ -91,7 +93,7 @@ def forecast_workbook(paths: AppPaths, store: ConsumptionStore, month: str | Non
         {"Por planta": {c: NUMBER for c in planta_sheet.columns if "(TO)" in c} | {"Cambio contra el último real (%)": PERCENT},
          "Por SKU": {c: NUMBER for c in detail.columns if "(TO)" in c} | {"Cambio contra el último real (%)": PERCENT}},
     )
-    return f"pronostico_{month}.xlsx", blob
+    return f"pronostico_{month}.xlsx" if strategy == "h1" else f"pronostico_{month}_{strategy}.xlsx", blob
 
 
 def consumption_workbook(store: ConsumptionStore, planta: str | None, sku: str | None, level: str, since: str | None, until: str | None) -> tuple[str, bytes]:
@@ -116,16 +118,24 @@ def consumption_workbook(store: ConsumptionStore, planta: str | None, sku: str |
                                                   {"Total por mes": [f"El mes {monthly['resumen']['mes_parcial']} está incompleto." ] if monthly["resumen"]["mes_parcial"] else []})
 
 
-def tracking_workbook(paths: AppPaths, store: ConsumptionStore | None, month: str | None) -> tuple[str, bytes]:
-    r"""The tracking history and the detail of one month (models, plantas, alerts and the biggest misses)."""
+def tracking_workbook(paths: AppPaths, store: ConsumptionStore | None, month: str | None, strategy: str | None = None, origin: str | None = None) -> tuple[str, bytes]:
+    r"""The tracking history (every strategy) and the detail of one month and strategy (models, plantas, alerts and the biggest misses)."""
     history = tracking_service.history(paths, store)
-    rows = [{"Mes": r["mes"], "Origen": origin, "Acierto por SKU (%)": r["sku"], "Acierto por planta (%)": r["planta"], "Acierto del total (%)": r["total"], "Alertas": ", ".join(r["alertas"])}
-            for origin, key in (("Prueba histórica", "backtest"), ("Producción", "produccion")) for r in history[key]]
-    sheets = {"Historial": pd.DataFrame(rows).sort_values(["Mes", "Origen"]).reset_index(drop=True)}
-    detail = tracking_service.detail(paths, store, month)
+    rows = [{"Mes": r["mes"], "Origen": origin_name, "Estrategia": r["estrategia"], "Corte": r["corte"], "Acierto por SKU (%)": r["sku"], "Acierto por planta (%)": r["planta"],
+             "Acierto del total (%)": r["total"], "Alertas": ", ".join(r["alertas"])}
+            for origin_name, key in (("Prueba histórica", "backtest"), ("Producción", "produccion")) for r in history[key]]
+    sheets = {"Historial": pd.DataFrame(rows).sort_values(["Mes", "Origen", "Estrategia"]).reset_index(drop=True)}
+    comparison = [{"Estrategia": c["estrategia"], "Meses en producción": (c["produccion"] or {}).get("meses"), "SKU producción (%)": (c["produccion"] or {}).get("sku"),
+                   "Planta producción (%)": (c["produccion"] or {}).get("planta"), "Total producción (%)": (c["produccion"] or {}).get("total"),
+                   "Meses de prueba histórica": (c["prueba_historica"] or {}).get("meses"), "SKU prueba (%)": (c["prueba_historica"] or {}).get("sku"),
+                   "Planta prueba (%)": (c["prueba_historica"] or {}).get("planta"), "Total prueba (%)": (c["prueba_historica"] or {}).get("total")} for c in history["comparacion"]]
+    if comparison:
+        sheets["Comparación"] = pd.DataFrame(comparison)
+    detail = tracking_service.detail(paths, store, month, origin, strategy)
     sheets["Por modelo"] = pd.DataFrame([{"Modelo": m["modelo"], "SKU (%)": m["sku"], "Planta (%)": m["planta"], "Total (%)": m["total"], "Sesgo del total (%)": m["sesgo_total_pct"]} for m in detail["modelos"]])
     sheets["Por planta"] = pd.DataFrame([{"Planta": p["planta"], "Acierto (%)": p["acierto"], "Real (TO)": p["real_TO"], "Pronóstico (TO)": p["pronostico_TO"], "Sesgo (%)": p["sesgo_pct"]} for p in detail["plantas"]])
     if detail["errores"]:
         sheets["Mayores errores"] = pd.DataFrame([{"Planta": e["planta"], "SKU": e["sku"], "Real (TO)": e["real_TO"], "Pronóstico (TO)": e["pronostico_TO"], "Error (TO)": e["error_TO"]} for e in detail["errores"]])
     formats = {name: {c: PERCENT if "%" in c else NUMBER for c in frame.columns if "%" in c or "(TO)" in c} for name, frame in sheets.items()}
-    return f"seguimiento_{detail['mes']}.xlsx", _write(sheets, formats)
+    suffix = "" if detail["estrategia"] == "h1" else f"_{detail['estrategia']}"
+    return f"seguimiento_{detail['mes']}{suffix}.xlsx", _write(sheets, formats)

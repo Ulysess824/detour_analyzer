@@ -7,12 +7,12 @@ from typing import Callable, Literal
 
 from fastapi import Depends, FastAPI, Header, Query, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app import __version__, data_service, example_service, export_service, forecast_service, history_service, tracking_service, tuning_service
+from src.app import __version__, data_service, example_service, export_service, forecast_service, history_service, settings_service, tracking_service, tuning_service
 from src.app.forecast_service import ForecastMissing
 from src.app.jobs import Busy, JobRunner
 from src.app.paths import STATIC, AppPaths, default_paths
@@ -24,8 +24,15 @@ class GenerateBody(BaseModel):
     sobrescribir: bool = False
 
 
+class SettingsBody(BaseModel):
+    estrategia: str
+    corte_manual: StrictInt | None = None
+    metodo_resto: str | None = None
+
+
 class MeasureBody(BaseModel):
     mes: str
+    estrategia: str = "h1"
 
 
 class UnlockBody(BaseModel):
@@ -106,7 +113,7 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
             info = store.info()
         except DataMissing:
             info = None
-        return app_status(paths, info, today())
+        return app_status(paths, info, today(), settings_service.plan_summary(paths, store) if info else None)
 
     @app.get("/api/plantas")
     def plantas():
@@ -140,15 +147,27 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
         return {"pronosticos": forecast_service.list_forecasts(paths)}
 
     @app.get("/api/pronostico")
-    def forecast(mes: str | None = None, planta: str | None = None, sku: str | None = None, limite: int = Query(forecast_service.TABLE_LIMIT, ge=1, le=500)):
-        return forecast_service.forecast_detail(paths, store, mes, planta, sku, limite)
+    def forecast(mes: str | None = None, planta: str | None = None, sku: str | None = None, limite: int = Query(forecast_service.TABLE_LIMIT, ge=1, le=500),
+                 estrategia: str | None = None):
+        return forecast_service.forecast_detail(paths, store, mes, planta, sku, limite, estrategia)
 
     @app.post("/api/pronostico/generar")
     def generate(body: GenerateBody):
-        month = forecast_service.next_month(store)
-        if paths.forecast_csv(month).exists() and not body.sobrescribir:
-            return JSONResponse(status_code=409, content={"detalle": f"Ya existe el pronóstico de {month}.", "existe": True, "mes": month})
-        return {"trabajo": jobs.start("pronostico", lambda progress: forecast_service.generate(paths, store, progress)), "mes": month}
+        plan = forecast_service.plan_now(paths, store)
+        month = plan.target
+        if paths.forecast_csv(month, plan.strategy).exists() and not body.sobrescribir:
+            return JSONResponse(status_code=409, content={"detalle": f"Ya existe el pronóstico de {month}.", "existe": True, "mes": month, "estrategia": plan.strategy})
+        return {"trabajo": jobs.start("pronostico", lambda progress: forecast_service.generate(paths, store, progress)), "mes": month, "estrategia": plan.strategy,
+                "corte": plan.cutoff_day, "avisos": plan.notes}
+
+    @app.get("/api/ajustes")
+    def settings():
+        return settings_service.describe(paths, store)
+
+    @app.put("/api/ajustes")
+    def save_settings(body: SettingsBody):
+        settings_service.save(paths, body.estrategia, body.corte_manual, body.metodo_resto)
+        return settings_service.describe(paths, store)
 
     @app.get("/api/trabajos/activo")
     def active_job():
@@ -171,12 +190,12 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
             return tracking_service.history(paths, None)
 
     @app.get("/api/seguimiento/detalle")
-    def tracking_detail(mes: str | None = None, origen: Literal["produccion", "backtest"] | None = None):
-        return tracking_service.detail(paths, store if paths.consumption_csv.exists() else None, mes, origen)
+    def tracking_detail(mes: str | None = None, origen: Literal["produccion", "backtest"] | None = None, estrategia: str | None = None):
+        return tracking_service.detail(paths, store if paths.consumption_csv.exists() else None, mes, origen, estrategia)
 
     @app.post("/api/seguimiento/medir")
     def measure(body: MeasureBody):
-        return tracking_service.measure(paths, store, body.mes)
+        return tracking_service.measure(paths, store, body.mes, body.estrategia)
 
     # ---- hyperparameter retune ----------------------------------------------------------------------------------------------
 
@@ -264,16 +283,16 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
         return Response(content, media_type=export_service.XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.get("/api/descargas/pronostico")
-    def download_forecast(mes: str | None = None):
-        return workbook(export_service.forecast_workbook(paths, store, mes))
+    def download_forecast(mes: str | None = None, estrategia: str | None = None):
+        return workbook(export_service.forecast_workbook(paths, store, mes, estrategia))
 
     @app.get("/api/descargas/consumo")
     def download_consumption(planta: str | None = None, sku: str | None = None, nivel: Literal["mensual", "diario"] = "mensual", desde: str | None = None, hasta: str | None = None):
         return workbook(export_service.consumption_workbook(store, planta, sku, nivel, desde, hasta))
 
     @app.get("/api/descargas/seguimiento")
-    def download_tracking(mes: str | None = None):
-        return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes))
+    def download_tracking(mes: str | None = None, estrategia: str | None = None, origen: Literal["produccion", "backtest"] | None = None):
+        return workbook(export_service.tracking_workbook(paths, store if paths.consumption_csv.exists() else None, mes, estrategia, origen))
 
     @app.get("/api/acerca")
     def about():

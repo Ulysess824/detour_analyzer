@@ -13,9 +13,13 @@ import pytest
 from src.engine.db_utils import (
     connect, create_schema, load_tracking_csv, read_predictions, read_tracking_csv, replace_predictions, replace_tracking, upsert_run, write_consumption,
 )
+from src.engine.fingerprints import panel_fingerprint
 from src.engine.panel_utils import build_panel
+from src.evaluation.cache_utils import write_meta
+from src.evaluation.tracking_run import is_backtest, strategy_of, track_horizon_backtests, track_saved_forecast
 from src.evaluation.tracking_utils import (
-    THRESHOLDS, check_forecast_matches, check_month_closed, coverage_ok, find_alerts, forecast_coverage, month_scores, tracking_rows, write_tracking_csv,
+    THRESHOLDS, THRESHOLDS_TWO_MONTHS, check_forecast_matches, check_month_closed, coverage_ok, find_alerts, forecast_coverage, month_scores, thresholds_for, tracking_rows,
+    write_tracking_csv,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -176,7 +180,7 @@ def test_a_version_1_database_is_migrated_without_losing_predictions(tmp_path):
     for _ in range(2):  # a second call changes nothing
         create_schema(con)
     columns = [r[1] for r in con.execute("PRAGMA table_info(consumos_predichos)")]
-    assert "run_id" in columns and con.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert "run_id" in columns and con.execute("PRAGMA user_version").fetchone()[0] == 3
     assert con.execute("SELECT valor, run_id FROM consumos_predichos").fetchall() == [(4.5, None)]
     assert {"corridas", "seguimiento"} <= {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
@@ -241,3 +245,147 @@ def test_the_history_file_reads_infinite_values_as_empty(tmp_path):
         encoding="utf-8",
     )
     assert read_tracking_csv(path)[["acierto", "wape", "bias_pct"]].isna().all().all()
+
+
+# ---- the strategy of every tracked run ------------------------------------------------------------------------------------------
+
+
+V2_TRACKING = """
+CREATE TABLE corridas (run_id TEXT PRIMARY KEY, creado_en TEXT NOT NULL, mes_pronosticado TEXT, as_of TEXT, commit_git TEXT, huella_datos TEXT, params_hash TEXT,
+    csv_sha256 TEXT, total_ml_mean REAL);
+CREATE TABLE seguimiento (run_id TEXT NOT NULL, mes TEXT NOT NULL, nivel TEXT NOT NULL, planta TEXT NOT NULL DEFAULT '', modelo TEXT NOT NULL, acierto REAL, wape REAL,
+    bias_pct REAL, n INTEGER, real_TO REAL, pronostico_TO REAL, alerta TEXT NOT NULL DEFAULT '', creado_en TEXT NOT NULL, PRIMARY KEY (run_id, mes, nivel, planta, modelo)) WITHOUT ROWID;
+INSERT INTO corridas VALUES ('r1', '2026-01-01 00:00:00', '2025-07', NULL, 'abc', 'fp', 'ph', 'sha', 1.5);
+INSERT INTO seguimiento VALUES ('r1', '2025-07', 'total', '', 'ml_mean', 0.9, 0.1, 1.0, 1, 10.0, 9.0, '', '2026-01-01 00:00:00');
+PRAGMA user_version = 2;
+"""
+
+
+def test_a_version_2_database_gets_the_strategy_columns_and_keeps_its_rows(tmp_path):
+    path = tmp_path / "v2.db"
+    old = sqlite3.connect(path)
+    old.executescript(V2_TRACKING)
+    old.commit()
+    old.close()
+    con = connect(path)
+    for _ in range(2):
+        create_schema(con)
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert con.execute("SELECT run_id, estrategia, corte FROM seguimiento").fetchall() == [("r1", "h1", None)]  # the old runs were the one-month forecast
+    assert con.execute("SELECT run_id, total_ml_mean, estrategia, corte FROM corridas").fetchall() == [("r1", 1.5, None, None)]
+    upsert_run(con, {"run": {"run_id": "r2", "created_at": "2026-02-01 00:00:00", "forecast_month": "2025-08"}, "strategy": {"used": "parcial", "cutoff_day": 15}})
+    assert con.execute("SELECT estrategia, corte FROM corridas WHERE run_id = 'r2'").fetchone() == ("parcial", 15)
+    upsert_run(con, {"run": {"run_id": "r3", "created_at": "2026-02-01 00:00:00"}})  # a manifest from before the strategies
+    assert con.execute("SELECT estrategia FROM corridas WHERE run_id = 'r3'").fetchone() == ("h1",)
+
+
+def test_rows_without_the_strategy_columns_are_stored_as_the_one_month_forecast(tmp_path):
+    scores = month_scores(build_panel(consumption()), forecast(), "2024-02")
+    rows = tracking_rows("r", scores, find_alerts(scores)).drop(columns=["estrategia", "corte"])  # what a caller from before the strategies passes
+    con = connect()
+    create_schema(con)
+    assert replace_tracking(con, rows) == len(rows)
+    assert {r[0] for r in con.execute("SELECT estrategia FROM seguimiento")} == {"h1"}
+
+
+def test_tracking_rows_carry_the_strategy_and_the_cutoff():
+    scores = month_scores(build_panel(consumption()), forecast(), "2024-02")
+    rows = tracking_rows("r", scores, find_alerts(scores), strategy="parcial", cutoff=15)
+    assert set(rows["estrategia"]) == {"parcial"} and set(rows["corte"]) == {15}
+    assert list(rows.columns)[-2:] == ["estrategia", "corte"]
+    assert set(tracking_rows("r", scores, find_alerts(scores))["estrategia"]) == {"h1"}
+
+
+def test_an_old_history_file_is_read_as_the_one_month_forecast(tmp_path):
+    path = tmp_path / "old.csv"
+    pd.DataFrame({"run_id": ["r"], "mes": ["2025-07"], "nivel": ["total"], "planta": [""], "modelo": ["ml_mean"], "acierto": [0.9], "wape": [0.1], "bias_pct": [1.0], "n": [1],
+                  "real_TO": [10.0], "pronostico_TO": [9.0], "alerta": [""], "creado_en": ["2026-01-01 00:00:00"]}).to_csv(path, index=False)
+    table = read_tracking_csv(path)
+    assert set(table["estrategia"]) == {"h1"} and table["corte"].isna().all()
+    scores = month_scores(build_panel(consumption()), forecast(), "2024-02")
+    write_tracking_csv(path, tracking_rows("r2", scores, find_alerts(scores), strategy="directa"))  # adding rows of another strategy keeps the old ones
+    both = read_tracking_csv(path)
+    assert set(both.loc[both["run_id"] == "r", "estrategia"]) == {"h1"} and set(both.loc[both["run_id"] == "r2", "estrategia"]) == {"directa"}
+
+
+def test_the_strategy_of_a_saved_forecast_comes_from_the_manifest_then_the_name_then_the_default():
+    assert strategy_of("results/forecast_2026-11_parcial.csv", {"strategy": {"used": "nowcast_media", "cutoff_day": 12}}) == ("nowcast_media", 12)
+    assert strategy_of("results/forecast_2026-11_parcial.csv", {"run": {}}) == ("parcial", None)
+    assert strategy_of("results/forecast_2026-11_nowcast_media.csv", None) == ("nowcast_media", None)
+    assert strategy_of("results/forecast_2026-11.csv", None) == ("h1", None)
+    assert strategy_of("other.csv", {}) == ("h1", None)
+
+
+def test_the_two_month_strategies_have_their_own_alert_thresholds():
+    assert thresholds_for("h1") == THRESHOLDS and all(thresholds_for(s) == THRESHOLDS_TWO_MONTHS for s in ("directa", "parcial", "nowcast_media", "iterada"))
+    assert all(THRESHOLDS_TWO_MONTHS[k] < THRESHOLDS[k] for k in ("sku", "planta", "total"))
+    scores = pd.DataFrame([
+        {"mes": "2025-07", "nivel": "sku", "planta": "", "modelo": "ml_mean", "acierto": 0.62}, {"mes": "2025-07", "nivel": "sku", "planta": "", "modelo": "naive", "acierto": 0.55},
+        {"mes": "2025-07", "nivel": "planta", "planta": "", "modelo": "ml_mean", "acierto": 0.9}, {"mes": "2025-07", "nivel": "total", "planta": "", "modelo": "ml_mean", "acierto": 0.95},
+    ])
+    assert list(find_alerts(scores, thresholds_for("h1"))["codigo"]) == ["sku_bajo"]  # 62% is under the one-month threshold of 64%
+    assert find_alerts(scores, thresholds_for("parcial")).empty  # and above the two-month one of 60%
+
+
+def test_a_saved_forecast_is_tracked_with_its_strategy_and_its_thresholds(tmp_path):
+    df = pd.concat([consumption(), pd.DataFrame({"planta": ["A"], "sku": ["s1"], "fecha": [pd.Timestamp("2024-02-29")], "consumo": [0.0]})], ignore_index=True)  # February ends
+    S = build_panel(df)
+    csv = tmp_path / "forecast_2024-02_parcial.csv"
+    forecast().to_csv(csv, index=False)
+    run = track_saved_forecast(csv, df, S)
+    assert (run.strategy, run.cutoff) == ("parcial", None) and set(run.rows["estrategia"]) == {"parcial"}
+    (tmp_path / "forecast_2024-02_parcial.manifest.json").write_text(json.dumps({"run": {"run_id": "r9", "forecast_month": "2024-02"}, "strategy": {"used": "parcial", "cutoff_day": 14}}))
+    run = track_saved_forecast(csv, df, S)
+    assert (run.run_id, run.strategy, run.cutoff) == ("r9", "parcial", 14) and set(run.rows["corte"]) == {14} and run.manifest["strategy"]["cutoff_day"] == 14
+
+
+def test_the_backtest_runs_are_told_apart_from_the_real_ones():
+    assert is_backtest("backtest-h1") and is_backtest("backtest-parcial") and not is_backtest("20261022T101010Z-abc123") and not is_backtest("sin-manifiesto-ab12")
+
+
+def _horizon_cache(S, tmp_path, cutoff=15):
+    r"""A two-month cache for the toy panel: three months, every series alive at the month two before."""
+    n = S.monthly.shape[1]
+    rows = []
+    for t in (n - 3, n - 2, n - 1):
+        for series in range(len(S.keys)):
+            y = float(np.nan_to_num(S.monthly[series, t]))
+            rows.append({"series": series, "o": t - 2, "t": t, "planta_code": int(S.planta_code[series]), "y": S.monthly[series, t], "p_direct_lgbm": y * 1.1 + 1, "p_direct_xgb": y * 0.9, "p_direct_rf": y,
+                         "p_direct": y, "p_partial": y * 1.05 + 0.5, "p_iterated": y * 0.8, "p_naive": y * 1.3})
+    path = tmp_path / "horizon_strategies.csv"
+    pd.DataFrame(rows).to_csv(path, index=False)
+    write_meta(path, {"data": panel_fingerprint(S), "n_series": len(S.keys), "horizon": 2, "cutoff_day": cutoff})
+    return path
+
+
+def test_the_two_month_backtests_are_scored_for_each_strategy(toy_panel, tmp_path):
+    S = toy_panel
+    path = _horizon_cache(S, tmp_path)
+    runs = track_horizon_backtests(S, path, repo_dir=tmp_path)
+    assert {r.run_id for r in runs} == {"backtest-directa", "backtest-parcial", "backtest-iterada"} and len(runs) == 9  # three months each
+    by = {(r.run_id, r.month): r for r in runs}
+    month = S.labels[S.monthly.shape[1] - 1]
+    direct = by[("backtest-directa", month)]
+    assert direct.strategy == "directa" and direct.cutoff is None and set(direct.rows["modelo"]) == {"ml_mean", "naive", "lgbm", "xgb", "rf", "-"}
+    partial = by[("backtest-parcial", month)]
+    assert partial.cutoff == 15 and set(partial.rows["corte"]) == {15} and set(partial.rows["modelo"]) == {"ml_mean", "naive", "-"}
+    assert by[("backtest-iterada", month)].manifest["strategy"] == {"used": "iterada", "cutoff_day": None}
+    sku = lambda run: float(run.scores[(run.scores["nivel"] == "sku") & (run.scores["modelo"] == "ml_mean")]["acierto"].iloc[0])  # noqa: E731
+    assert sku(direct) == pytest.approx(1.0) and sku(by[("backtest-iterada", month)]) < sku(direct)  # the cache holds y for direct and 80% of it for iterated
+    write_meta(path, {"data": "other", "n_series": len(S.keys), "horizon": 2, "cutoff_day": 15})
+    with pytest.raises(SystemExit):
+        track_horizon_backtests(S, path)
+    write_meta(path, {"data": panel_fingerprint(S), "n_series": len(S.keys), "horizon": 1})
+    with pytest.raises(SystemExit):  # the one-month cache is not a two-month one
+        track_horizon_backtests(S, path)
+
+
+def test_the_alert_thresholds_follow_the_strategy_of_the_saved_forecast(tmp_path):
+    df = pd.concat([consumption(), pd.DataFrame({"planta": ["A"], "sku": ["s1"], "fecha": [pd.Timestamp("2024-02-29")], "consumo": [0.0]})], ignore_index=True)
+    S = build_panel(df)
+    weak = forecast().assign(**{m: [0.62 * 12, 0.62 * 18, 0.62 * 30] for m in ("lgbm", "xgb", "rf", "ml_mean")})  # 62% accuracy at SKU level
+    codes = {}
+    for name in ("forecast_2024-02.csv", "forecast_2024-02_parcial.csv"):
+        weak.to_csv(tmp_path / name, index=False)
+        codes[name] = set(track_saved_forecast(tmp_path / name, df, S).alerts["codigo"])
+    assert "sku_bajo" in codes["forecast_2024-02.csv"] and "sku_bajo" not in codes["forecast_2024-02_parcial.csv"]  # 62% is under 64% and over 60%
