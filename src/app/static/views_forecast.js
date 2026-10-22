@@ -161,10 +161,11 @@ function forecastHtml(d) {
 function currentMonthHtml(m, card) {
   const closed = m.real_completo_TO !== null && m.real_completo_TO !== undefined;
   return `<div class="card"><h2>El mes en curso: ${monthLong(m.mes)}</h2>
-    <p class="hint" style="margin-top:6px">Esto es lo que el pronóstico sabía de ${monthLong(m.mes)} al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos y ${fmt(m.dias_restantes, 0)} por venir. Los días que faltan se estiman con la media diaria de los vistos; es una estimación, no un dato.</p>
+    <p class="hint" style="margin-top:6px">Esto es lo que el pronóstico sabía de ${monthLong(m.mes)} al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos y ${fmt(m.dias_restantes, 0)} por venir. Los días que faltan se estiman ${m.metodo === "montecarlo" ? "con una simulación Monte Carlo de la historia y los días vistos" : "con la media diaria de los vistos"}; es una estimación, no un dato.
+      ${m.metodo_fijo ? "Este pronóstico se hizo con la media, así que se muestra con la media." : `Con ${m.otro_metodo.metodo === "montecarlo" ? "la simulación Monte Carlo" : "la media diaria"} el mes completo sería ${fmt(m.otro_metodo.total_estimado_TO, 0)} TO. Se cambia en Ajustes.`}</p>
     <div class="grid cols-3" style="margin-top:14px">
       ${card(`Real hasta el día ${m.corte}`, `${fmt(m.real_hasta_corte_TO, 0)}<small>TO</small>`, "Consumo ya ocurrido.")}
-      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, "Media diaria de los días vistos por los días que faltan.")}
+      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, m.metodo === "montecarlo" ? "Promedio de 200 escenarios simulados de los días que faltan." : "Media diaria de los días vistos por los días que faltan.")}
       ${card("Mes completo, estimado", `${fmt(m.total_estimado_TO, 0)}<small>TO</small>`, closed ? `El mes ya cerró: el real fue ${fmt(m.real_completo_TO, 0)} TO.` : "Real hasta el corte más el resto estimado.")}
     </div></div>`;
 }

@@ -173,7 +173,7 @@ Plan y decisiones en `docs/plan_prueba_nowcasting.md`. La app pasa de pronostica
 pronostica el mes siguiente, y con el mes en curso (mitad de mes) pronostica el que sigue a ese, con la estrategia elegida en la sección nueva **Ajustes** (automática por defecto: `parcial`
 desde el día 10 del mes en curso). El día de corte se detecta del último registro y se puede fijar a mano. Cambios: `settings_service.py` y `config/ajustes_app.json`; `/api/ajustes`;
 `forecast_service` (tarjeta "El mes en curso", referencia al último mes completo, archivos `forecast_<mes>_<estrategia>.csv`); seguimiento por (mes, estrategia) con comparación de estrategias y
-pruebas históricas de `directa`, `parcial` e `iterada`; la sección que reentrena los modelos pasa a llamarse **Hiperparámetros**. Verificado con pruebas, mutaciones, capturas de Chromium sin
+pruebas históricas de `directa`, `parcial` e `iterada`; el método para estimar el resto del mes en curso (media o Monte Carlo, ajuste `metodo_resto`); la sección que reentrena los modelos pasa a llamarse **Hiperparámetros**. Verificado con pruebas, mutaciones, capturas de Chromium sin
 ventana y datos reales; la ventana real (WebView2) solo se puede probar en Windows.
 
 ## Contraseña

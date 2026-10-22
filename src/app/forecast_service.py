@@ -14,6 +14,7 @@ from src.app.consumption_service import ConsumptionStore
 from src.app.paths import AppPaths
 from src.engine.month_in_progress import complete_calendar, forecast_media, seen_days
 from src.engine.prediction_run import run_prediction
+from src.experiments.montecarlo_utils import simulate_rest_of_month
 
 MODELS = ["lgbm", "xgb", "rf"]
 TABLE_LIMIT = 50
@@ -99,7 +100,8 @@ def forecast_detail(paths: AppPaths, store: ConsumptionStore, month: str | None,
         table = {"tipo": "sku", "filas": rows, "total_filas": len(top)}
 
     return {
-        "mes_en_curso": month_in_progress(store, month, strategy, next(f["corte"] for f in saved if f["mes"] == month and f["estrategia"] == strategy), index),
+        "mes_en_curso": month_in_progress(store, month, strategy, next(f["corte"] for f in saved if f["mes"] == month and f["estrategia"] == strategy), index,
+                                         settings_service.load(paths)["metodo_resto"]),
         "mes": month,
         "estrategia": strategy,
         "disponibles": list(dict.fromkeys(f["mes"] for f in saved)),
@@ -126,10 +128,15 @@ def _open_before(store: ConsumptionStore, month: str, reference: str) -> str | N
     return before if before != reference and before in store.panel.labels else None
 
 
-def month_in_progress(store: ConsumptionStore, month: str, strategy: str, cutoff: int | None, index: np.ndarray) -> dict | None:
+REST_DRAWS = 200  # scenarios of the Monte Carlo estimate (the benchmark used 200 too)
+
+
+def month_in_progress(store: ConsumptionStore, month: str, strategy: str, cutoff: int | None, index: np.ndarray, method: str = "media") -> dict | None:
     r"""
-    What the month in progress looked like when a forecast that uses it was made: the real first days, the rest estimated with the mean of the days
-    seen (the nowcast) and the total of both, for the series chosen. None for strategies that do not use the month in progress.
+    What the month in progress looked like when a forecast that uses it was made: the real first days, the rest estimated and the total of both, for the
+    series chosen. `method` is `media` (the mean of the days seen) or `montecarlo` (mean of simulated scenarios from the history and the days seen); the
+    strategy `nowcast_media` always shows the mean, because that is what its forecast used. The other method's total is returned to compare. None for
+    strategies that do not use the month in progress.
     """
     if strategy not in ("parcial", "nowcast_media") or cutoff is None:
         return None
@@ -141,11 +148,19 @@ def month_in_progress(store: ConsumptionStore, month: str, strategy: str, cutoff
     start = int(S.month_first_date[position])
     days, left = seen_days(S, position, cutoff, index)
     first = float(S.daily[index, start : start + cutoff].sum(dtype=float))
-    rest = float(forecast_media(days, left).sum())
+    rests = {"media": float(forecast_media(days, left).sum())}
+    if len(index):
+        rests["montecarlo"] = float(simulate_rest_of_month(S, position, cutoff, REST_DRAWS, 0)[:, index].mean(axis=0).sum())
+    else:
+        rests["montecarlo"] = 0.0
+    fixed = strategy == "nowcast_media"
+    used = "media" if fixed or method not in rests else method
+    other = "montecarlo" if used == "media" else "media"
     closed = store.is_closed(target)
     real_total = float(np.nansum(S.monthly[index, position])) if closed else None
-    return {"mes": target, "corte": cutoff, "dias_vistos": int(days.shape[1]), "dias_restantes": left, "real_hasta_corte_TO": _number(first), "resto_estimado_TO": _number(rest),
-            "total_estimado_TO": _number(first + rest), "real_completo_TO": _number(real_total) if real_total is not None else None}
+    return {"mes": target, "corte": cutoff, "dias_vistos": int(days.shape[1]), "dias_restantes": left, "real_hasta_corte_TO": _number(first), "resto_estimado_TO": _number(rests[used]),
+            "total_estimado_TO": _number(first + rests[used]), "real_completo_TO": _number(real_total) if real_total is not None else None, "metodo": used, "metodo_fijo": fixed,
+            "otro_metodo": {"metodo": other, "resto_estimado_TO": _number(rests[other]), "total_estimado_TO": _number(first + rests[other])}}
 
 
 def reference_month(store: ConsumptionStore, month: str) -> str:

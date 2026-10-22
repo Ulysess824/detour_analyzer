@@ -20,15 +20,15 @@ def _in_progress(root, last="2025-05-20"):
 
 def test_the_screen_loads_without_data_and_without_a_saved_file(tmp_path):
     body = make_client(tmp_path).get("/api/ajustes").json()
-    assert body["ajustes"] == {"estrategia": "automatica", "corte_manual": None} and body["estado"] is None and body["plan"] is None
+    assert body["ajustes"] == {"estrategia": "automatica", "corte_manual": None, "metodo_resto": "media"} and body["estado"] is None and body["plan"] is None
     assert [o["id"] for o in body["opciones"]][0] == "automatica" and body["corte_minimo"] == 10 and len(body["curva_parcial"]) == 10
 
 
 def test_settings_are_saved_and_come_back(tmp_path):
     client = _in_progress(tmp_path)
     saved = client.put("/api/ajustes", json={"estrategia": "nowcast_media", "corte_manual": 12})
-    assert saved.status_code == 200 and saved.json()["ajustes"] == {"estrategia": "nowcast_media", "corte_manual": 12}
-    assert json.loads((tmp_path / "config" / "ajustes_app.json").read_text()) == {"estrategia": "nowcast_media", "corte_manual": 12}
+    assert saved.status_code == 200 and saved.json()["ajustes"] == {"estrategia": "nowcast_media", "corte_manual": 12, "metodo_resto": "media"}
+    assert json.loads((tmp_path / "config" / "ajustes_app.json").read_text()) == {"estrategia": "nowcast_media", "corte_manual": 12, "metodo_resto": "media"}
     assert make_client(tmp_path).get("/api/ajustes").json()["ajustes"]["estrategia"] == "nowcast_media"  # a new app reads the file
 
 
@@ -44,7 +44,7 @@ def test_a_damaged_settings_file_falls_back_to_the_defaults(tmp_path):
     for text in ("{ not json", '{"estrategia": "otra"}', "[]", '{"estrategia": "h1", "corte_manual": "x"}'):
         (tmp_path / "config").mkdir(exist_ok=True)
         (tmp_path / "config" / "ajustes_app.json").write_text(text)
-        assert settings_service.load(AppPaths(tmp_path)) == {"estrategia": "automatica", "corte_manual": None}
+        assert settings_service.load(AppPaths(tmp_path)) == {"estrategia": "automatica", "corte_manual": None, "metodo_resto": "media"}
 
 
 def test_the_plan_follows_the_state_of_the_data(tmp_path):
@@ -100,7 +100,7 @@ def test_validate_rejects_booleans_and_non_integers_directly():
     for bad in (True, 1.5, "12"):
         with pytest.raises(ValueError, match="entero"):
             settings_service.validate("h1", bad)
-    assert settings_service.validate("h1", 12) == {"estrategia": "h1", "corte_manual": 12}
+    assert settings_service.validate("h1", 12) == {"estrategia": "h1", "corte_manual": 12, "metodo_resto": "media"}
 
 
 def test_every_strategy_of_a_closed_month_is_offered_to_measure_until_it_is_measured(tmp_path):

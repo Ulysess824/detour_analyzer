@@ -9,7 +9,7 @@ Forecast del consumo por planta y SKU a partir de exportes de SAP. El objetivo e
 |---|---|---|
 | **v1** | rama `v1` (commit `4150a26`) | Pronóstico mensual por SKU, planta y total con el ensamble de LightGBM, XGBoost y Random Forest (`ml_mean`), comparación con el planificador y con el modelo interno, pronóstico a dos meses, dashboard (Streamlit, retirado en la fase 0 de la app de escritorio) y Excel |
 | **v2** | `main` (commit `13c870a`) | Todo lo de la v1 más el nowcasting del mes en curso como experimento (media, mediana y Monte Carlo), la carpeta `bibliografia/` y la app de escritorio (`detour.exe`, pronóstico a un mes) |
-| **v3** | rama `prueba_nowcasting` (todavía no está en `main`) | Todo lo de la v2 más las estrategias a mitad de mes en producción (directa, directa + días del mes en curso, mes en curso completado con la media e iterada), detección automática del mes en curso y del día de corte, la sección Ajustes de la app y el seguimiento por estrategia |
+| **v3** | rama `prueba_nowcasting` (todavía no está en `main`) | Todo lo de la v2 más las estrategias a mitad de mes en producción (directa, directa + días del mes en curso, mes en curso completado con la media e iterada), detección automática del mes en curso y del día de corte, la sección Ajustes de la app (con el método para estimar el resto del mes en curso: media o Monte Carlo) y el seguimiento por estrategia |
 
 La v2 no cambió ningún modelo ni resultado de la v1: añadió el nowcasting experimental, la bibliografía y la app. La v3 no cambia el pronóstico a un mes (el de octubre
 de 2026 sale idéntico byte a byte); añade lo que se hace cuando el último mes todavía no terminó. Para recuperar la v1: `git checkout v1`
@@ -511,7 +511,7 @@ consumo en la ventana.
 
 - Rama `prueba_nowcasting`: el pronóstico de producción a mitad de mes (directa, directa + mes en curso, mes completado con la media e iterada), la sección Ajustes y el
   seguimiento por estrategia están hechos (ver "Estrategias a mitad de mes") pero la rama todavía no se fusionó a `main`. Quedan: una prueba histórica de la estrategia del
-  mes completado con la media (no tiene), el Monte Carlo para el resto del mes (opcional, no se construyó) y la validación del corte en los SKU grandes de SCAN, donde los
+  mes completado con la media (no tiene) y la validación del corte en los SKU grandes de SCAN, donde los
   primeros días del mes no mejoraron a la directa.
 - Evaluación con un rango de meses como test: hoy la prueba es un origen móvil a un mes (cada mes de prueba se pronostica con los
   datos hasta el mes anterior, reentrenando cada vez; 12 pruebas de octubre de 2025 a septiembre de 2026). Se mantiene esa metodología.
@@ -757,7 +757,10 @@ El acierto sube con el día de corte y no tiene saltos. Desde el día 10 el mes 
 automática usa `parcial` desde ahí. Con el corte en el día 25 o 28 el resultado se acerca al de pronosticar con el mes anterior completo.
 
 **Mes en curso.** Los días que faltan de ese mes se estiman con la media diaria de los días hábiles vistos (la decisión de la sección "Nowcasting del mes en curso"). La pantalla
-Predicción lo muestra como una estimación: el real hasta el corte, el resto estimado y el mes completo estimado. Esa estimación no se mide contra el real.
+Predicción lo muestra como una estimación: el real hasta el corte, el resto estimado y el mes completo estimado. Esa estimación no se mide contra el real. En Ajustes se puede cambiar el método a una **simulación Monte Carlo** (200 escenarios de los días que faltan, con lo aprendido de los 365 días
+anteriores y de los días vistos): en los 12 meses de prueba, sobre los días que faltan, acierta 60,0% por SKU, 85,0% por planta y 90,9% en el total, contra 59,8%, 84,6% y 92,2% de la media; falla menos
+que la media en los meses atípicos (enero y abril de 2026) y más cuando el consumo baja. Solo cambia la estimación que se muestra del mes en curso (y el punto del gráfico): el pronóstico no cambia, y
+la estrategia `nowcast_media` siempre se muestra con la media porque así se hizo su pronóstico. La tarjeta muestra también el total del mes con el otro método.
 
 **Cuidados.**
 

@@ -19,7 +19,7 @@ async function renderSettings(view) {
 }
 
 const optionName = (id) => (STRATEGY_NAMES[id] || id);
-const sameSettings = (a, b) => a.estrategia === b.estrategia && a.corte_manual === b.corte_manual;
+const sameSettings = (a, b) => a.estrategia === b.estrategia && a.corte_manual === b.corte_manual && a.metodo_resto === b.metodo_resto;
 
 function accuracyChips(a) {
   if (!a) return "";
@@ -80,6 +80,13 @@ function cutoffCard(d, draft) {
     ${low && !bad ? `<p class="note">Bajo el día ${d.corte_minimo} el mes en curso aporta poco: con la estrategia automática se usa la directa en ese caso.</p>` : ""}</div>`;
 }
 
+function restMethodCard(d, draft) {
+  const rows = d.metodos_resto.map((m) => `<label><input type="radio" name="s-met" value="${m.id}" ${draft.metodo_resto === m.id ? "checked" : ""}><b>${esc(m.nombre)}</b> ${m.recomendada ? '<span class="badge ok">Recomendada</span>' : ""}
+      <small>${esc(m.texto)}</small>${accuracyChips(m.acierto)}</label>`).join("");
+  return `<div class="card"><h2>Cómo se estima el resto del mes en curso</h2><p class="hint" style="margin-top:6px">Lo que falta del mes en curso, que se suma al consumo real hasta el corte en la tarjeta "El mes en curso" de Predicción. El acierto es el de los últimos 12 meses sobre
+    los días que faltan, por SKU, planta y total. Solo cambia esa estimación: el pronóstico no cambia, y la estrategia «Mes en curso completado con la media» sigue usando la media porque así se probó.</p><div class="choice" id="s-methods">${rows}</div></div>`;
+}
+
 function curveOption(d) {
   const days = d.curva_parcial.map((r) => String(r.dia));
   const option = baseOption(days, (v) => `día ${v}`);
@@ -116,15 +123,16 @@ function paintSettings() {
   const max = st && st.dia_de_corte ? st.dia_de_corte : 31;
   const invalid = draft.corte_manual !== null && !(Number.isInteger(draft.corte_manual) && draft.corte_manual >= 1 && draft.corte_manual <= max);
   disposeCharts();
-  $("#view").innerHTML = `<div class="stack">${settingsStateCard(d)}${strategyCard(d, draft)}${cutoffCard(d, draft)}
+  $("#view").innerHTML = `<div class="stack">${settingsStateCard(d)}${strategyCard(d, draft)}${cutoffCard(d, draft)}${restMethodCard(d, draft)}
     <div class="card"><div class="toolbar"><div><h2>Cuánto mejora el pronóstico según el día de corte</h2><p class="hint">Acierto de «Dos meses, directa y días del mes en curso» según los días del mes en curso que se conocen. Pruebas de los últimos 12 meses.
       Las líneas punteadas son la directa (sin el mes en curso) y el pronóstico con un mes de anticipación.</p></div><button class="btn" data-png="acierto_por_dia_de_corte">Imagen (PNG)</button></div><div class="chart" id="s-chart"></div></div>
     <div class="card gen"><div><h2>Guardar los ajustes</h2><p>${dirty ? "Hay cambios sin guardar." : "Los ajustes están guardados."} El próximo pronóstico que generes usa lo que está guardado.</p></div>
-      <button class="btn primary" id="s-save" ${!dirty || invalid ? "disabled" : ""}>Guardar</button><button class="btn" id="s-reset" ${saved.estrategia === "automatica" && saved.corte_manual === null && !dirty ? "disabled" : ""}>Volver a automático</button>
+      <button class="btn primary" id="s-save" ${!dirty || invalid ? "disabled" : ""}>Guardar</button><button class="btn" id="s-reset" ${saved.estrategia === "automatica" && saved.corte_manual === null && saved.metodo_resto === "media" && !dirty ? "disabled" : ""}>Volver a automático</button>
       <div class="grow" id="s-msg">${settingsState.message}</div></div></div>`;
   mountChart($("#s-chart"), curveOption(d));
 
   $("#s-options").onchange = (event) => { if (event.target.name === "s-est") { draft.estrategia = event.target.value; paintSettings(); } };
+  $("#s-methods").onchange = (event) => { if (event.target.name === "s-met") { draft.metodo_resto = event.target.value; paintSettings(); } };
   const mode = $("#s-mode");
   mode.onclick = (event) => {
     const button = event.target.closest("button");
@@ -134,7 +142,7 @@ function paintSettings() {
   };
   $("#s-cut").onchange = (event) => { draft.corte_manual = event.target.value === "" ? NaN : Number(event.target.value); paintSettings(); };
   $("#s-save").onclick = () => saveSettings(draft);
-  $("#s-reset").onclick = () => saveSettings({ estrategia: "automatica", corte_manual: null });
+  $("#s-reset").onclick = () => saveSettings({ estrategia: "automatica", corte_manual: null, metodo_resto: "media" });
 }
 
 async function saveSettings(values) {

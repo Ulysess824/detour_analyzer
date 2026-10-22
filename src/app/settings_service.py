@@ -8,7 +8,13 @@ from src.app.consumption_service import ConsumptionStore
 from src.app.paths import AppPaths
 from src.engine.month_state import MIN_CUTOFF_DAY, STRATEGIES, MonthState, StrategyPlan, detect_month_state, resolve_strategy
 
-DEFAULTS = {"estrategia": "automatica", "corte_manual": None}
+DEFAULTS = {"estrategia": "automatica", "corte_manual": None, "metodo_resto": "media"}
+REST_METHODS = [
+    {"id": "media", "nombre": "Media diaria", "recomendada": True, "acierto": {"sku": 59.8, "planta": 84.6, "total": 92.2},
+     "texto": "Cada día hábil que falta vale la media diaria de los días ya vistos del mes. Es simple, se explica en una frase y se adapta al nivel del mes."},
+    {"id": "montecarlo", "nombre": "Simulación Monte Carlo", "recomendada": False, "acierto": {"sku": 60.0, "planta": 85.0, "total": 90.9},
+     "texto": "Simula 200 escenarios de los días que faltan con lo que se aprendió de los 365 días anteriores y de los días vistos, y promedia. Empata con la media y falla menos en los meses atípicos (enero y abril de 2026), pero arrastra el nivel de la historia cuando el consumo baja."},
+]
 
 # Test 2025-10..2026-09 (12 months, 24,407 SKU-months), SKU / planta / total accuracy in percent: results/curva_corte_parcial.csv and the README. The
 # one-month and nowcast figures are from compare_horizon_strategies.py and nowcast_input_ml_mean.py (the nowcast one only at SKU level).
@@ -36,26 +42,29 @@ OPTIONS = [
 assert [o["id"] for o in OPTIONS] == STRATEGIES
 
 
-def validate(estrategia: str, corte_manual: int | None) -> dict:
+def validate(estrategia: str, corte_manual: int | None, metodo_resto: str = "media") -> dict:
     r"""The settings as they are saved; raises ValueError (with a message for the screen) when they make no sense."""
     if estrategia not in STRATEGIES:
         raise ValueError(f"La estrategia '{estrategia}' no existe.")
     if corte_manual is not None and (isinstance(corte_manual, bool) or not isinstance(corte_manual, int) or not 1 <= corte_manual <= 31):
         raise ValueError("El día de corte debe ser un número entero entre 1 y 31.")
-    return {"estrategia": estrategia, "corte_manual": corte_manual}
+    if metodo_resto not in [m["id"] for m in REST_METHODS]:
+        raise ValueError(f"El método '{metodo_resto}' para estimar el resto del mes no existe.")
+    return {"estrategia": estrategia, "corte_manual": corte_manual, "metodo_resto": metodo_resto}
 
 
 def load(paths: AppPaths) -> dict:
     r"""The saved settings; the defaults when the file is missing or damaged (the screen never fails because of it)."""
     try:
         record = json.loads(paths.settings_json.read_text(encoding="utf-8"))
-        return validate(record.get("estrategia", DEFAULTS["estrategia"]), record.get("corte_manual"))
+        return validate(record.get("estrategia", DEFAULTS["estrategia"]), record.get("corte_manual"), record.get("metodo_resto", DEFAULTS["metodo_resto"]))
     except (OSError, ValueError, AttributeError):
         return dict(DEFAULTS)
 
 
-def save(paths: AppPaths, estrategia: str, corte_manual: int | None) -> dict:
-    settings = validate(estrategia, corte_manual)
+def save(paths: AppPaths, estrategia: str, corte_manual: int | None, metodo_resto: str | None = None) -> dict:
+    r"""Validate and write the settings; without `metodo_resto` the saved method is kept."""
+    settings = validate(estrategia, corte_manual, metodo_resto or load(paths)["metodo_resto"])
     paths.settings_json.parent.mkdir(parents=True, exist_ok=True)
     paths.settings_json.write_text(json.dumps(settings, indent=1), encoding="utf-8")
     return settings
@@ -92,7 +101,7 @@ def plan_summary(paths: AppPaths, store: ConsumptionStore) -> dict | None:
 def describe(paths: AppPaths, store: ConsumptionStore) -> dict:
     r"""What the Ajustes screen shows: the saved settings, the options with their accuracy, the state of the data and the plan they give."""
     settings = load(paths)
-    out = {"ajustes": settings, "opciones": OPTIONS, "curva_parcial": CURVE, "corte_minimo": MIN_CUTOFF_DAY, "estado": None, "plan": None, "error": None}
+    out = {"ajustes": settings, "opciones": OPTIONS, "metodos_resto": REST_METHODS, "curva_parcial": CURVE, "corte_minimo": MIN_CUTOFF_DAY, "estado": None, "plan": None, "error": None}
     if not paths.consumption_csv.exists():
         return out
     state = month_state(store)
