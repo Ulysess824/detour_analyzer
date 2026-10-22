@@ -259,7 +259,7 @@ async function renderHome(view) {
   const retune = status.ajuste;
   const notes = [];
   if (!data) notes.push(`<div class="banner warn">${icon("alert")}<div><b>Todavía no hay datos de consumo.</b> Carga los exportes de SAP en la sección Datos para empezar.</div></div>`);
-  if (status.seguimiento_pendiente) notes.push(`<div class="banner warn">${icon("alert")}<div><b>${monthLong(status.seguimiento_pendiente.mes)} ya cerró.</b> Falta medir qué tanto acertó el pronóstico de ese mes hecho con «${esc(STRATEGY_NAMES[status.seguimiento_pendiente.estrategia] || status.seguimiento_pendiente.estrategia)}» (sección Seguimiento).</div></div>`);
+  if (status.seguimiento_pendiente) notes.push(`<div class="banner warn">${icon("alert")}<div><b>${cap(monthLong(status.seguimiento_pendiente.mes))} ya cerró.</b> Falta medir qué tanto acertó el pronóstico de ese mes hecho con «${esc(STRATEGY_NAMES[status.seguimiento_pendiente.estrategia] || status.seguimiento_pendiente.estrategia)}» (sección Seguimiento).</div></div>`);
   if (retune.candidato) notes.push(`<div class="banner info">${icon("info")}<div><b>Hay parámetros nuevos esperando una decisión.</b> Revísalos en la sección Hiperparámetros.</div></div>`);
   if (retune.estado === "por_vencer" || retune.estado === "vencido") notes.push(`<div class="banner warn">${icon("alert")}<div><b>${retune.estado === "vencido" ? "Los hiperparámetros están vencidos." : "Los hiperparámetros vencen pronto."}</b> Próximo ajuste: ${dateLong(retune.proximo)}.</div></div>`);
 

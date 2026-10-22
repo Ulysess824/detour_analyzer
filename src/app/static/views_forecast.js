@@ -221,7 +221,7 @@ async function renderTracking(view) {
   const s = trackState;
   let detail = null;
   try { detail = await api("seguimiento/detalle", { mes: s.mes, origen: s.origen, estrategia: s.estrategia }); } catch (error) { if (error.status !== 404) throw error; s.mes = s.origen = s.estrategia = ""; }
-  const banners = history.por_medir.map((m) => `<div class="banner warn">${icon("alert")}<div class="grow"><b>${monthLong(m.mes)} ya cerró.</b> Mide qué tanto acertó contra el consumo real el pronóstico de ese mes hecho con «${esc(strategyName(m.estrategia))}».</div>
+  const banners = history.por_medir.map((m) => `<div class="banner warn">${icon("alert")}<div class="grow"><b>${cap(monthLong(m.mes))} ya cerró.</b> Mide qué tanto acertó contra el consumo real el pronóstico de ese mes hecho con «${esc(strategyName(m.estrategia))}».</div>
       <button class="btn primary" data-measure="${m.mes}" data-strategy="${m.estrategia}">Medir acierto</button></div>`).join("");
   const hasHistory = history.backtest.length || history.produccion.length;
   const present = new Set([...history.produccion, ...history.backtest].map((r) => r.estrategia));
