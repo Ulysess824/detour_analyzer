@@ -42,7 +42,7 @@ async function api(path, params = {}) {
 
 /* ---- navigation ------------------------------------------------------------------------------------------------------------- */
 const SECTIONS = [
-  { id: "inicio", label: "Inicio", icon: "home", title: "Inicio", subtitle: "El estado del modelo de un vistazo." },
+  { id: "inicio", label: "Inicio", icon: "home", title: "Inicio", subtitle: "" },
   { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "Lo que se consumió, por planta y por SKU." },
   { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "" },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "" },
@@ -240,12 +240,6 @@ const ALERT_TEXT = {
   peor_que_naive: "Peor que el modelo simple",
   planta_revisar: "Hay una planta por revisar",
 };
-const RETUNE = {
-  al_dia: { cls: "ok", icon: "check", text: "Al día" },
-  por_vencer: { cls: "warn", icon: "alert", text: "Por vencer" },
-  vencido: { cls: "bad", icon: "cross", text: "Vencido" },
-  sin_registro: { cls: "neutral", icon: "info", text: "Sin registro" },
-};
 
 function statCard(iconName, tone, label, value, sub, foot = "") {
   return `<div class="card stat"><div class="label"><span class="icon ${tone}">${icon(iconName)}</span>${label}</div><div class="value">${value}</div><div class="sub">${sub}</div>${foot ? `<div class="foot">${foot}</div>` : ""}</div>`;
@@ -264,34 +258,29 @@ async function renderHome(view) {
   if (retune.estado === "por_vencer" || retune.estado === "vencido") notes.push(`<div class="banner warn">${icon("alert")}<div><b>${retune.estado === "vencido" ? "Los hiperparámetros están vencidos." : "Los hiperparámetros vencen pronto."}</b> Próximo ajuste: ${dateLong(retune.proximo)}.</div></div>`);
 
   const dataCard = data
-    ? statCard("database", "", "Datos", monthLong(data.ultimo_mes_completo), `Último mes completo.<br>${fmt(data.filas, 0)} filas · ${fmt(data.series, 0)} series · ${data.plantas} plantas`, `<span class="badge neutral">Último dato: ${dateLong(data.ultimo_dia)}</span>${data.mes_parcial ? `<span class="badge warn">Mes parcial: ${monthLong(data.mes_parcial)}</span>` : ""}`)
+    ? statCard("database", "", "Datos", monthLong(data.ultimo_mes_completo), "Último mes completo", data.mes_parcial ? `<span class="badge warn">Mes parcial: ${monthLong(data.mes_parcial)}</span>` : "")
     : statCard("database", "", "Datos", "Sin datos", "Carga los exportes de SAP.");
 
   const plan = status.plan;
   const ready = forecast && plan && plan.estrategia && forecast.mes === plan.mes_pronosticado && forecast.estrategia === plan.estrategia;
-  const how = plan && plan.estrategia ? `<br>${esc(STRATEGY_NAMES[plan.estrategia] || plan.estrategia)}${plan.corte ? ` · corte el día ${plan.corte}` : ""}` : "";
+  const how = plan && plan.estrategia ? `${esc(STRATEGY_NAMES[plan.estrategia] || plan.estrategia)}${plan.corte ? ` · corte el día ${plan.corte}` : ""}` : "";
   const forecastCard = plan && plan.error
     ? statCard("trend", "orange", "Próximo pronóstico", "Sin definir", "Los ajustes guardados no sirven con los datos actuales.", '<span class="badge warn">' + icon("alert") + "Revisa Ajustes</span>")
     : statCard("trend", "orange", "Próximo pronóstico", monthLong(status.proximo_pronostico),
-      (ready ? `Generado el ${dateLong(forecast.creado_en)}.<br>Total estimado: <b>${fmt(forecast.total_ml_mean_TO, 0)} TO</b>` : "Todavía no se genera este pronóstico.") + how,
+      (ready ? `Total estimado: <b>${fmt(forecast.total_ml_mean_TO, 0)} TO</b><br>` : "") + how,
       ready ? '<span class="badge ok">' + icon("check") + "Listo</span>" : '<span class="badge warn">' + icon("alert") + "Pendiente</span>");
 
   let trackingCard;
   if (tracking) {
     const scores = `<div class="scores"><div><b>${fmt(tracking.acierto_sku)}%</b><span>SKU</span></div><div><b>${fmt(tracking.acierto_planta)}%</b><span>planta</span></div><div><b>${fmt(tracking.acierto_total)}%</b><span>total</span></div></div>`;
     const alerts = tracking.alertas.length ? tracking.alertas.map((a) => `<span class="badge warn">${esc(ALERT_TEXT[a] || a)}</span>`).join("") : '<span class="badge ok">' + icon("check") + "Sin alertas</span>";
-    trackingCard = statCard("check", "teal", "Último seguimiento", monthLong(tracking.mes), (tracking.origen === "backtest" ? "Prueba histórica (aún no hay un mes real medido)." : `Pronóstico guardado contra el consumo real.<br>${esc(STRATEGY_NAMES[tracking.estrategia] || tracking.estrategia)}`) + scores, alerts);
+    trackingCard = statCard("check", "teal", "Último seguimiento", monthLong(tracking.mes), (tracking.origen === "backtest" ? "Prueba histórica (aún no hay un mes real medido)." : esc(STRATEGY_NAMES[tracking.estrategia] || tracking.estrategia)) + scores, alerts);
   } else {
     trackingCard = statCard("check", "teal", "Último seguimiento", "Sin medir", "Cuando cierre el mes pronosticado se compara con el real.");
   }
 
-  const r = RETUNE[retune.estado];
-  const retuneCard = statCard("sliders", "", "Hiperparámetros", retune.proximo ? dateLong(retune.proximo) : "–",
-    retune.ultimo ? `Próximo ajuste. El último fue el ${dateLong(retune.ultimo)}; se repite cada ${retune.intervalo_meses} meses.` : "No hay un ajuste registrado.",
-    `<span class="badge ${r.cls}">${icon(r.icon)}${r.text}${retune.dias_restantes !== null && retune.estado !== "vencido" ? ` · faltan ${fmt(retune.dias_restantes, 0)} días` : ""}</span>`);
-
   view.innerHTML = `<div class="stack">${notes.join("")}
-    <div class="grid cols-4">${dataCard}${forecastCard}${trackingCard}${retuneCard}</div>
+    <div class="grid cols-3">${dataCard}${forecastCard}${trackingCard}</div>
     <div class="card"><div class="toolbar"><div><h2>Consumo total por mes</h2><p class="hint">Todas las plantas, toneladas (TO).</p></div><div style="display:flex;gap:10px"><button class="btn" data-png="consumo_total">Imagen (PNG)</button><button class="btn" id="to-consumo">Ver con filtros</button></div></div><div class="chart small" id="home-chart"></div></div></div>`;
   $("#to-consumo").onclick = () => (location.hash = "#/consumo");
   if (data) {
