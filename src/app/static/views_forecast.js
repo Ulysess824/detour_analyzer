@@ -10,6 +10,7 @@ const trackState = { mes: "", origen: "", estrategia: "", grafico: "" };
 const STRATEGY_ORDER = ["h1", "directa", "parcial", "nowcast_media", "iterada"];
 const STRATEGY_SHORT = { h1: "Un mes", directa: "Directa", parcial: "Directa + mes en curso", nowcast_media: "Mes completado", iterada: "Iterada" };
 const strategyName = (id) => STRATEGY_NAMES[id] || id;
+const strategyShort = (id) => STRATEGY_SHORT[id] || strategyName(id);
 const MODEL_NAMES = { ml_mean: "Modelo principal (promedio)", lgbm: "LightGBM", xgb: "XGBoost", rf: "Random Forest", naive: "Modelo simple (repite el mes anterior)" };
 const ORANGE = "#f97316";
 const FIXED = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -135,7 +136,7 @@ function forecastHtml(d) {
   const f = d.pronostico, last = d.ultimo_real;
   const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
   const who = [d.filtro.planta || "Todas las plantas", d.filtro.sku || "todos los SKU"].join(" · ");
-  const months = d.disponibles_detalle.length > 1 ? `<label class="hint" for="fc-mes">Pronóstico de </label><select class="pick" id="fc-mes">${d.disponibles_detalle.map((m) => `<option value="${m.mes}|${m.estrategia}" ${m.mes === d.mes && m.estrategia === d.estrategia ? "selected" : ""}>${monthLong(m.mes)} · ${esc(STRATEGY_NAMES[m.estrategia] || m.estrategia)}</option>`).join("")}</select>` : "";
+  const months = d.disponibles_detalle.length > 1 ? `<label class="hint" for="fc-mes">Pronóstico de </label><select class="pick" id="fc-mes">${d.disponibles_detalle.map((m) => `<option value="${m.mes}|${m.estrategia}" ${m.mes === d.mes && m.estrategia === d.estrategia ? "selected" : ""}>${monthLong(m.mes)} · ${esc(strategyShort(m.estrategia))}</option>`).join("")}</select>` : "";
   const open = last.mes_anterior_abierto;
   const current = d.mes_en_curso ? currentMonthHtml(d.mes_en_curso, card) : "";
   const t = d.tabla;
@@ -224,7 +225,7 @@ async function renderTracking(view) {
   s.grafico = chosen;
   const picker = strategies.length > 1 ? `<div class="seg" id="tr-estr">${strategies.map((id) => `<button data-v="${id}" class="${id === chosen ? "on" : ""}" title="${esc(strategyName(id))}">${esc(STRATEGY_SHORT[id] || id)}</button>`).join("")}</div>` : "";
   view.innerHTML = `<div class="stack">${banners ? `<div class="stack" id="measure-box">${banners}</div>` : ""}
-    <div class="card"><div class="toolbar"><div><h2>Acierto por mes${strategies.length ? ` · ${esc(strategyName(chosen))}` : ""}</h2><p class="hint">Acierto del modelo principal contra el consumo real.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${picker}<button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div></div>
+    <div class="card"><div class="toolbar"><div><h2>Acierto por mes${strategies.length ? ` · ${esc(strategyShort(chosen))}` : ""}</h2><p class="hint">Acierto del modelo principal contra el consumo real.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${picker}<button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div></div>
       ${hasHistory ? '<div class="chart small" id="tr-chart"></div>' : '<div class="empty">Todavía no hay seguimiento.</div>'}
 </div>
     ${comparisonHtml(history)}
@@ -257,7 +258,7 @@ function comparisonHtml(h) {
   const rows = h.comparacion.map((c) => {
     const p = c.produccion, b = c.prueba_historica;
     const few = p && p.meses < 3 ? ` <span class="badge neutral" title="Con menos de 3 meses el promedio no dice mucho">pocos meses</span>` : "";
-    return `<tr><td>${esc(strategyName(c.estrategia))}</td><td>${p ? fmt(p.meses, 0) : "–"}${few}</td><td>${cell(p, "sku")}</td><td>${cell(p, "planta")}</td><td>${cell(p, "total")}</td><td>${b ? fmt(b.meses, 0) : "–"}</td><td>${cell(b, "sku")}</td><td>${cell(b, "planta")}</td><td>${cell(b, "total")}</td></tr>`;
+    return `<tr><td>${esc(strategyShort(c.estrategia))}</td><td>${p ? fmt(p.meses, 0) : "–"}${few}</td><td>${cell(p, "sku")}</td><td>${cell(p, "planta")}</td><td>${cell(p, "total")}</td><td>${b ? fmt(b.meses, 0) : "–"}</td><td>${cell(b, "sku")}</td><td>${cell(b, "planta")}</td><td>${cell(b, "total")}</td></tr>`;
   }).join("");
   return `<div class="card"><h2>Comparación de estrategias</h2><p class="hint">Promedio del acierto de los meses medidos. La prueba histórica son los últimos 12 meses.</p>
     <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th rowspan="2">Estrategia</th><th colspan="4" style="text-align:center">En producción</th><th colspan="4" style="text-align:center">Prueba histórica</th></tr>
@@ -301,10 +302,10 @@ function detailHtml(d, h) {
   const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
   const prodMonths = new Set(h.produccion.map((r) => r.mes)), backMonths = new Set(h.backtest.map((r) => r.mes));
   const th = d.estrategia === "h1" ? h.umbrales : h.umbrales_dos_meses;
-  const how = `${esc(strategyName(d.estrategia))}${d.corte ? ` · corte el día ${d.corte}` : ""}`;
+  const how = `${esc(strategyShort(d.estrategia))}${d.corte ? ` · corte el día ${d.corte}` : ""}`;
   const strategySelect = d.estrategias.length > 1 ? `<select class="pick" id="tr-estr-detalle">${d.estrategias.map((id) => `<option value="${id}" ${id === d.estrategia ? "selected" : ""}>${esc(STRATEGY_SHORT[id] || id)}</option>`).join("")}</select>` : "";
   const others = d.otras_estrategias.length ? `<div class="card"><h2>El mismo mes con otras estrategias</h2><p class="hint">Acierto del modelo principal en ${monthLong(d.mes)}. No son del todo comparables: no vieron la misma información.</p>
-    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Estrategia</th><th>SKU</th><th>Planta</th><th>Total</th></tr></thead><tbody>${d.otras_estrategias.map((o) => `<tr><td>${esc(strategyName(o.estrategia))}</td><td>${fmt(o.sku)}%</td><td>${fmt(o.planta)}%</td><td>${fmt(o.total)}%</td></tr>`).join("")}</tbody></table></div></div>` : "";
+    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Estrategia</th><th>SKU</th><th>Planta</th><th>Total</th></tr></thead><tbody>${d.otras_estrategias.map((o) => `<tr><td>${esc(strategyShort(o.estrategia))}</td><td>${fmt(o.sku)}%</td><td>${fmt(o.planta)}%</td><td>${fmt(o.total)}%</td></tr>`).join("")}</tbody></table></div></div>` : "";
   const origins = ["produccion", "backtest"].filter((o) => (o === "produccion" ? prodMonths : backMonths).has(d.mes));
   const seg = origins.length > 1 ? `<div class="seg" id="tr-origen">${origins.map((o) => `<button data-v="${o}" class="${o === d.origen ? "on" : ""}">${ORIGIN_TEXT[o]}</button>`).join("")}</div>` : `<span class="badge neutral">${ORIGIN_TEXT[d.origen]}</span>`;
   const select = `<select class="pick" id="tr-mes">${d.disponibles.map((m) => `<option value="${m}" ${m === d.mes ? "selected" : ""}>${monthLong(m)}</option>`).join("")}</select>`;
