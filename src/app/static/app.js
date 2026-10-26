@@ -50,7 +50,7 @@ const SECTIONS = [
   { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "" },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "" },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "" },
-  { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes." },
+  { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "" },
   { id: "ayuda", label: "Ayuda", icon: "help", title: "Ayuda", subtitle: "Cómo usar la app." },
 ];
 const SEPARATE_BEFORE = new Set(["descargar"]);

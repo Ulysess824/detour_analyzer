@@ -86,13 +86,12 @@ async function renderHistory(view) {
   const rows = list.map((r) => {
     const done = r.medido ? `<span class="badge ok" title="Acierto medido: SKU / planta / total">${icon("check")}${fmt(r.medido.sku)} / ${fmt(r.medido.planta)} / ${fmt(r.medido.total)}%</span>`
       : r.por_medir ? `<span class="badge warn">${icon("alert")}Por medir</span>` : '<span class="badge neutral">Mes sin cerrar</span>';
-    return `<tr><td>${monthLong(r.mes)}</td><td style="white-space:normal;min-width:130px;max-width:160px">${esc(STRATEGY_NAMES[r.estrategia] || r.estrategia)}</td><td>${r.creado_en ? dateLong(r.creado_en) : "–"}<br><span class="note" style="margin:0">datos hasta el ${r.datos_hasta ? dateLong(r.datos_hasta) : "–"}</span></td><td>${fmt(r.total_TO, 0)}</td><td style="white-space:normal;word-break:break-all;max-width:120px">${esc(r.parametros || "–")}</td><td>${done}</td>
-      <td><button class="btn" data-view="${r.mes}|${r.estrategia}" style="height:32px;padding:0 12px">Ver</button> <button class="btn" data-xlsx="${r.mes}|${r.estrategia}" style="height:32px;padding:0 12px">Excel</button></td></tr>`;
+    return `<tr><td>${monthLong(r.mes)}</td><td>${esc(STRATEGY_SHORT[r.estrategia] || STRATEGY_NAMES[r.estrategia] || r.estrategia)}</td><td>${r.creado_en ? dateLong(r.creado_en) : "–"}<br><span class="note" style="margin:0">datos hasta el ${r.datos_hasta ? dateLong(r.datos_hasta) : "–"}</span></td><td>${fmt(r.total_TO, 0)}</td><td>${done}</td>
+      <td><button class="btn" data-view="${r.mes}|${r.estrategia}" style="height:32px;padding:0 12px">Ver</button></td></tr>`;
   }).join("");
-  view.innerHTML = `<div class="card"><h2>Pronósticos guardados</h2><p class="hint">Cada pronóstico queda con su fecha, los datos y los parámetros con que se hizo. Si generas de nuevo el mismo mes con la misma estrategia, el anterior se reemplaza. El acierto es por SKU / planta / total.</p>
-    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Mes</th><th>Estrategia</th><th>Generado el</th><th>Total (TO)</th><th>Parámetros</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><div id="h-msg"></div></div>`;
+  view.innerHTML = `<div class="card"><h2>Pronósticos guardados</h2>
+    <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th>Mes</th><th>Estrategia</th><th>Generado el</th><th>Total (TO)</th><th>Resultado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   view.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { [forecastState.mes, forecastState.estrategia] = b.dataset.view.split("|"); location.hash = "#/prediccion"; }));
-  view.querySelectorAll("[data-xlsx]").forEach((b) => (b.onclick = () => { const [mes, estrategia] = b.dataset.xlsx.split("|"); downloadExcel("pronostico", { mes, estrategia }, $("#h-msg")); }));
 }
 
 /* ---- Ayuda ------------------------------------------------------------------------------------------------------------------ */
