@@ -47,7 +47,7 @@ const SECTIONS = [
   { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "" },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "" },
   { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "" },
-  { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "Reafinar el modelo cada seis meses." },
+  { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "" },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP." },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel." },
   { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes." },
