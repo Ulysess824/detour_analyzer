@@ -52,15 +52,10 @@ async function renderForecast(view) {
 function renderGenCard(status, have, extra = "") {
   const data = status.datos, plan = status.plan;
   const blocked = !plan || !plan.estrategia;
-  const open = data.mes_parcial ? ` ${cap(monthLong(data.mes_parcial))} sigue en curso.` : "";
-  const text = blocked
-    ? (plan && plan.error ? esc(plan.error) : "Todavía no hay datos.")
-    : have
-      ? `Generado el ${dateLong(have.creado_en)}. Usa los datos hasta el ${dateLong(data.ultimo_dia)}.${open}`
-      : `Todavía no se genera. Usa los datos hasta el ${dateLong(data.ultimo_dia)} y tarda menos de un minuto.${open}`;
-  const how = blocked ? "" : `<p class="how"><b>${esc(STRATEGY_NAMES[plan.estrategia])}</b>${plan.corte ? ` · corte el día ${plan.corte}` : ""} · parte de ${monthLong(plan.mes_origen)} · <a href="#/ajustes">Cambiar en Ajustes</a></p>
+  const text = blocked ? (plan && plan.error ? esc(plan.error) : "Todavía no hay datos.") : have ? "" : "Todavía no se genera.";
+  const how = blocked ? "" : `<p class="how"><b>${esc(STRATEGY_NAMES[plan.estrategia])}</b>${plan.corte ? ` · corte el día ${plan.corte}` : ""} · <a href="#/ajustes">Cambiar en Ajustes</a></p>
     ${plan.avisos.map((n) => `<p class="how warn-text">${esc(n)}</p>`).join("")}`;
-  $("#gen-card").innerHTML = `<div><h2>${blocked ? "Pronóstico" : `Pronóstico de ${monthLong(plan.mes_pronosticado)}`}</h2><p>${text}</p>${how}</div>
+  $("#gen-card").innerHTML = `<div><h2>${blocked ? "Pronóstico" : `Pronóstico de ${monthLong(plan.mes_pronosticado)}`}</h2>${text ? `<p>${text}</p>` : ""}${how}</div>
     <button class="btn primary" id="gen-btn" ${blocked ? "disabled" : ""}>${have ? "Generar de nuevo" : "Generar pronóstico"}</button>
     <div class="grow" id="gen-extra">${extra}</div>`;
   $("#gen-btn").onclick = () => (have ? askOverwrite(status, have) : startGenerate(false, status, have));
@@ -138,7 +133,7 @@ async function refreshForecast() {
 
 function forecastHtml(d) {
   const f = d.pronostico, last = d.ultimo_real;
-  const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+  const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
   const who = [d.filtro.planta || "Todas las plantas", d.filtro.sku || "todos los SKU"].join(" · ");
   const months = d.disponibles_detalle.length > 1 ? `<label class="hint" for="fc-mes">Pronóstico de </label><select class="pick" id="fc-mes">${d.disponibles_detalle.map((m) => `<option value="${m.mes}|${m.estrategia}" ${m.mes === d.mes && m.estrategia === d.estrategia ? "selected" : ""}>${monthLong(m.mes)} · ${esc(STRATEGY_NAMES[m.estrategia] || m.estrategia)}</option>`).join("")}</select>` : "";
   const open = last.mes_anterior_abierto;
@@ -147,25 +142,24 @@ function forecastHtml(d) {
   const head = t.tipo === "planta" ? "<th>Planta</th>" : "<th>Planta</th><th>SKU</th>";
   const rows = t.filas.map((r) => `<tr ${t.tipo === "planta" ? `data-planta="${esc(r.planta)}"` : ""}>${t.tipo === "planta" ? `<td>${esc(r.planta)}</td>` : `<td>${esc(r.planta)}</td><td>${esc(r.sku)}</td>`}<td>${fx(r.pronostico_TO)}</td><td>${fx(r.real_ultimo_TO)}</td><td>${r.cambio_pct === null ? "–" : arrow(r.cambio_pct) + fmt(Math.abs(r.cambio_pct)) + "%"}</td></tr>`).join("");
   const more = t.total_filas > t.filas.length ? `<p class="note">Mostrando los ${t.filas.length} mayores de ${fmt(t.total_filas, 0)}. Filtra por planta o SKU para ver otros.</p>` : "";
-  return `<div class="stack"><div class="grid cols-3">
-      ${card(`Pronóstico de ${monthLong(d.mes)}`, `${fmt(f.ml_mean_TO, 0)}<small>TO</small>`, `${esc(STRATEGY_NAMES[d.estrategia] || d.estrategia)}${d.corte ? ` · corte el día ${d.corte}` : ""}. Promedio de LightGBM, XGBoost y Random Forest.`)}
-      ${card(open ? "Contra el último mes completo" : "Contra el último mes real", last.cambio_pct === null ? "–" : `${arrow(last.cambio_pct)}${fmt(Math.abs(last.cambio_pct))}%`, `${fmt(last.TO, 0)} TO en ${monthLong(last.mes)}.${open ? ` ${cap(monthLong(open))} sigue en curso.` : ""}`)}
-      ${card("Rango entre modelos", `${fmt(f.minimo_TO, 0)} – ${fmt(f.maximo_TO, 0)}<small>TO</small>`, "Si los modelos se separan mucho, el pronóstico es menos seguro.")}
+  return `<div class="stack"><div class="grid cols-2">
+      ${card(`Pronóstico de ${monthLong(d.mes)}`, `${fmt(f.ml_mean_TO, 0)}<small>TO</small>`, `Rango entre modelos ${fmt(f.minimo_TO, 0)} – ${fmt(f.maximo_TO, 0)} TO`)}
+      ${card(open ? "Contra el último mes completo" : "Contra el último mes real", last.cambio_pct === null ? "–" : `${arrow(last.cambio_pct)}${fmt(Math.abs(last.cambio_pct))}%`, `${fmt(last.TO, 0)} TO en ${monthLong(last.mes)}`)}
     </div>${current}
-    <div class="card"><div class="toolbar"><div><h2>Consumo real y pronóstico · ${esc(who)}</h2><p class="hint">Toneladas (TO), últimos 24 meses. La escala no empieza en cero. La franja naranja es el rango entre los tres modelos.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${months}<button class="btn" data-png="pronostico">Imagen (PNG)</button></div></div><div class="chart" id="fc-chart"></div></div>
-    <div class="card"><h2>${t.tipo === "planta" ? "Pronóstico por planta" : "Pronóstico por SKU"}</h2><p class="hint">${t.tipo === "planta" ? "Toca una planta para ver sus SKU." : "Ordenado de mayor a menor pronóstico."}</p>
+    <div class="card"><div class="toolbar"><div><h2>Consumo real y pronóstico · ${esc(who)}</h2><p class="hint">Toneladas (TO).</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${months}<button class="btn" data-png="pronostico">Imagen (PNG)</button></div></div><div class="chart" id="fc-chart"></div></div>
+    <div class="card"><h2>${t.tipo === "planta" ? "Pronóstico por planta" : "Pronóstico por SKU"}</h2>
       <div class="tablewrap" style="margin-top:12px"><table class="data ${t.tipo === "planta" ? "clickable" : "two-left"}"><thead><tr>${head}<th>Pronóstico (TO)</th><th>Último mes real (TO)</th><th>Cambio</th></tr></thead><tbody>${rows}</tbody></table></div>${more}</div></div>`;
 }
 
 function currentMonthHtml(m, card) {
   const closed = m.real_completo_TO !== null && m.real_completo_TO !== undefined;
+  const other = m.metodo_fijo ? "" : ` Con ${m.otro_metodo.metodo === "montecarlo" ? "Monte Carlo" : "la media diaria"} sería ${fmt(m.otro_metodo.total_estimado_TO, 0)} TO.`;
   return `<div class="card"><h2>El mes en curso: ${monthLong(m.mes)}</h2>
-    <p class="hint" style="margin-top:6px">Esto es lo que el pronóstico sabía de ${monthLong(m.mes)} al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos y ${fmt(m.dias_restantes, 0)} por venir. Los días que faltan se estiman ${m.metodo === "montecarlo" ? "con una simulación Monte Carlo de la historia y los días vistos" : "con la media diaria de los vistos"}; es una estimación, no un dato.
-      ${m.metodo_fijo ? "Este pronóstico se hizo con la media, así que se muestra con la media." : `Con ${m.otro_metodo.metodo === "montecarlo" ? "la simulación Monte Carlo" : "la media diaria"} el mes completo sería ${fmt(m.otro_metodo.total_estimado_TO, 0)} TO. Se cambia en Ajustes.`}</p>
+    <p class="hint" style="margin-top:6px">Al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos, ${fmt(m.dias_restantes, 0)} por venir.${other}</p>
     <div class="grid cols-3" style="margin-top:14px">
-      ${card(`Real hasta el día ${m.corte}`, `${fmt(m.real_hasta_corte_TO, 0)}<small>TO</small>`, "Consumo ya ocurrido.")}
-      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, m.metodo === "montecarlo" ? "Promedio de 200 escenarios simulados de los días que faltan." : "Media diaria de los días vistos por los días que faltan.")}
-      ${card("Mes completo, estimado", `${fmt(m.total_estimado_TO, 0)}<small>TO</small>`, closed ? `El mes ya cerró: el real fue ${fmt(m.real_completo_TO, 0)} TO.` : "Real hasta el corte más el resto estimado.")}
+      ${card(`Real hasta el día ${m.corte}`, `${fmt(m.real_hasta_corte_TO, 0)}<small>TO</small>`, "")}
+      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, m.metodo === "montecarlo" ? "Monte Carlo" : "Media diaria")}
+      ${card("Mes completo, estimado", `${fmt(m.total_estimado_TO, 0)}<small>TO</small>`, closed ? `El mes ya cerró: el real fue ${fmt(m.real_completo_TO, 0)} TO.` : "")}
     </div></div>`;
 }
 
