@@ -1,8 +1,8 @@
 "use strict";
 /* Ajustes: which strategy the forecast uses and the cutoff day. Loaded before app.js, which owns the helpers (api, fmt, icon, mountChart, ...) used here at call time. */
 
-const settingsState = { data: null, draft: null, message: "" };
-const MONTH_STATE = { complete: ["ok", "check", "Mes completo"], in_progress: ["warn", "alert", "Mes en curso"] };
+const settingsState = { data: null, draft: null, message: "", open: { rest: false, curve: false } };
+const HIDDEN_STRATEGIES = ["iterada"];  // not recommended and never better than the direct one: only listed while it is the saved choice
 const REFERENCE_LINES = { directa: "Directa, sin el mes en curso", h1: "Un mes de anticipación" };
 
 async function apiPut(path, body) {
@@ -30,35 +30,27 @@ function accuracyChips(a) {
 function settingsStateCard(d) {
   const st = d.estado, plan = d.plan;
   if (!st) {
-    return `<div class="card"><h2>Estado de los datos</h2><p class="hint" style="margin-top:6px">Todavía no hay datos. Carga los exportes de SAP en la sección Datos; mientras tanto puedes elegir la estrategia.</p></div>`;
+    return `<div class="card"><h2>Próximo pronóstico</h2><p class="hint" style="margin-top:6px">Todavía no hay datos. Carga los exportes de SAP en la sección Datos; mientras tanto puedes elegir la estrategia.</p></div>`;
   }
-  const [cls, ic, label] = MONTH_STATE[st.estado];
-  const facts = `<div class="facts"><div><span>Último registro</span><b>${dateLong(st.ultimo_registro)}</b></div>
-    <div><span>Último mes</span><b>${monthLong(st.mes)} <span class="badge ${cls}">${icon(ic)}${label}</span></b></div>
-    <div><span>Día de corte detectado</span><b>${st.dia_de_corte === null ? "No hace falta" : `Día ${st.dia_de_corte}`}</b></div>
-    <div><span>Días hábiles del mes en curso</span><b>${st.estado === "complete" ? "–" : `${st.dias_vistos} vistos · ${st.dias_restantes} por venir`}</b></div></div>`;
-  let line;
+  let line = "";
   if (d.error) {
     line = `<div class="banner warn">${icon("alert")}<div><b>Los ajustes guardados no sirven con estos datos.</b><br>${esc(d.error)}</div></div>`;
   } else if (plan) {
-    const uses = plan.corte ? ` y los primeros ${plan.corte} días de ${monthLong(st.mes)}` : "";
-    line = `<div class="banner info">${icon("info")}<div>Con lo que está guardado, el próximo pronóstico es el de <b>${monthLong(plan.mes_pronosticado)}</b>, con «${esc(optionName(plan.estrategia))}»,
-      partiendo de ${monthLong(plan.mes_origen)}${uses}.</div></div>${plan.avisos.map((n) => `<div class="banner warn">${icon("alert")}<div>${esc(n)}</div></div>`).join("")}`;
-  } else {
-    line = "";
+    const cutoff = plan.corte ? ` · corte día ${plan.corte}` : "";
+    line = `<div class="banner info">${icon("info")}<div><b>${monthLong(plan.mes_pronosticado)}</b> · «${esc(optionName(plan.estrategia))}»${cutoff}</div></div>${plan.avisos.map((n) => `<div class="banner warn">${icon("alert")}<div>${esc(n)}</div></div>`).join("")}`;
   }
-  return `<div class="card"><h2>Estado de los datos</h2><p class="hint" style="margin-top:6px">La app lee el último registro de los datos para saber si el mes terminó y cuántos días lleva. Así no hace falta pronosticar un día fijo del mes.</p>${facts}<div class="stack" style="margin-top:14px;gap:10px">${line}</div></div>`;
+  return `<div class="card"><h2>Próximo pronóstico</h2><div class="stack" style="margin-top:12px;gap:10px">${line}</div></div>`;
 }
 
 function strategyCard(d, draft) {
   const st = d.estado;
-  const rows = d.opciones.map((o) => {
+  const shown = d.opciones.filter((o) => !HIDDEN_STRATEGIES.includes(o.id) || o.id === d.ajustes.estrategia || o.id === draft.estrategia);
+  const rows = shown.map((o) => {
     const note = o.mes_en_curso && st && st.estado === "complete" ? '<small class="note">Con el mes completo se usa un mes de anticipación.</small>' : "";
-    return `<label><input type="radio" name="s-est" value="${o.id}" ${draft.estrategia === o.id ? "checked" : ""}><b>${esc(o.nombre)}</b> ${o.recomendada ? '<span class="badge ok">Recomendada</span>' : ""}
-      <small>${esc(o.texto)}</small>${accuracyChips(o.acierto)}${note}</label>`;
+    return `<label title="${esc(o.texto)}"><input type="radio" name="s-est" value="${o.id}" ${draft.estrategia === o.id ? "checked" : ""}><b>${esc(o.nombre)}</b> ${o.recomendada ? '<span class="badge ok">Recomendada</span>' : ""}
+      ${accuracyChips(o.acierto)}${note}</label>`;
   }).join("");
-  return `<div class="card"><h2>Estrategia de pronóstico</h2><p class="hint" style="margin-top:6px">Cómo se calcula el pronóstico cuando el planificador lo pide a mitad de mes. El acierto es el de la prueba de los últimos 12 meses, por SKU, planta y total.
-    Para reentrenar los modelos usa la sección Hiperparámetros.</p><div class="choice" id="s-options">${rows}</div></div>`;
+  return `<div class="card"><h2>Estrategia de pronóstico</h2><div class="choice" id="s-options">${rows}</div></div>`;
 }
 
 function cutoffCard(d, draft) {
@@ -69,10 +61,8 @@ function cutoffCard(d, draft) {
   const value = manual && !Number.isNaN(draft.corte_manual) ? draft.corte_manual : "";
   const low = manual && draft.corte_manual < d.corte_minimo;
   const bad = manual && !(Number.isInteger(draft.corte_manual) && draft.corte_manual >= 1 && draft.corte_manual <= max);
-  const text = off
-    ? "El último mes está completo, así que no hace falta un día de corte."
-    : `Cuántos días del mes en curso usa el pronóstico. En automático son todos los que hay (hasta el día ${st.dia_de_corte}). Uno manual sirve para repetir un pronóstico con menos información; no puede pasar del último registro.`;
-  return `<div class="card"><h2>Día de corte</h2><p class="hint" style="margin-top:6px">${text}</p>
+  const text = off ? '<p class="hint" style="margin-top:6px">El último mes está completo, así que no hace falta un día de corte.</p>' : "";
+  return `<div class="card"><h2>Día de corte</h2>${text}
     <div class="cutoffrow"><div class="seg" id="s-mode"><button data-v="auto" class="${manual ? "" : "on"}" ${off ? "disabled" : ""}>Automático${st && st.dia_de_corte ? ` (día ${st.dia_de_corte})` : ""}</button>
       <button data-v="manual" class="${manual ? "on" : ""}" ${off ? "disabled" : ""}>Manual</button></div>
       <label class="hint" for="s-cut">Día</label><input class="num" type="number" id="s-cut" min="1" max="${max}" step="1" value="${value}" ${!manual || off ? "disabled" : ""}></div>
@@ -80,11 +70,14 @@ function cutoffCard(d, draft) {
     ${low && !bad ? `<p class="note">Bajo el día ${d.corte_minimo} el mes en curso aporta poco: con la estrategia automática se usa la directa en ese caso.</p>` : ""}</div>`;
 }
 
+function foldCard(key, title, body) {
+  return `<div class="card"><details class="howto" data-fold="${key}" ${settingsState.open[key] ? "open" : ""}><summary>${title}</summary>${body}</details></div>`;
+}
+
 function restMethodCard(d, draft) {
-  const rows = d.metodos_resto.map((m) => `<label><input type="radio" name="s-met" value="${m.id}" ${draft.metodo_resto === m.id ? "checked" : ""}><b>${esc(m.nombre)}</b> ${m.recomendada ? '<span class="badge ok">Recomendada</span>' : ""}
-      <small>${esc(m.texto)}</small>${accuracyChips(m.acierto)}</label>`).join("");
-  return `<div class="card"><h2>Cómo se estima el resto del mes en curso</h2><p class="hint" style="margin-top:6px">Lo que falta del mes en curso, que se suma al consumo real hasta el corte en la tarjeta "El mes en curso" de Predicción. El acierto es el de los últimos 12 meses sobre
-    los días que faltan, por SKU, planta y total. Solo cambia esa estimación: el pronóstico no cambia, y la estrategia «Mes en curso completado con la media» sigue usando la media porque así se probó.</p><div class="choice" id="s-methods">${rows}</div></div>`;
+  const rows = d.metodos_resto.map((m) => `<label title="${esc(m.texto)}"><input type="radio" name="s-met" value="${m.id}" ${draft.metodo_resto === m.id ? "checked" : ""}><b>${esc(m.nombre)}</b> ${m.recomendada ? '<span class="badge ok">Recomendada</span>' : ""}
+      ${accuracyChips(m.acierto)}</label>`).join("");
+  return foldCard("rest", "Cómo se estima el resto del mes en curso", `<p class="hint">Solo cambia la tarjeta "El mes en curso" de Predicción; el pronóstico no cambia.</p><div class="choice" id="s-methods">${rows}</div>`);
 }
 
 function curveOption(d) {
@@ -124,12 +117,15 @@ function paintSettings() {
   const invalid = draft.corte_manual !== null && !(Number.isInteger(draft.corte_manual) && draft.corte_manual >= 1 && draft.corte_manual <= max);
   disposeCharts();
   $("#view").innerHTML = `<div class="stack">${settingsStateCard(d)}${strategyCard(d, draft)}${cutoffCard(d, draft)}${restMethodCard(d, draft)}
-    <div class="card"><div class="toolbar"><div><h2>Cuánto mejora el pronóstico según el día de corte</h2><p class="hint">Acierto de «Dos meses, directa y días del mes en curso» según los días del mes en curso que se conocen. Pruebas de los últimos 12 meses.
-      Las líneas punteadas son la directa (sin el mes en curso) y el pronóstico con un mes de anticipación.</p></div><button class="btn" data-png="acierto_por_dia_de_corte">Imagen (PNG)</button></div><div class="chart" id="s-chart"></div></div>
-    <div class="card gen"><div><h2>Guardar los ajustes</h2><p>${dirty ? "Hay cambios sin guardar." : "Los ajustes están guardados."} El próximo pronóstico que generes usa lo que está guardado.</p></div>
+    ${foldCard("curve", "Cuánto mejora el pronóstico según el día de corte", `<div class="toolbar"><p class="hint">Pruebas de los últimos 12 meses. Las líneas punteadas son la directa (sin el mes en curso) y un mes de anticipación.</p><button class="btn" data-png="acierto_por_dia_de_corte">Imagen (PNG)</button></div><div class="chart" id="s-chart"></div>`)}
+    <div class="card gen"><div><h2>Guardar los ajustes</h2><p>${dirty ? "Hay cambios sin guardar." : "Guardado."}</p></div>
       <button class="btn primary" id="s-save" ${!dirty || invalid ? "disabled" : ""}>Guardar</button><button class="btn" id="s-reset" ${saved.estrategia === "automatica" && saved.corte_manual === null && saved.metodo_resto === "media" && !dirty ? "disabled" : ""}>Volver a automático</button>
       <div class="grow" id="s-msg">${settingsState.message}</div></div></div>`;
-  mountChart($("#s-chart"), curveOption(d));
+  const mountCurve = () => { const el = $("#s-chart"); if (el && !el.firstChild && el.clientWidth > 0) mountChart(el, curveOption(d)); };
+  document.querySelectorAll("details[data-fold]").forEach((el) => {
+    el.addEventListener("toggle", () => { settingsState.open[el.dataset.fold] = el.open; if (el.open && el.dataset.fold === "curve") mountCurve(); });
+  });
+  mountCurve();
 
   $("#s-options").onchange = (event) => { if (event.target.name === "s-est") { draft.estrategia = event.target.value; paintSettings(); } };
   $("#s-methods").onchange = (event) => { if (event.target.name === "s-met") { draft.metodo_resto = event.target.value; paintSettings(); } };
@@ -155,6 +151,6 @@ async function saveSettings(values) {
   }
   settingsState.data = reply.body;
   settingsState.draft = { ...reply.body.ajustes };
-  settingsState.message = '<span class="badge ok">' + icon("check") + "Guardado</span>";
+  settingsState.message = "";
   paintSettings();
 }

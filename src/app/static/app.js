@@ -46,7 +46,7 @@ const SECTIONS = [
   { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "Lo que se consumió, por planta y por SKU." },
   { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "El pronóstico con los datos que hay." },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "Qué tanto acertó el pronóstico cuando cerró el mes." },
-  { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "Cómo se calcula el pronóstico." },
+  { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "" },
   { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "Reafinar el modelo cada seis meses." },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP." },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel." },
