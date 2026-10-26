@@ -48,7 +48,7 @@ const SECTIONS = [
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "" },
   { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "" },
   { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "" },
-  { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "Cargar los exportes de SAP." },
+  { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "" },
   { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel." },
   { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes." },
   { id: "ayuda", label: "Ayuda", icon: "help", title: "Ayuda", subtitle: "Cómo usar la app." },
