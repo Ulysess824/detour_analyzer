@@ -49,7 +49,7 @@ const SECTIONS = [
   { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "" },
   { id: "ajuste", label: "Hiperparámetros", icon: "sliders", title: "Hiperparámetros", subtitle: "" },
   { id: "datos", label: "Datos", icon: "database", title: "Datos", subtitle: "" },
-  { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "Gráficos en imagen y tablas en Excel." },
+  { id: "descargar", label: "Descargar", icon: "download", title: "Descargar", subtitle: "" },
   { id: "historial", label: "Historial", icon: "clock", title: "Historial de pronósticos", subtitle: "Los pronósticos generados antes." },
   { id: "ayuda", label: "Ayuda", icon: "help", title: "Ayuda", subtitle: "Cómo usar la app." },
 ];
@@ -478,10 +478,10 @@ function bindResultAgain(data) {
 /* ---- start ------------------------------------------------------------------------------------------------------------------ */
 async function loadFooter() {
   try {
-    const status = await api("estado");
+    const [status, about] = await Promise.all([api("estado"), api("acerca")]);
+    $("#side-foot").innerHTML = `${esc(about.autor)}<br>v${esc(about.version)}`;
     if (status.datos) {
       $("#top-chip").innerHTML = `<span class="dot ${status.datos.mes_parcial ? "warn" : ""}"></span>Datos al ${dateLong(status.datos.ultimo_dia)}`;
-      $("#side-foot").innerHTML = `${fmt(status.datos.series, 0)} series<br>${status.datos.plantas} plantas`;
     } else {
       $("#top-chip").innerHTML = '<span class="dot warn"></span>Sin datos';
     }

@@ -60,16 +60,14 @@ async function renderDownloads(view) {
   const trackMonths = trackItems.sort((a, b) => (a.mes < b.mes ? 1 : a.mes > b.mes ? -1 : a.origen < b.origen ? 1 : -1)).map((r) => `${r.mes}|${r.estrategia}|${r.origen}`);
   const options = (items, selected) => items.map((m) => {
     const [month, strategy, origin] = m.split("|");
-    return `<option value="${m}" ${m === selected ? "selected" : ""}>${monthLong(month)}${strategy ? ` · ${esc(STRATEGY_NAMES[strategy] || strategy)}` : ""}${origin === "backtest" ? " · prueba histórica" : ""}</option>`;
+    return `<option value="${m}" ${m === selected ? "selected" : ""}>${monthLong(month)}${strategy ? ` · ${esc(STRATEGY_SHORT[strategy] || STRATEGY_NAMES[strategy] || strategy)}` : ""}${origin === "backtest" ? " · prueba histórica" : ""}</option>`;
   }).join("");
   view.innerHTML = `<div class="stack"><div class="tiles">
-    <div class="card tile"><h2>Pronóstico (Excel)</h2><p>El pronóstico de un mes: resumen, por planta y cada SKU con los tres modelos, su rango y el último mes real.</p>
+    <div class="card tile"><h2>Pronóstico (Excel)</h2>
       ${months.length ? `<select class="pick" id="x-pron">${options(months, d.mesPron)}</select><div class="rowbtns"><button class="btn primary" id="x-pron-go">Descargar Excel</button></div>` : '<p class="note">Todavía no hay pronósticos.</p>'}<div id="x-pron-msg"></div></div>
-    <div class="card tile"><h2>Seguimiento (Excel)</h2><p>El acierto de cada mes y el detalle de uno: modelos, plantas y las series donde más falló.</p>
-      ${trackMonths.length ? `<select class="pick" id="x-seg">${options(trackMonths, d.mesSeg)}</select><div class="rowbtns"><button class="btn primary" id="x-seg-go">Descargar Excel</button></div>` : '<p class="note">Todavía no hay seguimiento.</p>'}<div id="x-seg-msg"></div></div>
-    <div class="card tile"><h2>Gráficos (imagen)</h2><p>Cada gráfico de la app tiene un botón <b>Imagen (PNG)</b> arriba a la derecha. Guarda el gráfico tal como lo ves, con los filtros que tengas puestos.</p>
-      <div class="rowbtns"><button class="btn" id="x-go-consumo">Ir a Consumo real</button></div></div></div>
-    <div class="card"><h2>Consumo real (Excel)</h2><p class="hint">Con los filtros que elijas: el total por mes y una fila por serie (o los días de un rango).</p><div style="margin-top:14px">${filtersHtml(d)}</div>
+    <div class="card tile"><h2>Seguimiento (Excel)</h2>
+      ${trackMonths.length ? `<select class="pick" id="x-seg">${options(trackMonths, d.mesSeg)}</select><div class="rowbtns"><button class="btn primary" id="x-seg-go">Descargar Excel</button></div>` : '<p class="note">Todavía no hay seguimiento.</p>'}<div id="x-seg-msg"></div></div></div>
+    <div class="card"><h2>Consumo real (Excel)</h2><div style="margin-top:14px">${filtersHtml(d)}</div>
       <div class="rowbtns"><div class="seg" id="x-nivel"><button data-v="mensual" class="${d.nivel === "mensual" ? "on" : ""}">Por mes</button><button data-v="diario" class="${d.nivel === "diario" ? "on" : ""}">Últimos 90 días</button></div>
       <button class="btn primary" id="x-cons-go">Descargar Excel</button></div><div id="x-cons-msg"></div></div></div>`;
   bindFilters(d, () => {});
@@ -79,7 +77,6 @@ async function renderDownloads(view) {
   if ($("#x-seg-go")) $("#x-seg-go").onclick = () => { const [mes, estrategia, origen] = (d.mesSeg || $("#x-seg").value).split("|"); downloadExcel("seguimiento", { mes, estrategia, origen }, $("#x-seg-msg")); };
   $("#x-nivel").onclick = (event) => { const b = event.target.closest("button"); if (b) { d.nivel = b.dataset.v; $("#x-nivel").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); } };
   $("#x-cons-go").onclick = () => downloadExcel("consumo", { planta: $("#f-planta").value, sku: $("#f-sku").value, nivel: d.nivel }, $("#x-cons-msg"));
-  $("#x-go-consumo").onclick = () => (location.hash = "#/consumo");
 }
 
 /* ---- Historial -------------------------------------------------------------------------------------------------------------- */
@@ -141,7 +138,7 @@ async function renderHelp(view) {
       <div class="step"><b>Medir el acierto</b><p>Cuando cierra el mes pronosticado, mide qué tanto acertó.</p><button class="btn" data-go="seguimiento">Ir a Seguimiento</button></div></div></div>
     <div class="card"><h2>Qué significa cada palabra</h2><div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><tbody>${GLOSSARY.map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${esc(k)}</b></td><td style="white-space:normal">${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>
     <div class="card"><h2>Preguntas frecuentes</h2>${faqs.map(([q, a]) => `<details class="faq"><summary>${esc(q)}</summary>${a}</details>`).join("")}</div>
-    <div class="card"><h2>Sobre esta versión</h2><p class="hint" style="margin-top:6px;line-height:1.6">Versión ${esc(about.version)}. Es una versión de prueba: los pronósticos de un mismo mes se reemplazan al generarlos de nuevo.<br>
+    <div class="card"><h2>Sobre esta versión</h2><p class="hint" style="margin-top:6px;line-height:1.6">Versión ${esc(about.version)}. Desarrollado por ${esc(about.autor)}. Es una versión de prueba: los pronósticos de un mismo mes se reemplazan al generarlos de nuevo.<br>
       Carpeta de la app: ${esc(about.carpeta)}<br>Datos: ${esc(about.archivos.datos)}<br>Pronósticos y seguimiento: ${esc(about.archivos.pronosticos)}<br>Respaldos de datos: ${esc(about.archivos.respaldos)}<br>Registro de errores: ${esc(about.archivos.registro)}</p></div></div>`;
   view.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => (location.hash = `#/${b.dataset.go}`)));
 }

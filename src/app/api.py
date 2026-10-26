@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.app.consumption_service import ConsumptionStore, DataMissing, NotFound
-from src.app import __version__, data_service, example_service, export_service, forecast_service, history_service, settings_service, tracking_service, tuning_service
+from src.app import __author__, __version__, data_service, example_service, export_service, forecast_service, history_service, settings_service, tracking_service, tuning_service
 from src.app.forecast_service import ForecastMissing
 from src.app.jobs import Busy, JobRunner
 from src.app.paths import STATIC, AppPaths, default_paths
@@ -296,7 +296,7 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
 
     @app.get("/api/acerca")
     def about():
-        return {"version": __version__, "carpeta": str(paths.root), "archivos": {"datos": str(paths.consumption_csv), "pronosticos": str(paths.results), "respaldos": str(paths.backups), "registro": str(paths.logs / "detour.log")}}
+        return {"version": __version__, "autor": __author__, "carpeta": str(paths.root), "archivos": {"datos": str(paths.consumption_csv), "pronosticos": str(paths.results), "respaldos": str(paths.backups), "registro": str(paths.logs / "detour.log")}}
 
     app.mount("/", StaticFiles(directory=STATIC, html=True), name="ui")  # last: the API routes above win
     return app

@@ -1,5 +1,7 @@
 # detour_analyzer: agent index
 
+**Author:** Luis Moreno (all rights reserved, `LICENSE`, `CITATION.cff`). The app shows the name in the sidebar footer, in Ayuda and in the window title (`src/app/__init__.py: __author__`).
+
 Read this first; open source files only for the function you need to change. README.md (Spanish) has the user-facing docs and result tables.
 
 **Goal:** forecast monthly consumption of paper SKUs per planta from SAP exports, aggregated bottom-up to planta and total.

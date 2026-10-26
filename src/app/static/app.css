@@ -200,7 +200,7 @@ table.data.left3 th:nth-child(-n+3), table.data.left3 td:nth-child(-n+3) { text-
 .findings { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
 .finding { display: grid; grid-template-columns: 90px 1fr; gap: 12px; align-items: start; }
 .finding p { margin: 4px 0 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
-.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .tile { display: flex; flex-direction: column; gap: 10px; }
 .tile p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
 .tile .rowbtns { margin-top: auto; }
