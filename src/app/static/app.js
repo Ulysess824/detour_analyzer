@@ -43,7 +43,7 @@ async function api(path, params = {}) {
 /* ---- navigation ------------------------------------------------------------------------------------------------------------- */
 const SECTIONS = [
   { id: "inicio", label: "Inicio", icon: "home", title: "Inicio", subtitle: "" },
-  { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "Lo que se consumió, por planta y por SKU." },
+  { id: "consumo", label: "Consumo real", icon: "chart", title: "Consumo real", subtitle: "" },
   { id: "prediccion", label: "Predicción", icon: "trend", title: "Predicción", subtitle: "" },
   { id: "seguimiento", label: "Seguimiento", icon: "check", title: "Seguimiento", subtitle: "" },
   { id: "ajustes", label: "Ajustes", icon: "gear", title: "Ajustes", subtitle: "" },
@@ -418,21 +418,20 @@ function notFoundHtml(error) {
 
 function kpis(data) {
   const r = data.resumen;
-  const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+  const card = (label, value, sub) => `<div class="card stat" style="min-height:0"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
   if (data.nivel === "diario") {
     const days = data.etiquetas.length;
     return [
       card("Total del periodo", `${fmt(r.total_TO, 0)}<small>TO</small>`, `${dateLong(r.desde)} a ${dateLong(r.hasta)}`),
-      card("Días con consumo", `${r.dias_con_consumo}<small>de ${days}</small>`, "Los domingos con consumo también cuentan."),
-      card("Promedio por día", `${fmt(r.total_TO / Math.max(days, 1))}<small>TO</small>`, "Sobre todos los días del periodo."),
+      card("Días con consumo", `${r.dias_con_consumo}<small>de ${days}</small>`, ""),
+      card("Promedio por día", `${fmt(r.total_TO / Math.max(days, 1))}<small>TO</small>`, ""),
     ].join("");
   }
   const change = r.cambio_vs_mes_anterior_pct;
   const arrow = change === null ? "" : change >= 0 ? "▲ " : "▼ ";
   return [
     card("Último mes completo", `${fmt(r.ultimo_mes_TO, 0)}<small>TO</small>`, monthLong(r.ultimo_mes_completo)),
-    card("Cambio contra el mes anterior", change === null ? "–" : `${arrow}${fmt(Math.abs(change))}%`, "Del último mes completo."),
-    card("Promedio mensual", `${fmt(r.promedio_mensual_TO, 0)}<small>TO</small>`, `Desde ${monthLong(r.primer_mes)}${r.mes_parcial ? ", sin el mes parcial" : ""}.`),
+    card("Cambio contra el mes anterior", change === null ? "–" : `${arrow}${fmt(Math.abs(change))}%`, ""),
   ].join("");
 }
 
@@ -442,8 +441,8 @@ function resultHtml(data) {
   const hasBreakdown = data.nivel === "mensual" && data.desglose;
   const by = hasBreakdown ? (data.desglose.por === "planta" ? "por planta" : "por SKU") : "";
   const partial = data.resumen.mes_parcial ? `<p class="note">${monthLong(data.resumen.mes_parcial)} está incompleto (los datos llegan hasta el ${dateLong(data.resumen.ultimo_dato)}) y no entra en el resumen.</p>` : "";
-  return `<div class="stack"><div class="grid cols-3">${kpis(data)}</div>
-    <div class="card"><div class="toolbar"><div><h2>Consumo ${data.nivel} · ${esc(who)}</h2><p class="hint">Toneladas (TO). Pasa el cursor sobre el gráfico para ver cada valor.</p></div>
+  return `<div class="stack"><div class="grid ${data.nivel === "diario" ? "cols-3" : "cols-2"}">${kpis(data)}</div>
+    <div class="card"><div class="toolbar"><div><h2>Consumo ${data.nivel} · ${esc(who)}</h2><p class="hint">Toneladas (TO).</p></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div class="seg" id="seg-nivel"><button data-v="mensual" class="${s.nivel === "mensual" ? "on" : ""}">Por mes</button><button data-v="diario" class="${s.nivel === "diario" ? "on" : ""}">Por día</button></div>
         <div class="seg" id="seg-modo"><button data-v="total" class="${s.modo === "total" ? "on" : ""}" ${hasBreakdown ? "" : "disabled"}>Total</button><button data-v="desglose" class="${s.modo === "desglose" ? "on" : ""}" ${hasBreakdown ? "" : "disabled"}>${by ? "Desglose " + by : "Desglose"}</button></div>
