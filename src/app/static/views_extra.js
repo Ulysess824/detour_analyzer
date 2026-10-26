@@ -124,15 +124,23 @@ const FAQ = [
   ["Algunas plantas acertaron poco", "<p>Si una planta cambió de nivel de consumo de un mes a otro, el modelo tarda en seguirla. Aparece como aviso en Seguimiento. Conviene confirmar el cambio con quien maneja los datos.</p>"],
 ];
 
+function alertFaq(h) {
+  const u = h.umbrales, t = h.umbrales_dos_meses;
+  return ["¿Cuándo sale una alerta en Seguimiento?", `<p>El pronóstico a un mes marca alerta si el acierto baja de ${fmt(u.sku, 0)}% por SKU, ${fmt(u.planta, 0)}% por planta o ${fmt(u.total, 0)}% en el total, o si queda peor que repetir el mes anterior.
+    Los pronósticos a dos meses tienen umbrales más bajos (${fmt(t.sku, 0)}% / ${fmt(t.planta, 0)}% / ${fmt(t.total, 0)}%) porque aciertan menos. Una planta con acierto bajo ${fmt(u.planta_revisar, 0)}% aparece como planta por revisar.</p>
+    <p>En el gráfico de acierto por mes, los rombos son meses reales medidos en producción y los puntos pequeños son la prueba histórica de esa estrategia.</p>`];
+}
+
 async function renderHelp(view) {
-  const about = await api("acerca");
+  const [about, tracking] = await Promise.all([api("acerca"), api("seguimiento")]);
+  const faqs = [...FAQ.slice(0, 5), alertFaq(tracking), ...FAQ.slice(5)];
   view.innerHTML = `<div class="stack">
     <div class="card"><h2>Cada mes, en tres pasos</h2><div class="steps">
       <div class="step"><b>Cargar los datos</b><p>Cuando termina el mes, carga el exporte de SAP con los días nuevos.</p><button class="btn" data-go="datos">Ir a Datos</button></div>
       <div class="step"><b>Generar el pronóstico</b><p>Genera el que corresponde a los datos que hay (el mes siguiente, o el que sigue al mes en curso). Tarda menos de un minuto.</p><button class="btn" data-go="prediccion">Ir a Predicción</button></div>
       <div class="step"><b>Medir el acierto</b><p>Cuando cierra el mes pronosticado, mide qué tanto acertó.</p><button class="btn" data-go="seguimiento">Ir a Seguimiento</button></div></div></div>
     <div class="card"><h2>Qué significa cada palabra</h2><div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><tbody>${GLOSSARY.map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${esc(k)}</b></td><td style="white-space:normal">${esc(v)}</td></tr>`).join("")}</tbody></table></div></div>
-    <div class="card"><h2>Preguntas frecuentes</h2>${FAQ.map(([q, a]) => `<details class="faq"><summary>${esc(q)}</summary>${a}</details>`).join("")}</div>
+    <div class="card"><h2>Preguntas frecuentes</h2>${faqs.map(([q, a]) => `<details class="faq"><summary>${esc(q)}</summary>${a}</details>`).join("")}</div>
     <div class="card"><h2>Sobre esta versión</h2><p class="hint" style="margin-top:6px;line-height:1.6">Versión ${esc(about.version)}. Es una versión de prueba: los pronósticos de un mismo mes se reemplazan al generarlos de nuevo.<br>
       Carpeta de la app: ${esc(about.carpeta)}<br>Datos: ${esc(about.archivos.datos)}<br>Pronósticos y seguimiento: ${esc(about.archivos.pronosticos)}<br>Respaldos de datos: ${esc(about.archivos.respaldos)}<br>Registro de errores: ${esc(about.archivos.registro)}</p></div></div>`;
   view.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => (location.hash = `#/${b.dataset.go}`)));

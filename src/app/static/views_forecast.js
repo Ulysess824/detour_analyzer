@@ -23,7 +23,6 @@ async function apiPost(path, body, headers = {}) {
 
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const arrow = (v) => (v === null || v === undefined ? "" : v >= 0 ? "▲ " : "▼ ");
-const biasText = (pct) => (pct === null || pct === undefined ? "" : Math.abs(pct) < 0.05 ? "sin sesgo" : pct > 0 ? `el pronóstico quedó ${fmt(Math.abs(pct))}% por debajo` : `el pronóstico quedó ${fmt(Math.abs(pct))}% por arriba`);
 
 function bindPicks(container, error, state, rerender) {
   container.querySelectorAll("[data-pick]").forEach((button) => (button.onclick = () => {
@@ -229,12 +228,11 @@ async function renderTracking(view) {
   const strategies = STRATEGY_ORDER.filter((id) => present.has(id));
   const chosen = strategies.includes(s.grafico) ? s.grafico : (detail && strategies.includes(detail.estrategia) ? detail.estrategia : (history.produccion.length ? history.produccion[history.produccion.length - 1].estrategia : (strategies.includes("h1") ? "h1" : strategies[0])));
   s.grafico = chosen;
-  const thresholds = chosen === "h1" ? history.umbrales : history.umbrales_dos_meses;
   const picker = strategies.length > 1 ? `<div class="seg" id="tr-estr">${strategies.map((id) => `<button data-v="${id}" class="${id === chosen ? "on" : ""}" title="${esc(strategyName(id))}">${esc(STRATEGY_SHORT[id] || id)}</button>`).join("")}</div>` : "";
   view.innerHTML = `<div class="stack">${banners ? `<div class="stack" id="measure-box">${banners}</div>` : ""}
-    <div class="card"><div class="toolbar"><div><h2>Acierto por mes${strategies.length ? ` · ${esc(strategyName(chosen))}` : ""}</h2><p class="hint">Del modelo principal, contra el consumo real de cada mes. Los rombos son meses reales medidos en producción; los puntos pequeños, la prueba histórica de esa estrategia.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${picker}<button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div></div>
+    <div class="card"><div class="toolbar"><div><h2>Acierto por mes${strategies.length ? ` · ${esc(strategyName(chosen))}` : ""}</h2><p class="hint">Acierto del modelo principal contra el consumo real.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${picker}<button class="btn" data-png="acierto_por_mes">Imagen (PNG)</button></div></div>
       ${hasHistory ? '<div class="chart small" id="tr-chart"></div>' : '<div class="empty">Todavía no hay seguimiento.</div>'}
-      <p class="note">Se marca una alerta si el acierto baja de ${fmt(thresholds.sku, 0)}% por SKU, ${fmt(thresholds.planta, 0)}% por planta o ${fmt(thresholds.total, 0)}% en el total, o si el modelo queda peor que repetir el mes anterior. ${chosen === "h1" ? "" : "Los pronósticos a dos meses tienen umbrales más bajos porque aciertan menos."}</p></div>
+</div>
     ${comparisonHtml(history)}
     <div id="tr-detail">${detail ? detailHtml(detail, history) : ""}</div></div>`;
   if (hasHistory) mountChart($("#tr-chart"), trackingOption(history, chosen));
@@ -260,14 +258,14 @@ async function renderTracking(view) {
 }
 
 function comparisonHtml(h) {
-  if (!h.comparacion.length) return "";
+  if (h.comparacion.filter((c) => c.produccion).length < 2) return "";  // with one strategy measured the table is almost empty
   const cell = (x, key) => (x ? fmt(x[key]) + "%" : "–");
   const rows = h.comparacion.map((c) => {
     const p = c.produccion, b = c.prueba_historica;
     const few = p && p.meses < 3 ? ` <span class="badge neutral" title="Con menos de 3 meses el promedio no dice mucho">pocos meses</span>` : "";
     return `<tr><td>${esc(strategyName(c.estrategia))}</td><td>${p ? fmt(p.meses, 0) : "–"}${few}</td><td>${cell(p, "sku")}</td><td>${cell(p, "planta")}</td><td>${cell(p, "total")}</td><td>${b ? fmt(b.meses, 0) : "–"}</td><td>${cell(b, "sku")}</td><td>${cell(b, "planta")}</td><td>${cell(b, "total")}</td></tr>`;
   }).join("");
-  return `<div class="card"><h2>Comparación de estrategias</h2><p class="hint">Promedio del acierto de los meses medidos, por SKU, planta y total. La prueba histórica son los últimos 12 meses con lo que se sabía en cada momento. Cada estrategia se mide sobre sus propias series, y un pronóstico de mitad de mes ve menos información que uno hecho con el mes anterior completo: no se comparan de uno en uno.</p>
+  return `<div class="card"><h2>Comparación de estrategias</h2><p class="hint">Promedio del acierto de los meses medidos. La prueba histórica son los últimos 12 meses.</p>
     <div class="tablewrap" style="margin-top:12px;max-height:none"><table class="data left3"><thead><tr><th rowspan="2">Estrategia</th><th colspan="4" style="text-align:center">En producción</th><th colspan="4" style="text-align:center">Prueba histórica</th></tr>
       <tr><th>Meses</th><th>SKU</th><th>Planta</th><th>Total</th><th>Meses</th><th>SKU</th><th>Planta</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
@@ -300,7 +298,7 @@ function trackingOption(h, strategy) {
 
 function scoreBadge(value, threshold) {
   if (value === null || value === undefined) return "";
-  return value < threshold ? `<span class="badge warn">${icon("alert")}Bajo ${fmt(threshold, 0)}%</span>` : `<span class="badge ok">${icon("check")}Dentro de lo esperado</span>`;
+  return value < threshold ? `<span class="badge warn">${icon("alert")}Bajo ${fmt(threshold, 0)}%</span>` : "";
 }
 
 function detailHtml(d, h) {
@@ -321,21 +319,20 @@ function detailHtml(d, h) {
   const alerts = d.alertas.length
     ? d.alertas.map((a) => `<span class="badge warn">${icon("alert")}${esc(ALERT_TEXT[a.codigo] || a.codigo)}${a.planta ? ": " + esc(a.planta) : ""}</span>`).join("")
     : `<span class="badge ok">${icon("check")}Sin alertas</span>`;
-  const missing = d.sin_pronostico ? `<p class="note">${fmt(d.sin_pronostico.series, 0)} series consumieron en el mes y no tenían pronóstico (${fmt(d.sin_pronostico.real_TO, 0)} TO).</p>` : "";
-  const errors = d.errores.length ? `<div class="card"><h2>Donde más falló</h2><p class="hint">Las series con mayor error en toneladas. Error = pronóstico − real.</p><div class="tablewrap" style="margin-top:12px"><table class="data"><thead><tr><th>Planta y SKU</th><th>Real (TO)</th><th>Pronóstico (TO)</th><th>Error (TO)</th></tr></thead><tbody>${d.errores.map((e) => `<tr><td>${esc(e.planta)} · ${esc(e.sku)}</td><td>${fx(e.real_TO)}</td><td>${fx(e.pronostico_TO)}</td><td>${e.error_TO > 0 ? "+" : ""}${fx(e.error_TO)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
+  const missing = d.sin_pronostico && t && d.sin_pronostico.real_TO > 0.01 * t.real_TO ? `<p class="note">${fmt(d.sin_pronostico.series, 0)} series consumieron en el mes y no tenían pronóstico (${fmt(d.sin_pronostico.real_TO, 0)} TO).</p>` : "";
+  const errors = d.errores.length ? `<div class="card"><h2>Donde más falló</h2><p class="hint">Error = pronóstico − real.</p><div class="tablewrap" style="margin-top:12px"><table class="data"><thead><tr><th>Planta y SKU</th><th>Real (TO)</th><th>Pronóstico (TO)</th><th>Error (TO)</th></tr></thead><tbody>${d.errores.slice(0, 8).map((e) => `<tr><td>${esc(e.planta)} · ${esc(e.sku)}</td><td>${fx(e.real_TO)}</td><td>${fx(e.pronostico_TO)}</td><td>${e.error_TO > 0 ? "+" : ""}${fx(e.error_TO)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
   return `<div class="stack">
-    <div class="card"><div class="toolbar"><div><h2>Detalle de ${monthLong(d.mes)} · ${how}</h2><p class="hint">Acierto = 100% − error total ÷ consumo real. Sesgo positivo: el pronóstico quedó por debajo del real.</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${select}${strategySelect}${seg}</div></div>
+    <div class="card"><div class="toolbar"><div><h2>Detalle de ${monthLong(d.mes)} · ${how}</h2></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${select}${strategySelect}${seg}</div></div>
       <div class="grid cols-4" style="margin-top:12px">
         ${card("Acierto por SKU", `${fmt(main.sku)}%`, scoreBadge(main.sku, th.sku))}
         ${card("Acierto por planta", `${fmt(main.planta)}%`, scoreBadge(main.planta, th.planta))}
         ${card("Acierto del total", `${fmt(main.total)}%`, scoreBadge(main.total, th.total))}
-        ${t ? card("Total del mes", `${fmt(t.real_TO, 0)}<small>TO</small>`, `Pronóstico ${fmt(t.pronostico_TO, 0)} TO; ${biasText(t.sesgo_pct)}.`) : ""}
+        ${t ? card("Total del mes", `${fmt(t.real_TO, 0)}<small>TO</small>`, `Pronóstico ${fmt(t.pronostico_TO, 0)} TO${t.sesgo_pct === null || Math.abs(t.sesgo_pct) < 0.05 ? "" : ` (${t.sesgo_pct > 0 ? "−" : "+"}${fmt(Math.abs(t.sesgo_pct))}%)`}`) : ""}
       </div>
       <div class="alertlist" style="flex-direction:row;flex-wrap:wrap">${alerts}</div>${missing}</div>
-    <div class="split">
-      <div class="card"><h2>Por modelo</h2><div class="tablewrap" style="margin-top:12px"><table class="data"><thead><tr><th>Modelo</th><th>SKU</th><th>Planta</th><th>Total</th><th>Sesgo</th></tr></thead><tbody>${models}</tbody></table></div></div>
-      <div class="card"><h2>Por planta</h2><p class="hint">De la que peor acertó a la mejor.</p><div class="tablewrap" style="margin-top:12px;max-height:340px"><table class="data"><thead><tr><th>Planta</th><th>Acierto</th><th>Real (TO)</th><th>Pronóstico (TO)</th></tr></thead><tbody>${plantas}</tbody></table></div></div>
-    </div>${others}${errors}</div>`;
+    <div class="card"><h2>Por planta</h2><div class="tablewrap" style="margin-top:12px;max-height:340px"><table class="data"><thead><tr><th>Planta</th><th>Acierto</th><th>Real (TO)</th><th>Pronóstico (TO)</th></tr></thead><tbody>${plantas}</tbody></table></div></div>
+    <div class="card"><details class="howto" id="tr-models"><summary>Ver por modelo</summary><div class="tablewrap" style="max-height:none"><table class="data"><thead><tr><th>Modelo</th><th>SKU</th><th>Planta</th><th>Total</th><th>Sesgo</th></tr></thead><tbody>${models}</tbody></table></div></details></div>
+${others}${errors}</div>`;
 }
 
 function bindDetail(d, h) {
