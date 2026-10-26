@@ -120,7 +120,7 @@ def test_the_window_opens_with_downloads_allowed_and_falls_back_when_it_cannot(m
     monkeypatch.setitem(sys.modules, "webview", module)
     assert launcher.run_window("http://127.0.0.1:1") is True
     (args, kwargs), = module.calls
-    assert args == ("detour", "http://127.0.0.1:1") and kwargs["width"] >= 1000 and kwargs["js_api"] is not None and module.settings["ALLOW_DOWNLOADS"] is True
+    assert args == (launcher.TITLE, "http://127.0.0.1:1") and "Luis Moreno" in launcher.TITLE and kwargs["width"] >= 1000 and kwargs["js_api"] is not None and module.settings["ALLOW_DOWNLOADS"] is True
     for failure in ("create", "start"):
         monkeypatch.setitem(sys.modules, "webview", fake_webview(failure))
         assert launcher.run_window("http://127.0.0.1:1") is False

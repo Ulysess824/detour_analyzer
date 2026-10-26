@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "Si usa este software, cítelo así."
+title: "detour_analyzer"
+abstract: "Forecast mensual del consumo de papel por planta y SKU a partir de exportes de SAP, con una app de escritorio (detour)."
+type: software
+authors:
+  - family-names: "Moreno"
+    given-names: "Luis"
+repository-code: "https://github.com/Ulysess824/detour_analyzer"
+license: "LicenseRef-AllRightsReserved"
+date-released: "2026-10-26"

@@ -16,12 +16,12 @@ from typing import Callable
 
 import uvicorn
 
-from src.app import __version__
+from src.app import __author__, __version__
 from src.app.api import create_app
 from src.app.paths import AppPaths, default_paths
 
 HOST = "127.0.0.1"
-TITLE = "detour"
+TITLE = f"detour · {__author__}"
 WINDOW_SIZE = (1360, 860)
 MIN_SIZE = (1000, 640)
 

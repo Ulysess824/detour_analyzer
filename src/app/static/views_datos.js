@@ -9,15 +9,14 @@ async function renderData(view) {
   const s = await api("datos");
   const a = s.actual;
   const current = a
-    ? `<div class="facts"><div><span>Último día cargado</span><b>${dateLong(a.ultimo_dia)}</b></div><div><span>Desde</span><b>${dateLong(a.primer_dia)}</b></div><div><span>Tamaño</span><b>${fmt(a.filas, 0)} filas</b></div></div>
-       <p class="note">${fmt(a.series, 0)} series en ${a.plantas} plantas.${a.mes_parcial ? ` El mes ${monthLong(a.mes_parcial)} está incompleto.` : ""}</p>`
+    ? `<div class="facts" style="grid-template-columns:minmax(0,1fr)"><div><span>Último día cargado</span><b>${dateLong(a.ultimo_dia)}</b></div></div>
+       ${a.mes_parcial ? `<p class="note">El mes ${monthLong(a.mes_parcial)} está incompleto.</p>` : ""}`
     : `<p class="hint" style="margin-top:6px">Todavía no hay datos. Carga el primer exporte de SAP.</p>`;
   const last = s.respaldos[0];
   const undo = last ? `<div class="rowbtns"><button class="btn" id="d-undo">Deshacer la última carga</button><span class="note" style="margin:0">Vuelve a los datos que había antes (${dateLong(last.creado_en)}).</span></div><div id="d-undo-box"></div>` : "";
   view.innerHTML = `<div class="stack">
     <div class="card"><h2>Datos actuales</h2>${current}${undo}</div>
     <div class="card"><h2>Cargar datos nuevos</h2>
-      <p class="hint" style="margin-top:6px;line-height:1.5">Elige el exporte de consumo de SAP (Excel, .xlsx) con los días nuevos. Antes de guardar nada se revisa: los días que ya estaban deben traer los mismos valores y se aplican las mismas validaciones de siempre. Los datos de antes se guardan como respaldo.</p>
       <label class="drop" id="d-drop"><input type="file" id="d-files" accept=".xlsx" multiple><b>Elige los archivos</b> o suéltalos aquí<span id="d-list" class="note"></span></label>
       <div class="rowbtns"><button class="btn primary" id="d-review" disabled>Revisar archivos</button></div>
       <div id="d-progress"></div></div>

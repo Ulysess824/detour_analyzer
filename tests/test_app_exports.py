@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from src.app import __version__
+from src.app import __author__, __version__
 from src.app.api import create_app
 from src.app.export_service import XLSX
 from src.app.paths import AppPaths
@@ -118,4 +118,4 @@ def test_the_history_is_empty_without_forecasts_or_data(tmp_path):
 
 def test_about_gives_the_version_and_where_the_files_are(workdir):
     body = client_of(workdir).get("/api/acerca").json()
-    assert body["version"] == __version__ and body["carpeta"] == str(workdir) and body["archivos"]["datos"].endswith("consumos_long.csv")
+    assert body["version"] == __version__ and body["autor"] == __author__ == "Luis Moreno" and body["carpeta"] == str(workdir) and body["archivos"]["datos"].endswith("consumos_long.csv")

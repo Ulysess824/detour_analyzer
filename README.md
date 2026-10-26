@@ -3,6 +3,10 @@
 Forecast del consumo por planta y SKU a partir de exportes de SAP. El objetivo es predecir la serie
 (no los picos): consumo mensual por SKU, por planta y total, agregando a partir de series por SKU.
 
+## Autor
+
+Proyecto desarrollado por **Luis Moreno**. Todos los derechos reservados (ver `LICENSE`). Para citarlo, ver `CITATION.cff`.
+
 ## Versiones
 
 | Versión | Rama / commit | Qué incluye |
