@@ -267,3 +267,9 @@ def test_the_javascript_has_no_syntax_errors():
     for script in sorted(STATIC.glob("*.js")):
         done = subprocess.run([node, "--check", str(script)], capture_output=True, text=True)
         assert done.returncode == 0, f"{script.name}: {done.stderr}"
+
+
+def test_an_unreadable_date_gives_a_message_in_spanish_and_never_a_server_error(client):
+    for key in ("desde", "hasta"):
+        bad = client.get("/api/consumo", params={"nivel": "diario", key: "basura"})
+        assert bad.status_code == 422 and "AAAA-MM-DD" in bad.json()["detalle"] and "basura" in bad.json()["detalle"]

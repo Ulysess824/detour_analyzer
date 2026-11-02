@@ -30,6 +30,14 @@ def _values(array: np.ndarray) -> list[float | None]:
     return [None if np.isnan(v) else round(float(v), 3) for v in array]
 
 
+def _as_date(text: str, which: str) -> pd.Timestamp:
+    r"""A date written by the user (AAAA-MM-DD); ValueError with a message for the screen when it cannot be read."""
+    try:
+        return pd.Timestamp(text)
+    except (ValueError, TypeError) as error:
+        raise ValueError(f"La fecha {which} «{text}» no es válida. Escríbela como AAAA-MM-DD, por ejemplo 2026-09-30.") from error
+
+
 class ConsumptionStore:
     r"""The panel of `data/consumos_long.csv`, rebuilt only when the file changes."""
 
@@ -179,8 +187,8 @@ class ConsumptionStore:
         if not len(index):
             raise NotFound("una combinación de planta y SKU en", f"{planta or 'todas'} / {sku}", [])
         S = self.panel
-        end = pd.Timestamp(until) if until else pd.Timestamp(S.dates[-1])
-        start = pd.Timestamp(since) if since else end - pd.Timedelta(days=DEFAULT_DAYS - 1)
+        end = _as_date(until, "final") if until else pd.Timestamp(S.dates[-1])
+        start = _as_date(since, "inicial") if since else end - pd.Timedelta(days=DEFAULT_DAYS - 1)
         if start > end:
             raise ValueError("La fecha inicial es posterior a la final.")
         keep = (S.dates >= start) & (S.dates <= end)
