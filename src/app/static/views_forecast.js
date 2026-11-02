@@ -23,7 +23,8 @@ async function apiPost(path, body, headers = {}) {
 }
 
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
-const arrow = (v) => (v === null || v === undefined ? "" : v >= 0 ? "▲ " : "▼ ");
+/* the triangle of a change, green when it went up and red when it went down (the shape and the number say the same, so the color is not the only cue); app.js uses it too */
+const arrow = (v) => (v === null || v === undefined ? "" : `<span class="${v > 0 ? "delta-up" : v < 0 ? "delta-down" : ""}">${v >= 0 ? "▲" : "▼"}</span> `);
 
 function bindPicks(container, error, state, rerender) {
   container.querySelectorAll("[data-pick]").forEach((button) => (button.onclick = () => {

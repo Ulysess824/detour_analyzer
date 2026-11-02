@@ -428,10 +428,9 @@ function kpis(data) {
     ].join("");
   }
   const change = r.cambio_vs_mes_anterior_pct;
-  const arrow = change === null ? "" : change >= 0 ? "▲ " : "▼ ";
   return [
     card("Último mes completo", `${fmt(r.ultimo_mes_TO, 0)}<small>TO</small>`, monthLong(r.ultimo_mes_completo)),
-    card("Cambio contra el mes anterior", change === null ? "–" : `${arrow}${fmt(Math.abs(change))}%`, ""),
+    card("Cambio contra el mes anterior", change === null ? "–" : `${arrow(change)}${fmt(Math.abs(change))}%`, ""),
   ].join("");
 }
 
