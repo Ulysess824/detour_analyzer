@@ -478,7 +478,7 @@ function bindResultAgain(data) {
 async function loadFooter() {
   try {
     const [status, about] = await Promise.all([api("estado"), api("acerca")]);
-    $("#side-foot").innerHTML = `${esc(about.autor)}<br>v${esc(about.version)}`;
+    $("#side-foot").innerHTML = `${esc(about.autor)} · v${esc(about.version)}`;
     if (status.datos) {
       $("#top-chip").innerHTML = `<span class="dot ${status.datos.mes_parcial ? "warn" : ""}"></span>Datos al ${dateLong(status.datos.ultimo_dia)}`;
     } else {

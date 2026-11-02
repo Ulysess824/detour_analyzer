@@ -21,7 +21,7 @@ from src.app.api import create_app
 from src.app.paths import AppPaths, default_paths
 
 HOST = "127.0.0.1"
-TITLE = f"detour · {__author__}"
+TITLE = f"Detour · {__author__}"
 WINDOW_SIZE = (1360, 860)
 MIN_SIZE = (1000, 640)
 
