@@ -14,9 +14,9 @@ import pandas as pd
 
 from src.engine.data_checks import working_days_missing
 
-STRATEGIES = ["automatica", "h1", "directa", "parcial", "nowcast_media", "iterada"]
-NEEDS_MONTH_IN_PROGRESS = ["parcial", "nowcast_media"]
-MIN_CUTOFF_DAY = 10  # from this day on the first days of the month in progress improve the direct forecast (results/curva_corte_parcial.csv)
+STRATEGIES = ["automatica", "h1", "nowcast_media", "iterada"]
+NEEDS_MONTH_IN_PROGRESS = ["nowcast_media"]
+MIN_CUTOFF_DAY = 10  # under this day the mean of the days seen is a thin base to complete the month (the backtest of nowcast_media used day 15)
 
 
 @dataclass(frozen=True)
@@ -59,8 +59,8 @@ def resolve_strategy(state: MonthState, requested: str = "automatica", cutoff_da
     r"""
     The strategy that runs for this state of the data and these settings, with the notes to show the user.
 
-    Month complete: the one-month forecast of the month after it. Month in progress: `automatica` is `parcial` from MIN_CUTOFF_DAY and
-    `directa` before it; the target is the month after the one in progress. A `cutoff_day` chosen by hand cannot pass the last record.
+    Month complete: the one-month forecast of the month after it. Month in progress: `automatica` is `nowcast_media` (a warning under
+    MIN_CUTOFF_DAY); the target is the month after the one in progress. A `cutoff_day` chosen by hand cannot pass the last record.
     """
     if requested not in STRATEGIES:
         raise ValueError(f"unknown strategy {requested!r}; choose one of {STRATEGIES}")
@@ -74,13 +74,9 @@ def resolve_strategy(state: MonthState, requested: str = "automatica", cutoff_da
     cutoff = state.cutoff_day if cutoff_day is None else int(cutoff_day)
     if cutoff < 1 or cutoff > state.cutoff_day:
         raise ValueError(f"the cutoff day must be between 1 and {state.cutoff_day} (the last record is on {state.last_date.date()})")
-    strategy = requested
-    if requested == "automatica":
-        strategy = "parcial" if cutoff >= MIN_CUTOFF_DAY else "directa"
-        if strategy == "directa":
-            notes.append(f"Hay solo {cutoff} días del mes en curso: se usa la directa, que no los necesita (el aporte empieza el día {MIN_CUTOFF_DAY}).")
-    elif requested in NEEDS_MONTH_IN_PROGRESS and cutoff < MIN_CUTOFF_DAY:
-        notes.append(f"El corte (día {cutoff}) está bajo el rango validado, que empieza el día {MIN_CUTOFF_DAY}: el aporte del mes en curso es pequeño.")
+    strategy = "nowcast_media" if requested == "automatica" else requested
+    if strategy in NEEDS_MONTH_IN_PROGRESS and cutoff < MIN_CUTOFF_DAY:
+        notes.append(f"Hay solo {cutoff} días del mes en curso (menos que el día {MIN_CUTOFF_DAY}): la media diaria con que se completa el mes es poco fiable.")
     uses_cutoff = strategy in NEEDS_MONTH_IN_PROGRESS
     target = origin + 1 if strategy == "h1" else origin + 2
     return StrategyPlan(strategy, cutoff if uses_cutoff else None, str(origin), str(target), notes)

@@ -103,9 +103,9 @@ const GLOSSARY = [
   ["Acierto", "100% menos el error total dividido por el consumo real. Si el real fue 100 TO y el pronóstico 90 TO, el acierto es 90%. Se mide por SKU, por planta y para el total."],
   ["Sesgo", "Si el pronóstico tiende a quedar por debajo (positivo) o por arriba (negativo) del real."],
   ["Modelo simple", "Repite el consumo del mes anterior. Sirve de referencia: el modelo debe ganarle."],
-  ["Mes en curso (parcial)", "Un mes del que solo hay una parte de los días. No entra en los resúmenes de consumo, pero el pronóstico sí usa los días que lleva para pronosticar el mes siguiente."],
+  ["Mes en curso (parcial)", "Un mes del que solo hay una parte de los días. No entra en los resúmenes de consumo, pero el pronóstico sí usa los días que lleva (los completa con su media diaria) para pronosticar el mes siguiente."],
   ["Estrategia de pronóstico", "La forma de calcular el pronóstico. Con el mes completo se pronostica el mes siguiente; a mitad de mes se usa el mes en curso para pronosticar el que sigue. Se elige en Ajustes."],
-  ["Día de corte", "Cuántos días del mes en curso conoce el pronóstico. La app lo toma del último registro de los datos. Desde el día 10 esos días mejoran el resultado."],
+  ["Día de corte", "Cuántos días del mes en curso conoce el pronóstico. La app lo toma del último registro de los datos. Con menos de 10 días la media diaria es poco fiable y la app lo avisa."],
   ["Prueba histórica", "Cómo habría acertado el modelo en los últimos 12 meses, usando solo lo que se sabía en cada momento."],
   ["Hiperparámetros", "La configuración interna de los modelos. Reafinarlos es buscar la mejor con los datos más nuevos; se repite cada 6 meses. No es lo mismo que Ajustes, que elige la estrategia del pronóstico."],
 ];

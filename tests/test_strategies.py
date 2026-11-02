@@ -4,12 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.engine.feature_utils import SERIES_FEATURES, make_frame
+from src.engine.feature_utils import make_frame
 from src.engine.inference_utils import forecast_next_month
-from src.engine.member_utils import ml_forecasts
 from src.engine.panel_utils import build_panel
 from src.engine.month_in_progress import complete_calendar
-from src.engine.partial_utils import PARTIAL_FEATURES, add_partial_features
 from src.engine.strategies import forecast_with_strategy, iterated_forecast, nowcast_input_forecast
 
 MONTH = 27  # 2025-04 in the toy table: the month in progress; the last complete month is 26
@@ -50,32 +48,6 @@ def test_the_calendar_of_a_month_in_progress_is_completed_like_the_full_one(full
     assert complete_calendar(full) is full  # a complete calendar is left as it is
 
 
-def test_direct_reproduces_the_backtest_forecast(full, partial_panel):
-    got = forecast_with_strategy(partial_panel, {}, "directa", ORIGIN)
-    frame = make_frame(full, 2)
-    rows = frame[frame["o"] == ORIGIN].reset_index(drop=True)
-    expected = ml_forecasts(frame[frame["t"] <= ORIGIN], rows, {})["ml_mean"]
-    assert list(got.columns) == COLUMNS and (got["mes"] == "2025-05").all() and (got["mes_origen"] == "2025-03").all()
-    assert np.allclose(got["ml_mean"].to_numpy(), expected) and (got["estrategia"] == "directa").all()
-
-
-def test_partial_reproduces_the_backtest_forecast(full, partial_panel):
-    day = 12
-    got = forecast_with_strategy(partial_panel, {}, "parcial", ORIGIN, day)
-    frame = add_partial_features(make_frame(full, 2), full, day)
-    rows = frame[frame["o"] == ORIGIN].reset_index(drop=True)
-    expected = ml_forecasts(frame[frame["t"] <= ORIGIN], rows, {}, SERIES_FEATURES + PARTIAL_FEATURES)["ml_mean"]
-    assert np.allclose(got["ml_mean"].to_numpy(), expected)
-
-
-def test_partial_does_not_read_days_after_the_cutoff(toy_df):
-    short = build_panel(_in_progress(toy_df, 12))
-    long = build_panel(_in_progress(toy_df, 25))
-    a = forecast_with_strategy(short, {}, "parcial", ORIGIN, 12)
-    b = forecast_with_strategy(long, {}, "parcial", ORIGIN, 12)  # same cutoff, 13 more days exported
-    assert np.allclose(_by_key(a), _by_key(b))
-
-
 def test_nowcast_media_reproduces_the_experiment_and_ignores_later_days(toy_df, full, partial_panel):
     day = 12
     got = forecast_with_strategy(partial_panel, {}, "nowcast_media", ORIGIN, day)
@@ -105,9 +77,9 @@ def test_one_month_forecast_with_the_month_in_progress_targets_that_month(partia
     assert (got["mes"] == "2025-04").all() and (got["mes_origen"] == "2025-03").all()
 
 
-def test_a_partial_month_needs_the_month_in_progress_and_a_cutoff(full, partial_panel):
+def test_the_nowcast_needs_the_month_in_progress_and_a_cutoff(full, partial_panel):
     with pytest.raises(ValueError):
-        forecast_with_strategy(partial_panel, {}, "parcial", ORIGIN)
+        forecast_with_strategy(partial_panel, {}, "nowcast_media", ORIGIN)
     with pytest.raises(ValueError):
         forecast_with_strategy(full, {}, "nowcast_media", full.monthly.shape[1] - 1, 15)
     with pytest.raises(ValueError, match="unknown strategy"):

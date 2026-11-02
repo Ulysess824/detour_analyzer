@@ -1,5 +1,7 @@
 # Base de datos SQLite: consumos reales y consumos predichos (fase 1)
 
+> **Actualización 2026-11-02:** las estrategias `directa` y `parcial` (y el método Monte Carlo del resto del mes en Ajustes, con su gráfico de acierto por día de corte) se retiraron de producción y de la app. Este documento las describe como se construyeron; hoy la app ofrece `h1`, `nowcast_media` (lo que elige la automática con el mes en curso) e `iterada`.
+
 Estado: implementado en la rama `feature/sqlite`. El CSV `data/consumos_long.csv` sigue siendo el maestro; la base se genera desde él
 y no se sube a git (`data/*.db`, datos confidenciales y archivo binario).
 

@@ -38,19 +38,19 @@ def test_complete_month_runs_the_one_month_forecast():
 
 
 def test_other_choices_fall_back_to_one_month_when_the_month_is_complete():
-    plan = resolve_strategy(detect_month_state(_table("2026-09-30")), "parcial")
+    plan = resolve_strategy(detect_month_state(_table("2026-09-30")), "nowcast_media")
     assert plan.strategy == "h1" and plan.notes
 
 
-def test_automatic_uses_the_partial_strategy_from_the_validated_cutoff():
+def test_automatic_completes_the_month_in_progress_with_the_mean():
     plan = resolve_strategy(detect_month_state(_table("2026-10-15")))
-    assert (plan.strategy, plan.cutoff_day, plan.origin, plan.target) == ("parcial", 15, "2026-09", "2026-11")
-    assert resolve_strategy(detect_month_state(_table(f"2026-10-{MIN_CUTOFF_DAY:02d}"))).strategy == "parcial"
+    assert (plan.strategy, plan.cutoff_day, plan.origin, plan.target, plan.notes) == ("nowcast_media", 15, "2026-09", "2026-11", [])
 
 
-def test_automatic_falls_back_to_direct_under_the_validated_cutoff():
+def test_automatic_warns_when_few_days_of_the_month_have_been_seen():
     plan = resolve_strategy(detect_month_state(_table("2026-10-08")))
-    assert (plan.strategy, plan.cutoff_day, plan.target) == ("directa", None, "2026-11") and plan.notes
+    assert (plan.strategy, plan.cutoff_day, plan.target) == ("nowcast_media", 8, "2026-11") and plan.notes
+    assert not resolve_strategy(detect_month_state(_table(f"2026-10-{MIN_CUTOFF_DAY:02d}"))).notes
 
 
 def test_a_chosen_strategy_under_the_range_runs_with_a_warning():
@@ -72,9 +72,8 @@ def test_one_month_choice_with_the_month_in_progress_forecasts_the_month_in_prog
     assert (plan.strategy, plan.origin, plan.target) == ("h1", "2026-09", "2026-10")
 
 
-def test_direct_and_iterated_do_not_use_the_cutoff():
-    state = detect_month_state(_table("2026-10-15"))
-    assert resolve_strategy(state, "directa").cutoff_day is None and resolve_strategy(state, "iterada").cutoff_day is None
+def test_iterated_does_not_use_the_cutoff():
+    assert resolve_strategy(detect_month_state(_table("2026-10-15")), "iterada").cutoff_day is None
 
 
 def test_unknown_strategy_is_rejected():

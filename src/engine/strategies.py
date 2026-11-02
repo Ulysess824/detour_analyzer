@@ -1,10 +1,9 @@
 """
-Production forecasts of the strategies: one month ahead, direct, direct + first days of the month in progress, the month completed
-with the mean, and iterated.
+Production forecasts of the strategies: one month ahead, the month in progress completed with the mean, and iterated.
 
 `S` is the panel of the data as loaded, so when the last month is in progress it holds that month's partial total. `origin` is the
 position of the last complete month; everything after it is hidden (`mask_panel`) except the first days of the month in progress, which
-the partial and nowcast strategies read from `daily` up to the cutoff day. Every forecast has the columns of `forecast_next_month`
+the nowcast strategy reads from `daily` up to the cutoff day. Every forecast has the columns of `forecast_next_month`
 (`planta, sku, mes, lgbm, xgb, rf, ml_mean, naive`) plus `mes_origen` and `estrategia`.
 """
 
@@ -13,12 +12,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.engine.feature_utils import SERIES_FEATURES, frame_at_origin, make_frame
+from src.engine.feature_utils import frame_at_origin, make_frame
 from src.engine.inference_utils import extend_panel, forecast_next_month
 from src.engine.member_utils import ML_MODELS, ml_forecasts
 from src.engine.month_in_progress import completed_month, complete_calendar, mask_panel, with_pseudo_month
 from src.engine.panel_utils import Panel
-from src.engine.partial_utils import PARTIAL_FEATURES, add_partial_features
 
 
 def _known_panel(S: Panel, origin: int, horizon: int) -> Panel:
@@ -42,22 +40,13 @@ def _table(S: Panel, extended: Panel, series: np.ndarray, models: dict, naive: n
     return out
 
 
-def direct_forecast(S: Panel, tuned: dict, origin: int, horizon: int, cutoff_day: int | None = None, name: str = "directa") -> pd.DataFrame:
-    r"""
-    One model trained with the target `horizon` months ahead, for the month `origin + horizon`.
-
-    With `cutoff_day` the four month-to-date features of the month after the origin (its first `cutoff_day` days) are added; the training rows
-    get the same features at the same day for every month of the history.
-    """
+def direct_forecast(S: Panel, tuned: dict, origin: int, horizon: int, name: str = "h1") -> pd.DataFrame:
+    r"""One model trained with the target `horizon` months ahead, for the month `origin + horizon`."""
     extended = _known_panel(S, origin, horizon)
     frame = make_frame(extended, horizon)
-    features = None
-    if cutoff_day is not None:
-        frame = add_partial_features(frame[frame["o"] <= origin].reset_index(drop=True), S, cutoff_day)  # month-to-date reads the real days of S
-        features = SERIES_FEATURES + PARTIAL_FEATURES
     train = frame[frame["t"] <= origin]
     rows = frame[frame["o"] == origin].reset_index(drop=True)
-    models = ml_forecasts(train, rows, tuned, features)
+    models = ml_forecasts(train, rows, tuned)
     return _table(S, extended, rows["series"].to_numpy(), models, rows["p_naive"].to_numpy(), origin, origin + horizon, name)
 
 
@@ -124,23 +113,19 @@ def forecast_with_strategy(S: Panel, tuned: dict, strategy: str, origin: int, cu
     r"""
     Forecast with one strategy from the last complete month `origin` (a position in the panel `S`).
 
-    `h1` forecasts the month after `origin` (the month in progress when there is one); the others forecast `origin + 2`. `parcial` and
-    `nowcast_media` need the month in progress (`origin` is the month before the last one) and a `cutoff_day` not after its last record.
+    `h1` forecasts the month after `origin` (the month in progress when there is one); the others forecast `origin + 2`. `nowcast_media`
+    needs the month in progress (`origin` is the month before the last one) and a `cutoff_day` not after its last record.
     """
     n = S.monthly.shape[1]
     if origin < n - 1:
         S = complete_calendar(S)  # the month in progress must know how many days it has
-    if strategy in ("parcial", "nowcast_media"):
+    if strategy == "nowcast_media":
         if origin != n - 2 or cutoff_day is None:
             raise ValueError(f"{strategy} needs the month in progress after the last complete month and a cutoff day")
     if strategy == "h1":
         if origin == n - 1:
             return forecast_next_month(S, tuned).assign(mes_origen=S.labels[origin], estrategia="h1")
         return direct_forecast(S, tuned, origin, 1, name="h1")
-    if strategy == "directa":
-        return direct_forecast(S, tuned, origin, 2)
-    if strategy == "parcial":
-        return direct_forecast(S, tuned, origin, 2, cutoff_day, "parcial")
     if strategy == "nowcast_media":
         return nowcast_media_forecast(S, tuned, origin, cutoff_day)
     if strategy == "iterada":

@@ -3,12 +3,12 @@
 
 const forecastState = { planta: "", sku: "", mes: "", estrategia: "" };
 const STRATEGY_NAMES = {
-  automatica: "Automática", h1: "Un mes de anticipación", directa: "Dos meses, directa", parcial: "Dos meses, directa y días del mes en curso",
+  automatica: "Automática", h1: "Un mes de anticipación",
   nowcast_media: "Dos meses, mes en curso completado con la media", iterada: "Dos meses, iterada",
 };
 const trackState = { mes: "", origen: "", estrategia: "", grafico: "" };
-const STRATEGY_ORDER = ["h1", "directa", "parcial", "nowcast_media", "iterada"];
-const STRATEGY_SHORT = { h1: "Un mes", directa: "Directa", parcial: "Directa + mes en curso", nowcast_media: "Mes completado", iterada: "Iterada" };
+const STRATEGY_ORDER = ["h1", "nowcast_media", "iterada"];
+const STRATEGY_SHORT = { h1: "Un mes", nowcast_media: "Mes completado", iterada: "Iterada" };
 const strategyName = (id) => STRATEGY_NAMES[id] || id;
 const strategyShort = (id) => STRATEGY_SHORT[id] || strategyName(id);
 const MODEL_NAMES = { ml_mean: "Modelo principal (promedio)", lgbm: "LightGBM", xgb: "XGBoost", rf: "Random Forest", naive: "Modelo simple (repite el mes anterior)" };
@@ -155,12 +155,11 @@ function forecastHtml(d) {
 
 function currentMonthHtml(m, card) {
   const closed = m.real_completo_TO !== null && m.real_completo_TO !== undefined;
-  const other = m.metodo_fijo ? "" : ` Con ${m.otro_metodo.metodo === "montecarlo" ? "Monte Carlo" : "la media diaria"} sería ${fmt(m.otro_metodo.total_estimado_TO, 0)} TO.`;
   return `<div class="card"><h2>El mes en curso: ${monthLong(m.mes)}</h2>
-    <p class="hint" style="margin-top:6px">Al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos, ${fmt(m.dias_restantes, 0)} por venir.${other}</p>
+    <p class="hint" style="margin-top:6px">Al día ${m.corte}: ${fmt(m.dias_vistos, 0)} días hábiles vistos, ${fmt(m.dias_restantes, 0)} por venir.</p>
     <div class="grid cols-3" style="margin-top:14px">
       ${card(`Real hasta el día ${m.corte}`, `${fmt(m.real_hasta_corte_TO, 0)}<small>TO</small>`, "")}
-      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, m.metodo === "montecarlo" ? "Monte Carlo" : "Media diaria")}
+      ${card("Resto del mes, estimado", `${fmt(m.resto_estimado_TO, 0)}<small>TO</small>`, "Media diaria")}
       ${card("Mes completo, estimado", `${fmt(m.total_estimado_TO, 0)}<small>TO</small>`, closed ? `El mes ya cerró: el real fue ${fmt(m.real_completo_TO, 0)} TO.` : "")}
     </div></div>`;
 }

@@ -13,7 +13,7 @@ from src.evaluation.tracking_run import is_backtest, save_tracking, track_saved_
 from src.evaluation.tracking_utils import MODELS, THRESHOLDS, THRESHOLDS_TWO_MONTHS, coverage_ok, forecast_coverage
 
 LEVELS = ["sku", "planta", "total"]
-STRATEGY_ORDER = ["h1", "directa", "parcial", "nowcast_media", "iterada"]
+STRATEGY_ORDER = ["h1", "nowcast_media", "iterada"]  # the strategies the app offers; rows of others (removed ones) in the history are not shown
 TOP_ERRORS = 15
 
 
@@ -26,7 +26,8 @@ def _num(value: float) -> float | None:
 
 
 def tracking_table(paths: AppPaths) -> pd.DataFrame:
-    return read_tracking_csv(paths.tracking_csv) if paths.tracking_csv.exists() else pd.DataFrame()
+    table = read_tracking_csv(paths.tracking_csv) if paths.tracking_csv.exists() else pd.DataFrame()
+    return table[table["estrategia"].isin(STRATEGY_ORDER)] if len(table) else table
 
 
 def _production(table: pd.DataFrame) -> pd.DataFrame:

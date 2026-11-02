@@ -27,7 +27,6 @@ class GenerateBody(BaseModel):
 class SettingsBody(BaseModel):
     estrategia: str
     corte_manual: StrictInt | None = None
-    metodo_resto: str | None = None
 
 
 class MeasureBody(BaseModel):
@@ -166,7 +165,7 @@ def create_app(paths: AppPaths | None = None, today: Callable[[], date] = date.t
 
     @app.put("/api/ajustes")
     def save_settings(body: SettingsBody):
-        settings_service.save(paths, body.estrategia, body.corte_manual, body.metodo_resto)
+        settings_service.save(paths, body.estrategia, body.corte_manual)
         return settings_service.describe(paths, store)
 
     @app.get("/api/trabajos/activo")

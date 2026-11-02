@@ -6,9 +6,9 @@ the tuning json when present) and forecasts the month after the last one. `ml_me
 the model used in the report. SKU forecasts are added up to planta and total (bottom-up).
 
 When the last month of the export is complete the script forecasts the next month. When it is in progress (the planner's mid-month
-deadline) the strategy comes from the day of its last record: `parcial` (direct + the first days of the month in progress) from day 10,
-`directa` before; the forecast is then for the month after the one in progress. --strategy and --cutoff-day change that choice
-(automatica, h1, directa, parcial, nowcast_media, iterada). With --as-of YYYY-MM the data after that month is ignored,
+deadline) the strategy is `nowcast_media` (the month in progress completed with the mean of the days seen up to its last record) and the
+forecast is for the month after the one in progress. --strategy and --cutoff-day change that choice (automatica, h1, nowcast_media,
+iterada). With --as-of YYYY-MM the data after that month is ignored,
 so the forecast can be compared with the real value that is already known (a check of this script).
 
 Next to the forecast csv it writes `forecast_<month>.manifest.json`: the commit, data, parameters and library versions the run used

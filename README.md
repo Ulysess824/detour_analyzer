@@ -13,7 +13,7 @@ Proyecto desarrollado por **Luis Moreno**. Todos los derechos reservados (ver `L
 |---|---|---|
 | **v1** | rama `v1` (commit `4150a26`) | Pronóstico mensual por SKU, planta y total con el ensamble de LightGBM, XGBoost y Random Forest (`ml_mean`), comparación con el planificador y con el modelo interno, pronóstico a dos meses, dashboard (Streamlit, retirado en la fase 0 de la app de escritorio) y Excel |
 | **v2** | commit `13c870a` de `main` | Todo lo de la v1 más el nowcasting del mes en curso como experimento (media, mediana y Monte Carlo), la carpeta `bibliografia/` y la app de escritorio (`detour.exe`, pronóstico a un mes) |
-| **v3** | `main` (commit `c81e112`, fusión de la rama `prueba_nowcasting`) | Todo lo de la v2 más las estrategias a mitad de mes en producción (directa, directa + días del mes en curso, mes en curso completado con la media e iterada), detección automática del mes en curso y del día de corte, la sección Ajustes de la app (con el método para estimar el resto del mes en curso: media o Monte Carlo) y el seguimiento por estrategia |
+| **v3** | `main` (commit `c81e112`, fusión de la rama `prueba_nowcasting`) | Todo lo de la v2 más las estrategias a mitad de mes en producción (mes en curso completado con la media e iterada; la directa y la directa + días del mes en curso se retiraron el 2026-11-02), detección automática del mes en curso y del día de corte, la sección Ajustes de la app y el seguimiento por estrategia |
 
 La v2 no cambió ningún modelo ni resultado de la v1: añadió el nowcasting experimental, la bibliografía y la app. La v3 no cambia el pronóstico a un mes (el de octubre
 de 2026 sale idéntico byte a byte); añade lo que se hace cuando el último mes todavía no terminó. Para recuperar la v1: `git checkout v1`
@@ -83,7 +83,7 @@ src/engine/                la máquina: lo que produce el pronóstico (no import
     db_utils.py            base SQLite: consumos reales y consumos predichos (se sobrescriben mientras sea beta)
     month_in_progress.py   el mes en curso dentro del panel: ocultarlo, completar el calendario, estimar el resto con la media
     month_state.py         si el último mes está terminado, el día de corte (del último registro) y qué estrategia corre
-    strategies.py          los pronósticos de las estrategias: un mes, directa, directa + días del mes en curso, mes completado con la media e iterada
+    strategies.py          los pronósticos de las estrategias: un mes, mes completado con la media e iterada
     prediction_run.py      servicio del pronóstico (lo usan el script y la app): elige la estrategia según el estado de los datos
 src/evaluation/            las pruebas del modelo: backtests, métricas, ajuste y comparaciones (usa engine)
     metrics_utils.py       WAPE, accuracy, bias y tablas con ranking
@@ -93,7 +93,7 @@ src/evaluation/            las pruebas del modelo: backtests, métricas, ajuste 
     search_space_utils.py  espacios de búsqueda de Optuna y trial base
     tuning_utils.py        folds cronológicos, búsqueda, test y resumen
     cache_utils.py         protecciones de los resultados guardados (huella de datos, alineación, ventana de ajuste)
-    horizon_utils.py       pronóstico a dos meses: directa, iterada y con mes parcial
+    horizon_utils.py       pronóstico a dos meses de la evaluación: directa, iterada y con mes parcial (solo evaluación)
     eda_utils.py           estadísticas descriptivas por serie y por planta
     planner_io_utils.py    lectura de los libros de asignación del planificador (todas las plantas)
     internal_io_utils.py   lectura del libro del modelo interno (todas las plantas), reglas de faltantes
@@ -188,8 +188,7 @@ Cuando termina el mes que se pronosticó, se agregan sus datos al archivo maestr
 Compara el pronóstico guardado con el consumo real por SKU, planta y total para cada modelo, avisa si el acierto de `ml_mean` baja de lo normal y guarda el resultado,
 con la estrategia y el día de corte del pronóstico, en `results/seguimiento.csv` (va a git) y en la tabla `seguimiento` de la base (esquema 3). Los umbrales son SKU 64%,
 planta 85% y total 90% para el pronóstico a un mes, y SKU 60%, planta 83% y total 87% para las estrategias a dos meses, que aciertan menos; también avisa si queda peor que el
-naive. `--backtest` rellena el historial con los 12 meses de prueba de cada estrategia (`backtest-h1`: SKU 70,4%, planta 91,9%, total 97,6%; `backtest-directa`: 66,0 / 89,9 / 94,1;
-`backtest-parcial` con corte 15: 68,6 / 90,8 / 96,0; `backtest-iterada`: 65,3 / 89,8 / 94,5; promedios de los acierto mensuales). Lo que se mide es el par (mes, estrategia): si para
+naive. `--backtest` rellena el historial con los 12 meses de prueba de cada estrategia (`backtest-h1`: SKU 70,4%, planta 91,9%, total 97,6%; `backtest-iterada`: 65,3 / 89,8 / 94,5; promedios de los acierto mensuales; el script también guarda `backtest-directa` y `backtest-parcial`, que la app no muestra). Lo que se mide es el par (mes, estrategia): si para
 un mes hay un pronóstico de mitad de mes y otro hecho con el mes anterior completo, cada uno se mide por separado. Detalle: `docs/plan_seguimiento.md` y
 `docs/plan_prueba_nowcasting.md`.
 
@@ -513,10 +512,9 @@ consumo en la ventana.
 
 ## Pendiente
 
-- Pronóstico de producción a mitad de mes (directa, directa + mes en curso, mes completado con la media e iterada), la sección Ajustes y el
+- Pronóstico de producción a mitad de mes (mes completado con la media e iterada), la sección Ajustes y el
   seguimiento por estrategia están hechos (ver "Estrategias a mitad de mes") y están en `main` desde el commit `c81e112`. Quedan: una prueba histórica de la estrategia del
-  mes completado con la media (no tiene) y la validación del corte en los SKU grandes de SCAN, donde los
-  primeros días del mes no mejoraron a la directa.
+  mes completado con la media (no tiene) y la validación del corte en los SKU grandes de SCAN.
 - Evaluación con un rango de meses como test: hoy la prueba es un origen móvil a un mes (cada mes de prueba se pronostica con los
   datos hasta el mes anterior, reentrenando cada vez; 12 pruebas de octubre de 2025 a septiembre de 2026). Se mantiene esa metodología.
   A futuro conviene valorar además un corte único con un rango de meses como test (entrenar hasta una fecha y pronosticar varios
@@ -625,12 +623,9 @@ se tiene el último mes completo (septiembre) y un mes en curso incompleto. El m
 hasta fin del mes anterior, que son más de los que tiene el planificador. Para comparar en igualdad de condiciones y pronosticar
 noviembre hay que pronosticar **dos meses** desde el último mes completo (`t = o + 2`).
 
-**Decisión.**
-
-| | Estrategia | Qué es |
-|---|---|---|
-| Principal | **Directa** | `ml_mean` (promedio de LightGBM, XGBoost y Random Forest) entrenado con el objetivo a dos meses. Mismas 25 variables, calculadas en el origen `o`; se entrena con las filas cuyo objetivo ya se conoce (`t <= o`) |
-| Secundaria | **Directa + mes parcial** | La directa más 4 variables del mes en curso (`mtd`, `mtd_rate`, `mtd_occ`, `mtd_proj`: consumo de los primeros 15 días, por día hábil, proporción de días con consumo y proyección del mes). Requiere un exporte de SAP a mitad de mes |
+**Decisión (2026-11-02).** En producción y en la app el pronóstico a dos meses es el **mes en curso completado con la media** (`nowcast_media`). La directa y la
+directa + mes parcial que se medían aquí se retiraron de producción y de la app; las cifras de abajo siguen en el README porque el script `compare_horizon_strategies.py`
+las calcula como referencia de evaluación.
 
 La iterada (un modelo a un mes aplicado dos veces) se midió pero no se adopta. Los modelos locales por SKU (SES, Holt, ARIMA) se
 midieron y se retiraron del proyecto.
@@ -642,7 +637,7 @@ midieron y se retiraron del proyecto.
 |---|---|---|
 | Estrategias a varios pasos (directa, iterada, de múltiples salidas) | Ben Taieb, Bontempi, Atiya y Sorjamaa (2012), *Expert Systems with Applications* 39(8): [A review and comparison of strategies for multi-step ahead time series forecasting](https://research.monash.edu/en/publications/a-review-and-comparison-of-strategies-for-multi-step-ahead-time-s/) | Define las estrategias que se comparan. En su prueba (111 series) ganan las de múltiples salidas; esa estrategia no se probó aquí |
 | Directa contra iterada | Marcellino, Stock y Watson (2006), *Journal of Econometrics* 135: [A comparison of direct and iterated multistep AR methods](https://cadmus.eui.eu/handle/1814/42713) | En teoría la iterada es más eficiente si el modelo está bien especificado y la directa es más robusta a errores de especificación; en sus datos macroeconómicos gana la iterada. Como no hay consenso, se midió |
-| Información parcial del período en curso | Giannone, Reichlin y Small (2008), *Journal of Monetary Economics*: [Nowcasting: the real-time informational content of macroeconomic data](https://lbsresearch.london.edu/id/eprint/315) | Idea de actualizar el pronóstico con datos incompletos del período actual: origen de la estrategia secundaria |
+| Información parcial del período en curso | Giannone, Reichlin y Small (2008), *Journal of Monetary Economics*: [Nowcasting: the real-time informational content of macroeconomic data](https://lbsresearch.london.edu/id/eprint/315) | Idea de actualizar el pronóstico con datos incompletos del período actual: origen del mes en curso completado con la media |
 | Un modelo global para todas las series | Montero-Manso y Hyndman (2021), *International Journal of Forecasting* 37(4): [Principles and algorithms for forecasting groups of time series](https://arxiv.org/pdf/2008.00444) | Respalda entrenar un solo modelo con todos los SKU en lugar de uno por serie |
 | Combinar modelo y criterio experto | Blattberg y Hoch (1990), *Management Science* 36(8): [Database models and managerial intuition](https://ideas.repec.org/a/inm/ormnsc/v36y1990i8p887-899.html) | Queda aparte: la mezcla con el pronóstico del planificador no se implementó |
 
@@ -651,9 +646,9 @@ midieron y se retiraron del proyecto.
 | Estrategia | SKU | Planta | Total |
 |---|---|---|---|
 | Referencia a un mes (más información) | 71,0% | 91,8% | 97,5% |
-| **Directa (principal)** | 66,2% | 90,0% | 94,1% |
+| Directa (solo evaluación) | 66,2% | 90,0% | 94,1% |
 | Iterada | 65,4% | 89,8% | 94,4% |
-| **Directa + mes parcial (secundaria)** | 68,7% | 90,9% | 96,0% |
+| Directa + mes parcial (solo evaluación) | 68,7% | 90,9% | 96,0% |
 | Naive (mes anterior) | 62,1% | 85,6% | 90,6% |
 
 - La directa es igual o mejor que la iterada a nivel SKU en los 12 meses de prueba.
@@ -733,38 +728,13 @@ y octubre está en curso; el pronóstico que hace falta es el de noviembre. La a
 | Estado de los datos | Qué se pronostica | Estrategia |
 |---|---|---|
 | El último mes está terminado (los días que faltan hasta fin de mes son domingos) | El mes siguiente | Un mes de anticipación (`h1`) |
-| El último mes está en curso y lleva 10 días o más | El mes que viene después del mes en curso | Directa + días del mes en curso (`parcial`) |
-| El último mes está en curso y lleva menos de 10 días | El mismo | Directa (`directa`), con un aviso |
+| El último mes está en curso | El mes que viene después del mes en curso | Mes en curso completado con la media (`nowcast_media`); con menos de 10 días del mes, con un aviso |
 
 El **día de corte** es el día del último registro de los datos, así que no hace falta pronosticar un día fijo. En Ajustes se puede fijar a mano, pero no puede pasar del último
-registro. Las otras estrategias se eligen en Ajustes o con `--strategy`: `nowcast_media` completa el mes en curso con la media diaria de los días vistos y lo usa como un mes
-observado, e `iterada` pronostica un mes y usa ese pronóstico como dato para el siguiente (no recomendada).
-
-**Cuánto mejora el mes en curso según el día de corte** (`results/curva_corte_parcial.csv`, 12 meses de prueba, 24.407 SKU-mes, estrategia `parcial`; acierto SKU / planta / total):
-
-| Día de corte | SKU | Planta | Total | Meses (de 12) que gana a la directa |
-|---|---|---|---|---|
-| Directa (sin el mes en curso) | 66,1% | 90,0% | 94,1% | |
-| 5 | 66,8% | 89,8% | 93,8% | 10 |
-| 8 | 67,2% | 89,9% | 94,2% | 11 |
-| 10 | 67,8% | 90,5% | 94,8% | 12 |
-| 12 | 68,2% | 90,8% | 95,1% | 12 |
-| 15 | 68,7% | 90,9% | 96,0% | 12 |
-| 18 | 69,2% | 91,0% | 95,9% | 12 |
-| 20 | 69,4% | 91,3% | 96,6% | 12 |
-| 22 | 69,6% | 91,2% | 96,4% | 12 |
-| 25 | 70,2% | 91,8% | 97,5% | 12 |
-| 28 | 70,7% | 92,1% | 97,6% | 12 |
-| Un mes de anticipación (referencia) | 71,0% | 91,8% | 97,5% | |
-
-El acierto sube con el día de corte y no tiene saltos. Desde el día 10 el mes en curso mejora a la directa en SKU, planta y total y en los 12 meses; por eso la estrategia
-automática usa `parcial` desde ahí. Con el corte en el día 25 o 28 el resultado se acerca al de pronosticar con el mes anterior completo.
+registro. `nowcast_media` completa el mes en curso con la media diaria de los días vistos y lo usa como un mes observado. Las otras estrategias se eligen en Ajustes o con `--strategy`: `h1` y `iterada`; `iterada` pronostica un mes y usa ese pronóstico como dato para el siguiente (no recomendada).
 
 **Mes en curso.** Los días que faltan de ese mes se estiman con la media diaria de los días hábiles vistos (la decisión de la sección "Nowcasting del mes en curso"). La pantalla
-Predicción lo muestra como una estimación: el real hasta el corte, el resto estimado y el mes completo estimado. Esa estimación no se mide contra el real. En Ajustes se puede cambiar el método a una **simulación Monte Carlo** (200 escenarios de los días que faltan, con lo aprendido de los 365 días
-anteriores y de los días vistos): en los 12 meses de prueba, sobre los días que faltan, acierta 60,0% por SKU, 85,0% por planta y 90,9% en el total, contra 59,8%, 84,6% y 92,2% de la media; falla menos
-que la media en los meses atípicos (enero y abril de 2026) y más cuando el consumo baja. Solo cambia la estimación que se muestra del mes en curso (y el punto del gráfico): el pronóstico no cambia, y
-la estrategia `nowcast_media` siempre se muestra con la media porque así se hizo su pronóstico. La tarjeta muestra también el total del mes con el otro método.
+Predicción lo muestra como una estimación: el real hasta el corte, el resto estimado y el mes completo estimado. Esa estimación no se mide contra el real. La media es la única forma de estimar el resto del mes en la app, la misma con la que se hizo el pronóstico.
 
 **Cuidados.**
 
@@ -772,12 +742,11 @@ la estrategia `nowcast_media` siempre se muestra con la media porque así se hiz
   mes y los días que faltan salían subestimados; es un error que solo aparece con un mes sin terminar.
 - Un pronóstico que no es de un mes de anticipación se guarda como `forecast_<mes>_<estrategia>.csv`, para no reemplazar al de un mes del mismo mes.
 - Con el mes en curso, el comparativo de Predicción usa el último mes completo como "último real" y lo dice.
-- Los parámetros de Optuna son los ajustados a un mes; solo está respaldado el corte que se probó (la curva de arriba, del día 5 al 28).
+- Los parámetros de Optuna son los ajustados a un mes; la prueba histórica de `nowcast_media` usó el corte del día 15 (ver "Nowcasting del mes en curso").
 - Un pronóstico de mitad de mes ve menos información que uno hecho con el mes anterior completo: el seguimiento los muestra juntos pero no los ordena como si fueran iguales.
 
-**Comprobación con datos reales.** Los pronósticos de `directa`, `parcial` e `iterada` que calcula el código de producción coinciden con los de la prueba histórica
-(`results/horizon_strategies.csv`, diferencia máxima 0,00000 TO), y el seguimiento de septiembre de 2026 hecho desde la app da el mismo acierto por SKU que su prueba histórica
-(`h1` 66,2%, `directa` 63,1%, `parcial` 64,8%). Con el mes de septiembre terminado, el pronóstico de octubre sigue saliendo idéntico al de siempre (53.220 TO).
+**Comprobación con datos reales.** El pronóstico de `iterada` que calcula el código de producción coincide con el de la prueba histórica
+(`results/horizon_strategies.csv`, diferencia máxima 0,00000 TO). Con el mes de septiembre terminado, el pronóstico de octubre sigue saliendo idéntico al de siempre (53.220 TO).
 
 ## Hiperparámetros: cuándo se ajustan
 

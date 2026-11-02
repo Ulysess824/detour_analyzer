@@ -1,5 +1,7 @@
 # Plan: app de escritorio que reemplaza el dashboard
 
+> **Actualización 2026-11-02:** las estrategias `directa` y `parcial` (y el método Monte Carlo del resto del mes en Ajustes, con su gráfico de acierto por día de corte) se retiraron de producción y de la app. Este documento las describe como se construyeron; hoy la app ofrece `h1`, `nowcast_media` (lo que elige la automática con el mes en curso) e `iterada`.
+
 Objetivo: un programa de Windows (`detour.exe`) que usa todo el backend y lo hace manejable por una persona sin conocimientos avanzados. Lo que
 vale es la predicción del modelo; la del planificador es orientativa.
 

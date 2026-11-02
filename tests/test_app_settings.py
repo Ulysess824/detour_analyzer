@@ -20,15 +20,15 @@ def _in_progress(root, last="2025-05-20"):
 
 def test_the_screen_loads_without_data_and_without_a_saved_file(tmp_path):
     body = make_client(tmp_path).get("/api/ajustes").json()
-    assert body["ajustes"] == {"estrategia": "automatica", "corte_manual": None, "metodo_resto": "media"} and body["estado"] is None and body["plan"] is None
-    assert [o["id"] for o in body["opciones"]][0] == "automatica" and body["corte_minimo"] == 10 and len(body["curva_parcial"]) == 10
+    assert body["ajustes"] == {"estrategia": "automatica", "corte_manual": None} and body["estado"] is None and body["plan"] is None
+    assert [o["id"] for o in body["opciones"]][0] == "automatica" and body["corte_minimo"] == 10
 
 
 def test_settings_are_saved_and_come_back(tmp_path):
     client = _in_progress(tmp_path)
     saved = client.put("/api/ajustes", json={"estrategia": "nowcast_media", "corte_manual": 12})
-    assert saved.status_code == 200 and saved.json()["ajustes"] == {"estrategia": "nowcast_media", "corte_manual": 12, "metodo_resto": "media"}
-    assert json.loads((tmp_path / "config" / "ajustes_app.json").read_text()) == {"estrategia": "nowcast_media", "corte_manual": 12, "metodo_resto": "media"}
+    assert saved.status_code == 200 and saved.json()["ajustes"] == {"estrategia": "nowcast_media", "corte_manual": 12}
+    assert json.loads((tmp_path / "config" / "ajustes_app.json").read_text()) == {"estrategia": "nowcast_media", "corte_manual": 12}
     assert make_client(tmp_path).get("/api/ajustes").json()["ajustes"]["estrategia"] == "nowcast_media"  # a new app reads the file
 
 
@@ -44,22 +44,22 @@ def test_a_damaged_settings_file_falls_back_to_the_defaults(tmp_path):
     for text in ("{ not json", '{"estrategia": "otra"}', "[]", '{"estrategia": "h1", "corte_manual": "x"}'):
         (tmp_path / "config").mkdir(exist_ok=True)
         (tmp_path / "config" / "ajustes_app.json").write_text(text)
-        assert settings_service.load(AppPaths(tmp_path)) == {"estrategia": "automatica", "corte_manual": None, "metodo_resto": "media"}
+        assert settings_service.load(AppPaths(tmp_path)) == {"estrategia": "automatica", "corte_manual": None}
 
 
 def test_the_plan_follows_the_state_of_the_data(tmp_path):
     body = _in_progress(tmp_path, "2025-05-20").get("/api/ajustes").json()
     assert body["estado"]["estado"] == "in_progress" and body["estado"]["dia_de_corte"] == 20 and body["estado"]["ultimo_mes_completo"] == "2025-04"
-    assert (body["plan"]["estrategia"], body["plan"]["corte"], body["plan"]["mes_origen"], body["plan"]["mes_pronosticado"]) == ("parcial", 20, "2025-04", "2025-06")
+    assert (body["plan"]["estrategia"], body["plan"]["corte"], body["plan"]["mes_origen"], body["plan"]["mes_pronosticado"]) == ("nowcast_media", 20, "2025-04", "2025-06")
     few = _in_progress(tmp_path, "2025-05-07").get("/api/ajustes").json()
-    assert few["plan"]["estrategia"] == "directa" and few["plan"]["avisos"]
+    assert few["plan"]["estrategia"] == "nowcast_media" and few["plan"]["avisos"]
     done = _in_progress(tmp_path, "2025-06-30").get("/api/ajustes").json()
     assert done["estado"]["estado"] == "complete" and done["plan"]["estrategia"] == "h1" and done["plan"]["mes_pronosticado"] == "2025-07"
 
 
 def test_a_cutoff_after_the_last_record_is_shown_as_an_error_and_blocks_the_forecast(tmp_path):
     client = _in_progress(tmp_path, "2025-05-12")
-    client.put("/api/ajustes", json={"estrategia": "parcial", "corte_manual": 25})
+    client.put("/api/ajustes", json={"estrategia": "nowcast_media", "corte_manual": 25})
     body = client.get("/api/ajustes").json()
     assert body["plan"] is None and "12" in body["error"]
     response = client.post("/api/pronostico/generar", json={})
@@ -80,27 +80,27 @@ def test_the_forecast_follows_the_saved_strategy_and_cutoff(tmp_path):
 def test_forecasts_are_listed_with_the_one_month_forecast_first_in_a_month(tmp_path):
     results = tmp_path / "results"
     results.mkdir()
-    for name in ("forecast_2025-06_parcial.csv", "forecast_2025-06.csv", "forecast_2025-05.csv", "forecast_2025-06_directa.csv", "forecast_bad.csv"):
+    for name in ("forecast_2025-06_nowcast_media.csv", "forecast_2025-06.csv", "forecast_2025-05.csv", "forecast_2025-06_iterada.csv", "forecast_bad.csv"):
         pd.DataFrame({"planta": ["A"], "sku": ["S"], "mes": ["x"], "ml_mean": [1.0]}).to_csv(results / name, index=False)
     listed = [(month, strategy) for month, strategy, _ in AppPaths(tmp_path).forecast_files()]
-    assert listed == [("2025-06", "h1"), ("2025-06", "parcial"), ("2025-06", "directa"), ("2025-05", "h1")]
-    assert AppPaths(tmp_path).forecast_csv("2025-06").name == "forecast_2025-06.csv" and AppPaths(tmp_path).forecast_csv("2025-06", "parcial").name == "forecast_2025-06_parcial.csv"
+    assert listed == [("2025-06", "h1"), ("2025-06", "nowcast_media"), ("2025-06", "iterada"), ("2025-05", "h1")]
+    assert AppPaths(tmp_path).forecast_csv("2025-06").name == "forecast_2025-06.csv" and AppPaths(tmp_path).forecast_csv("2025-06", "nowcast_media").name == "forecast_2025-06_nowcast_media.csv"
 
 
 def test_the_excel_of_a_forecast_with_a_strategy_names_it(tmp_path):
     client = _in_progress(tmp_path, "2025-05-20")
     wait(client, client.post("/api/pronostico/generar", json={}).json()["trabajo"])
     response = client.get("/api/descargas/pronostico")
-    assert response.status_code == 200 and "pronostico_2025-06_parcial.xlsx" in response.headers["content-disposition"]
-    assert client.get("/api/descargas/pronostico", params={"mes": "2025-06", "estrategia": "parcial"}).status_code == 200
-    assert client.get("/api/descargas/pronostico", params={"mes": "2025-06", "estrategia": "directa"}).status_code == 404
+    assert response.status_code == 200 and "pronostico_2025-06_nowcast_media.xlsx" in response.headers["content-disposition"]
+    assert client.get("/api/descargas/pronostico", params={"mes": "2025-06", "estrategia": "nowcast_media"}).status_code == 200
+    assert client.get("/api/descargas/pronostico", params={"mes": "2025-06", "estrategia": "iterada"}).status_code == 404
 
 
 def test_validate_rejects_booleans_and_non_integers_directly():
     for bad in (True, 1.5, "12"):
         with pytest.raises(ValueError, match="entero"):
             settings_service.validate("h1", bad)
-    assert settings_service.validate("h1", 12) == {"estrategia": "h1", "corte_manual": 12, "metodo_resto": "media"}
+    assert settings_service.validate("h1", 12) == {"estrategia": "h1", "corte_manual": 12}
 
 
 def test_every_strategy_of_a_closed_month_is_offered_to_measure_until_it_is_measured(tmp_path):
@@ -109,14 +109,14 @@ def test_every_strategy_of_a_closed_month_is_offered_to_measure_until_it_is_meas
     client = make_client(tmp_path)
     wait(client, client.post("/api/pronostico/generar", json={}).json()["trabajo"])  # h1 for 2025-06
     results = tmp_path / "results"
-    (results / "forecast_2025-06_directa.csv").write_text((results / "forecast_2025-06.csv").read_text())
+    (results / "forecast_2025-06_iterada.csv").write_text((results / "forecast_2025-06.csv").read_text())
     write_data(tmp_path, df)  # June is now in the data: both forecasts of 2025-06 can be measured
     client = make_client(tmp_path)
     rows = {(r["mes"], r["estrategia"]): r["por_medir"] for r in client.get("/api/historial").json()["pronosticos"]}
-    assert rows == {("2025-06", "h1"): True, ("2025-06", "directa"): True}
+    assert rows == {("2025-06", "h1"): True, ("2025-06", "iterada"): True}
     assert client.post("/api/seguimiento/medir", json={"mes": "2025-06"}).status_code == 200  # the one-month forecast
     rows = {(r["mes"], r["estrategia"]): (r["por_medir"], r["medido"] is not None) for r in client.get("/api/historial").json()["pronosticos"]}
-    assert rows == {("2025-06", "h1"): (False, True), ("2025-06", "directa"): (True, False)}  # measuring one does not measure the other
+    assert rows == {("2025-06", "h1"): (False, True), ("2025-06", "iterada"): (True, False)}  # measuring one does not measure the other
 
 
 # ---- what the screens read: the plan in the status and the month in progress block -----------------------------------------------
@@ -126,8 +126,8 @@ def test_the_status_carries_the_plan_and_the_next_forecast_follows_it(tmp_path):
     assert make_client(tmp_path).get("/api/estado").json()["plan"] is None
     client = _in_progress(tmp_path, "2025-05-20")
     status = client.get("/api/estado").json()
-    assert status["proximo_pronostico"] == "2025-06" and status["plan"]["estrategia"] == "parcial" and status["plan"]["corte"] == 20
-    client.put("/api/ajustes", json={"estrategia": "parcial", "corte_manual": 25})
+    assert status["proximo_pronostico"] == "2025-06" and status["plan"]["estrategia"] == "nowcast_media" and status["plan"]["corte"] == 20
+    client.put("/api/ajustes", json={"estrategia": "nowcast_media", "corte_manual": 25})
     broken = client.get("/api/estado").json()
     assert broken["plan"]["estrategia"] is None and "Ajustes" in broken["plan"]["error"] and broken["proximo_pronostico"] is None
 
@@ -156,17 +156,17 @@ def test_the_month_in_progress_block_matches_a_manual_calculation(tmp_path):
 
 
 def test_the_block_follows_the_selection_and_is_absent_for_other_strategies(tmp_path):
-    client = _generated(tmp_path, "parcial", 12)
+    client = _generated(tmp_path, "nowcast_media", 12)
     everything = client.get("/api/pronostico").json()["mes_en_curso"]
     planta = client.get("/api/pronostico", params={"planta": "A"}).json()["mes_en_curso"]
     assert 0 < planta["real_hasta_corte_TO"] < everything["real_hasta_corte_TO"] and planta["dias_vistos"] == everything["dias_vistos"]
-    client.put("/api/ajustes", json={"estrategia": "directa", "corte_manual": None})
+    client.put("/api/ajustes", json={"estrategia": "iterada", "corte_manual": None})
     wait(client, client.post("/api/pronostico/generar", json={}).json()["trabajo"])
-    assert client.get("/api/pronostico", params={"estrategia": "directa"}).json()["mes_en_curso"] is None
+    assert client.get("/api/pronostico", params={"estrategia": "iterada"}).json()["mes_en_curso"] is None
 
 
 def test_the_reference_says_when_the_month_before_the_forecast_is_still_open(tmp_path):
-    reference = _generated(tmp_path, "parcial", 12).get("/api/pronostico").json()["ultimo_real"]
+    reference = _generated(tmp_path, "nowcast_media", 12).get("/api/pronostico").json()["ultimo_real"]
     assert reference["mes"] == "2025-04" and reference["mes_anterior_abierto"] == "2025-05"
     data = make_client(tmp_path)
     write_data(tmp_path, make_consumption())  # May is closed now: the comparison is with the month before the forecast
@@ -176,4 +176,4 @@ def test_the_reference_says_when_the_month_before_the_forecast_is_still_open(tmp
 
 def test_the_data_review_no_longer_says_the_partial_month_blocks_the_forecast():
     from src.app.data_service import ADVICE
-    assert "no se podrá pronosticar" not in ADVICE["mes_parcial"] and "día 10" in ADVICE["mes_parcial"]
+    assert "no se podrá pronosticar" not in ADVICE["mes_parcial"] and "media diaria" in ADVICE["mes_parcial"]

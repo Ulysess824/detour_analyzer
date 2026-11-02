@@ -1,5 +1,7 @@
 # Plan: estrategias a mitad de mes y sección "Ajustes" en la app
 
+> **Actualización 2026-11-02:** las estrategias `directa` y `parcial` (y el método Monte Carlo del resto del mes en Ajustes, con su gráfico de acierto por día de corte) se retiraron de producción y de la app. Este documento las describe como se construyeron; hoy la app ofrece `h1`, `nowcast_media` (lo que elige la automática con el mes en curso) e `iterada`.
+
 Rama `prueba_nowcasting` (desde `main`, commit `13c870a`). Este documento es solo el plan: no cambia código.
 
 ## 1. Objetivo

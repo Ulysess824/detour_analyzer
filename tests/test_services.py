@@ -47,11 +47,11 @@ def _partial(toy_df, tmp_path, last="2025-06-20"):
 def test_a_forecast_run_with_the_month_in_progress_forecasts_the_month_after_it(toy_df, tmp_path):
     run = run_prediction(_partial(toy_df, tmp_path), None, tmp_path / "f.csv")
     assert run.state.in_progress and run.state.cutoff_day == 20
-    assert (run.plan.strategy, run.plan.cutoff_day, run.plan.origin, run.plan.target) == ("parcial", 20, "2025-05", "2025-07")
+    assert (run.plan.strategy, run.plan.cutoff_day, run.plan.origin, run.plan.target) == ("nowcast_media", 20, "2025-05", "2025-07")
     assert run.month == "2025-07" and list(run.result.columns) == ["planta", "sku", "mes", "lgbm", "xgb", "rf", "ml_mean", "naive"]
     record = run.manifest["strategy"]
-    assert (record["requested"], record["used"], record["cutoff_day"], record["target_month"]) == ("automatica", "parcial", 20, "2025-07")
-    assert record["estimated_months"] == [] and record["month_state"]["status"] == "in_progress" and record["month_state"]["last_date"] <= "2025-06-20"
+    assert (record["requested"], record["used"], record["cutoff_day"], record["target_month"]) == ("automatica", "nowcast_media", 20, "2025-07")
+    assert record["estimated_months"] == ["2025-06"] and record["month_state"]["status"] == "in_progress" and record["month_state"]["last_date"] <= "2025-06-20"
 
 
 def test_a_forecast_that_is_not_one_month_ahead_does_not_take_the_name_of_the_one_month_forecast(toy_df, tmp_path, monkeypatch):
@@ -59,7 +59,7 @@ def test_a_forecast_that_is_not_one_month_ahead_does_not_take_the_name_of_the_on
     data = _partial(toy_df, tmp_path)
     monkeypatch.chdir(tmp_path)
     run = run_prediction(data, None, repo_dir=repo)
-    assert run.forecast_path.name == "forecast_2025-07_parcial.csv" and run.forecast_path.exists()
+    assert run.forecast_path.name == "forecast_2025-07_nowcast_media.csv" and run.forecast_path.exists()
     assert run_prediction(data, None, strategy="h1", repo_dir=repo).forecast_path.name == "forecast_2025-06.csv"
 
 
@@ -68,7 +68,7 @@ def test_the_strategy_and_the_cutoff_can_be_chosen(toy_df, tmp_path):
     run = run_prediction(data, None, tmp_path / "n.csv", strategy="nowcast_media", cutoff_day=12)
     assert (run.plan.strategy, run.plan.cutoff_day) == ("nowcast_media", 12) and run.manifest["strategy"]["estimated_months"] == ["2025-06"]
     short = run_prediction(_partial(toy_df, tmp_path, "2025-06-06"), None, tmp_path / "d.csv")
-    assert short.plan.strategy == "directa" and short.plan.notes  # too few days of the month in progress
+    assert short.plan.strategy == "nowcast_media" and short.plan.notes  # too few days of the month in progress
     with pytest.raises(SystemExit, match="between 1 and"):
         run_prediction(data, None, tmp_path / "x.csv", cutoff_day=28)
     with pytest.raises(SystemExit, match="unknown strategy"):
